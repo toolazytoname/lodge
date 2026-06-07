@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+
+<title>Lodge — Your private home base for servers, services, and secrets</title>
+<meta name="description" content="A self-hosted personal console. One HTML file, zero servers, end-to-end encrypted. Manage your servers, service subscriptions, and tokens — privately.">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Lodge — Your private home base">
+<meta property="og:description" content="One HTML file. Zero servers. End-to-end encrypted. Manage servers, services, and secrets — privately.">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Lodge — Your private home base">
+<meta name="twitter:description" content="One HTML file. Zero servers. End-to-end encrypted.">
+
+<!-- Favicon (inline SVG) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23000'/%3E%3Cpath d='M30 65 L50 35 L70 65 L60 65 L50 50 L40 65 Z' fill='%23fff'/%3E%3Crect x='46' y='62' width='8' height='12' fill='%23fff'/%3E%3C/svg%3E">
+
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f5f5f7;
+    --bg-dark: #000000;
+    --text: #1d1d1f;
+    --text-on-dark: #f5f5f7;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #86868b;
+    --text-tertiary-on-dark: #a1a1a6;
+    --border: #d2d2d7;
+    --border-on-dark: #424245;
+    --action: #0071e3;
+    --action-bright: #2997ff;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow: 0 4px 14px rgba(0,0,0,0.08);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,0.12);
+    --shadow-xl: 0 24px 60px rgba(0,0,0,0.18);
+
+    --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter Tight", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace;
+
+    --radius: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+    --radius-capsule: 980px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --bg-alt: #0a0a0c;
+      --text: #f5f5f7;
+      --text-secondary: #a1a1a6;
+      --text-tertiary: #86868b;
+      --border: #424245;
+      --action: #2997ff;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: var(--font-text);
+    font-size: 17px;
+    line-height: 1.47;
+    letter-spacing: -0.374px;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  a { color: var(--action); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--font-mono); font-size: 0.92em; }
+
+  /* ===== Nav ===== */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  @media (prefers-color-scheme: dark) {
+    .nav { background: rgba(0, 0, 0, 0.72); }
+  }
+  .nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    height: 52px; padding: 0 24px;
+    display: flex; align-items: center; gap: 32px;
+  }
+  .nav-brand {
+    font-family: var(--font-display); font-weight: 600; font-size: 19px;
+    letter-spacing: 0.228px; color: var(--text);
+    text-decoration: none;
+  }
+  .nav-links {
+    display: flex; align-items: center; gap: 28px;
+    margin-left: auto;
+  }
+  .nav-links a {
+    color: var(--text); font-size: 14px; font-weight: 400;
+    text-decoration: none; opacity: 0.85;
+  }
+  .nav-links a:hover { opacity: 1; text-decoration: none; }
+  .nav-cta {
+    background: var(--text); color: var(--bg) !important;
+    padding: 6px 14px; border-radius: var(--radius-capsule);
+    font-size: 14px; font-weight: 500;
+    transition: opacity 0.15s;
+  }
+  .nav-cta:hover { opacity: 0.85; text-decoration: none; }
+  @media (max-width: 640px) {
+    .nav-links { gap: 16px; }
+    .nav-links a:not(.nav-cta) { display: none; }
+  }
+
+  /* ===== Hero ===== */
+  .hero {
+    min-height: 100svh;
+    background: var(--bg-dark);
+    color: var(--text-on-dark);
+    display: flex; align-items: center; justify-content: center;
+    padding: 120px 24px 80px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 1400px; height: 1400px; max-width: 100vw;
+    background: radial-gradient(ellipse at center top, rgba(41,151,255,0.12) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .hero-inner {
+    max-width: 980px; width: 100%; text-align: center;
+    position: relative; z-index: 1;
+  }
+  .hero-badge {
+    display: inline-block;
+    padding: 6px 14px; border-radius: var(--radius-capsule);
+    border: 1px solid var(--border-on-dark);
+    color: var(--text-tertiary-on-dark);
+    font-size: 12px; font-weight: 500;
+    letter-spacing: 0.6px; text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(56px, 12vw, 128px);
+    font-weight: 600;
+    line-height: 0.95;
+    letter-spacing: -0.045em;
+    margin-bottom: 24px;
+    background: linear-gradient(180deg, #ffffff 0%, #a1a1a6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero-subtitle {
+    font-size: clamp(19px, 2.2vw, 24px);
+    line-height: 1.4;
+    color: var(--text-tertiary-on-dark);
+    max-width: 720px; margin: 0 auto 48px;
+    letter-spacing: -0.2px;
+  }
+  .hero-cta {
+    display: inline-flex; gap: 16px; flex-wrap: wrap;
+    justify-content: center; margin-bottom: 64px;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 12px 22px; border-radius: var(--radius-capsule);
+    font-size: 15px; font-weight: 500;
+    line-height: 1.29; letter-spacing: -0.224px;
+    text-decoration: none;
+    transition: transform 0.12s, background 0.15s, opacity 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--action); color: #fff !important;
+  }
+  .btn-primary:hover { background: var(--action-bright); text-decoration: none; }
+  .btn-outline {
+    background: transparent; color: var(--text-on-dark) !important;
+    border: 1px solid var(--border-on-dark);
+  }
+  .btn-outline:hover { background: rgba(255,255,255,0.05); text-decoration: none; }
+  .btn-dark {
+    background: var(--text); color: var(--bg) !important;
+  }
+  .btn-dark:hover { opacity: 0.9; text-decoration: none; }
+
+  /* Hero terminal */
+  .hero-terminal {
+    max-width: 640px; margin: 0 auto;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-on-dark);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    text-align: left;
+    font-family: var(--font-mono); font-size: 13px;
+    color: var(--text-tertiary-on-dark);
+    line-height: 1.7;
+    backdrop-filter: blur(10px);
+  }
+  .hero-terminal .prompt { color: var(--action-bright); }
+  .hero-terminal .cmd { color: var(--text-on-dark); }
+  .hero-terminal .cursor {
+    display: inline-block; width: 7px; height: 14px;
+    background: var(--action-bright);
+    vertical-align: text-bottom;
+    margin-left: 2px;
+    animation: blink 1.2s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ===== Trust strip ===== */
+  .strip {
+    background: var(--bg-alt);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 24px;
+  }
+  .strip-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 16px 24px;
+    font-size: 14px; color: var(--text-secondary);
+  }
+  .strip-item { display: flex; align-items: center; gap: 8px; }
+  .strip-item::before {
+    content: ''; width: 6px; height: 6px;
+    background: var(--action); border-radius: 50%;
+  }
+
+  /* ===== Sections ===== */
+  section { padding: 120px 24px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(40px, 6vw, 64px);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .section-subtitle {
+    font-size: clamp(17px, 2vw, 21px);
+    line-height: 1.45;
+    color: var(--text-secondary);
+    text-align: center;
+    max-width: 720px; margin: 0 auto 64px;
+  }
+
+  /* ===== Features ===== */
+  .features { background: var(--bg); }
+  .feature-grid {
+    display: grid; gap: 20px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) { .feature-grid { grid-template-columns: repeat(3, 1fr); } }
+  .feature-card {
+    background: var(--bg-alt);
+    border-radius: var(--radius-lg);
+    padding: 40px 32px;
+    text-align: left;
+    border: 1px solid var(--border);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+  }
+  .feature-icon {
+    width: 56px; height: 56px;
+    background: var(--text); color: var(--bg);
+    border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-bottom: 24px;
+  }
+  .feature-title {
+    font-family: var(--font-display); font-weight: 600;
+    font-size: 24px; letter-spacing: -0.2px;
+    margin-bottom: 8px;
+  }
+  .feature-desc {
+    font-size: 15px; line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  /* ===== Preview ===== */
+  .preview { background: var(--bg-alt); }
+  .preview-frame {
+    max-width: 1080px; margin: 0 auto;
+    background: var(--bg);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+  }
+  .preview-chrome {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 18px;
+    background: var(--bg-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--border);
+  }
+  .preview-url {
+    flex: 1; margin-left: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .preview-body {
+    padding: 32px;
+    display: grid; gap: 16px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) {
+    .preview-body { grid-template-columns: 1.4fr 1fr 1fr; }
+  }
+  .preview-block { display: flex; flex-direction: column; gap: 12px; }
+  .preview-block-title {
+    font-size: 13px; font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .mini-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    font-size: 13px;
+  }
+  .mini-card-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .mini-card-meta { color: var(--text-tertiary); font-size: 12px; font-family: var(--font-mono); margin-bottom: 12px; }
+  .mini-card-actions { display: flex; gap: 6px; }
+  .mini-btn {
+    padding: 4px 12px; border-radius: var(--radius-capsule);
+    font-size: 11px; font-weight: 500;
+  }
+  .mini-btn-primary { background: var(--action); color: #fff; }
+  .mini-btn-secondary { background: var(--bg-alt); color: var(--text); }
+  .mini-tile {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .mini-tile-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--text); color: var(--bg);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 13px;
+  }
+  .mini-tile-info { flex: 1; min-width: 0; }
+  .mini-tile-name { font-weight: 600; font-size: 13px; }
+  .mini-tile-url { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); }
+  .mini-vault {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+  .mini-vault-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--bg-alt); display: inline-flex;
+    align-items: center; justify-content: center;
+  }
+  .mini-vault-info { flex: 1; min-width: 0; }
+  .mini-vault-title { font-weight: 600; font-size: 13px; }
+  .mini-vault-mask { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); letter-spacing: 1px; }
+
+  /* ===== Security (dark) ===== */
+  .security { background: var(--bg-dark); color: var(--text-on-dark); }
+  .security .section-title {
+    background: linear-gradient(180deg, #ffffff 0%, #a1a1a6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .security .section-subtitle { color: var(--text-tertiary-on-dark); }
+  .security-grid {
+    display: grid; gap: 1px;
+    background: var(--border-on-dark);
+    border: 1px solid var(--border-on-dark);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) { .security-grid { grid-template-columns: repeat(2, 1fr); } }
+  .security-item {
+    background: var(--bg-dark);
+    padding: 48px 40px;
+  }
+  .security-key {
+    font-family: var(--font-display);
+    font-size: 32px; font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text-on-dark);
+    margin-bottom: 12px;
+  }
+  .security-desc {
+    font-size: 15px; line-height: 1.5;
+    color: var(--text-tertiary-on-dark);
+  }
+
+  /* ===== How it works ===== */
+  .how { background: var(--bg); }
+  .how-steps {
+    display: grid; gap: 24px;
+    grid-template-columns: 1fr;
+    max-width: 980px; margin: 0 auto;
+  }
+  @media (min-width: 768px) { .how-steps { grid-template-columns: repeat(3, 1fr); } }
+  .how-step {
+    text-align: left;
+    padding: 32px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+  }
+  .how-num {
+    display: inline-block;
+    width: 32px; height: 32px; line-height: 32px; text-align: center;
+    background: var(--text); color: var(--bg);
+    border-radius: 50%;
+    font-family: var(--font-display); font-weight: 600; font-size: 15px;
+    margin-bottom: 16px;
+  }
+  .how-step-title {
+    font-family: var(--font-display); font-weight: 600;
+    font-size: 19px; letter-spacing: -0.2px;
+    margin-bottom: 8px;
+  }
+  .how-step-desc {
+    font-size: 14px; line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  /* ===== Get Started (dark) ===== */
+  .start { background: var(--bg-dark); color: var(--text-on-dark); padding: 140px 24px; }
+  .start .section-title {
+    background: linear-gradient(180deg, #ffffff 0%, #a1a1a6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .start .section-subtitle { color: var(--text-tertiary-on-dark); }
+  .code-wrap {
+    max-width: 720px; margin: 0 auto 32px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-on-dark);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .code-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border-on-dark);
+    font-size: 12px; color: var(--text-tertiary-on-dark);
+    letter-spacing: 0.4px; text-transform: uppercase;
+  }
+  .code-body {
+    padding: 24px;
+    font-family: var(--font-mono); font-size: 14px; line-height: 1.7;
+    color: var(--text-on-dark);
+    overflow-x: auto;
+  }
+  .code-body .c-comment { color: var(--text-tertiary-on-dark); }
+  .code-body .c-cmd { color: var(--text-on-dark); }
+  .code-copy {
+    color: var(--text-tertiary-on-dark);
+    font-size: 11px; font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border-on-dark);
+    padding: 4px 10px; border-radius: var(--radius-capsule);
+    text-transform: none; letter-spacing: 0;
+  }
+  .code-copy:hover { color: var(--text-on-dark); }
+  .start-actions { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .start-note {
+    text-align: center;
+    color: var(--text-tertiary-on-dark);
+    font-size: 14px;
+    margin-top: 24px;
+  }
+
+  /* ===== Footer ===== */
+  footer {
+    background: var(--bg-alt);
+    padding: 40px 24px;
+    border-top: 1px solid var(--border);
+  }
+  .footer-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 16px;
+    color: var(--text-secondary); font-size: 13px;
+  }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { color: var(--text-secondary); text-decoration: none; }
+  .footer-links a:hover { color: var(--text); text-decoration: none; }
+
+  /* ===== Reveal animation ===== */
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 640px) {
+    section { padding: 80px 20px; }
+    .hero { padding: 100px 20px 60px; }
+    .hero-cta .btn { width: 100%; justify-content: center; }
+    .preview-body { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Nav ===== -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">Lodge</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a href="#start">Get Started</a>
+      <a href="https://github.com/lazy/lodge" class="nav-cta" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== Hero ===== -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge reveal">v1.0 · Open Source · MIT</div>
+    <h1 class="hero-title reveal">Lodge.</h1>
+    <p class="hero-subtitle reveal">
+      Your private home base for servers, services, and secrets.<br>
+      One HTML file. Zero servers. End-to-end encrypted.
+    </p>
+    <div class="hero-cta reveal">
+      <a href="#start" class="btn btn-primary">Get Started →</a>
+      <a href="https://github.com/lazy/lodge" class="btn btn-outline" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+    <div class="hero-terminal reveal">
+      <div><span class="prompt">$</span> <span class="cmd">git clone https://github.com/lazy/lodge.git</span></div>
+      <div><span class="prompt">$</span> <span class="cmd">cd lodge && python3 -m http.server 9001</span></div>
+      <div><span class="prompt">$</span> <span class="cmd">open http://localhost:9001<span class="cursor"></span></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Trust strip ===== -->
+<div class="strip">
+  <div class="strip-inner">
+    <div class="strip-item">Zero network requests</div>
+    <div class="strip-item">Single 90KB file</div>
+    <div class="strip-item">AES-GCM 256 encrypted</div>
+    <div class="strip-item">Works on every device</div>
+    <div class="strip-item">No account, no telemetry</div>
+  </div>
+</div>
+
+<!-- ===== Features ===== -->
+<section class="features" id="features">
+  <div class="container">
+    <h2 class="section-title reveal">Three things. One file.</h2>
+    <p class="section-subtitle reveal">
+      Lodge brings together the three things every maker accumulates — machines, services, and tokens —
+      into a single private workspace.
+    </p>
+    <div class="feature-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        </div>
+        <h3 class="feature-title">Server Inventory</h3>
+        <p class="feature-desc">
+          Every machine, one list. Aliases, tags, SSH credentials at a glance. One click launches
+          your terminal with the right connection.
+        </p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <h3 class="feature-title">Service Catalog</h3>
+        <p class="feature-desc">
+          Every endpoint, one tap. Group web apps, media servers, admin panels by host. Search
+          across hundreds in milliseconds.
+        </p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3 class="feature-title">Encrypted Vault</h3>
+        <p class="feature-desc">
+          Every secret, one password. Tokens, notes, API keys — all AES-GCM 256 encrypted
+          in your browser. Zero-knowledge by design.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Preview ===== -->
+<section class="preview">
+  <div class="container">
+    <h2 class="section-title reveal">A workspace that just feels right.</h2>
+    <p class="section-subtitle reveal">
+      Designed for clarity. Built for speed. No clutter, no learning curve.
+    </p>
+    <div class="preview-frame reveal">
+      <div class="preview-chrome">
+        <span class="preview-dot"></span>
+        <span class="preview-dot"></span>
+        <span class="preview-dot"></span>
+        <div class="preview-url">http://localhost:9001/dashboard.html</div>
+      </div>
+      <div class="preview-body">
+        <!-- Servers column -->
+        <div class="preview-block">
+          <div class="preview-block-title">Servers · 3</div>
+          <div class="mini-card">
+            <div class="mini-card-title">家庭 NAS</div>
+            <div class="mini-card-meta">root@192.168.1.10</div>
+            <div class="mini-card-actions">
+              <span class="mini-btn mini-btn-primary">SSH</span>
+              <span class="mini-btn mini-btn-secondary">复制</span>
+            </div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-card-title">博客服务器</div>
+            <div class="mini-card-meta">deploy@blog.example.com</div>
+            <div class="mini-card-actions">
+              <span class="mini-btn mini-btn-primary">SSH</span>
+              <span class="mini-btn mini-btn-secondary">复制</span>
+            </div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-card-title">开发机</div>
+            <div class="mini-card-meta">coder@192.168.1.20:2222</div>
+            <div class="mini-card-actions">
+              <span class="mini-btn mini-btn-primary">SSH</span>
+              <span class="mini-btn mini-btn-secondary">复制</span>
+            </div>
+          </div>
+        </div>
+        <!-- Services column -->
+        <div class="preview-block">
+          <div class="preview-block-title">Services</div>
+          <div class="mini-tile">
+            <div class="mini-tile-icon">J</div>
+            <div class="mini-tile-info">
+              <div class="mini-tile-name">Jellyfin</div>
+              <div class="mini-tile-url">192.168.1.10:8096</div>
+            </div>
+          </div>
+          <div class="mini-tile">
+            <div class="mini-tile-icon">N</div>
+            <div class="mini-tile-info">
+              <div class="mini-tile-name">Nextcloud</div>
+              <div class="mini-tile-url">192.168.1.10:8080</div>
+            </div>
+          </div>
+          <div class="mini-tile">
+            <div class="mini-tile-icon">B</div>
+            <div class="mini-tile-info">
+              <div class="mini-tile-name">主博客</div>
+              <div class="mini-tile-url">blog.example.com</div>
+            </div>
+          </div>
+        </div>
+        <!-- Vault column -->
+        <div class="preview-block">
+          <div class="preview-block-title">Vault · Encrypted</div>
+          <div class="mini-vault">
+            <div class="mini-vault-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary);"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            </div>
+            <div class="mini-vault-info">
+              <div class="mini-vault-title">GitHub PAT</div>
+              <div class="mini-vault-mask">••••••••••••</div>
+            </div>
+          </div>
+          <div class="mini-vault">
+            <div class="mini-vault-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary);"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="mini-vault-info">
+              <div class="mini-vault-title">Cloudflare API</div>
+              <div class="mini-vault-mask">••••••••••••</div>
+            </div>
+          </div>
+          <div class="mini-vault">
+            <div class="mini-vault-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="mini-vault-info">
+              <div class="mini-vault-title">订阅笔记</div>
+              <div class="mini-vault-mask">••••••••••••</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Security (dark) ===== -->
+<section class="security" id="security">
+  <div class="container">
+    <h2 class="section-title reveal">Zero-knowledge by design.</h2>
+    <p class="section-subtitle reveal">
+      Your master password never leaves your browser. Not by network, not by telemetry, not by accident.
+    </p>
+    <div class="security-grid reveal">
+      <div class="security-item">
+        <div class="security-key">AES-GCM 256</div>
+        <p class="security-desc">Military-grade authenticated encryption. Every vault item gets its own IV, so identical values produce different ciphertexts.</p>
+      </div>
+      <div class="security-item">
+        <div class="security-key">PBKDF2 · 600k</div>
+        <p class="security-desc">OWASP 2023-recommended key derivation iterations with SHA-256. Slow on purpose — fast for you, brutal for attackers.</p>
+      </div>
+      <div class="security-item">
+        <div class="security-key">No servers</div>
+        <p class="security-desc">Lodge runs entirely in your browser. There's no backend to hack, no database to leak, no API to rate-limit.</p>
+      </div>
+      <div class="security-item">
+        <div class="security-key">No telemetry</div>
+        <p class="security-desc">Zero network requests. Open DevTools, watch the Network tab — every page load is silent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== How it works ===== -->
+<section class="how">
+  <div class="container">
+    <h2 class="section-title reveal">Three steps to private.</h2>
+    <p class="section-subtitle reveal">
+      Drop two files. Set one password. Done.
+    </p>
+    <div class="how-steps">
+      <div class="how-step reveal">
+        <div class="how-num">1</div>
+        <h3 class="how-step-title">Drop the files</h3>
+        <p class="how-step-desc">
+          Place <code>dashboard.html</code> and <code>config.json</code> anywhere you can serve static files — local folder, NAS, VPS.
+        </p>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">2</div>
+        <h3 class="how-step-title">Set a master password</h3>
+        <p class="how-step-desc">
+          First time you open it, you create a master password. This derives your encryption key — it's never stored, never sent anywhere.
+        </p>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">3</div>
+        <h3 class="how-step-title">Access anywhere</h3>
+        <p class="how-step-desc">
+          Sync the two files via iCloud, Dropbox, or your own server. Open on any device. Your vault follows you, encrypted end-to-end.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Get Started (dark) ===== -->
+<section class="start" id="start">
+  <div class="container">
+    <h2 class="section-title reveal">Up and running in 60 seconds.</h2>
+    <p class="section-subtitle reveal">
+      Clone, serve, open. No build step, no dependencies, no install.
+    </p>
+    <div class="code-wrap reveal">
+      <div class="code-head">
+        <span>Terminal</span>
+        <button class="code-copy" data-copy="git clone https://github.com/lazy/lodge.git && cd lodge && python3 -m http.server 9001">Copy</button>
+      </div>
+      <pre class="code-body"><span class="c-comment"># Clone the repo</span>
+<span class="c-cmd">git clone https://github.com/lazy/lodge.git</span>
+<span class="c-cmd">cd lodge</span>
+
+<span class="c-comment"># Serve (Python 3 built-in)</span>
+<span class="c-cmd">python3 -m http.server 9001</span>
+
+<span class="c-comment"># Or with Node</span>
+<span class="c-cmd">npx serve -l 9001</span>
+
+<span class="c-comment"># Then open</span>
+<span class="c-cmd">open http://localhost:9001/dashboard.html</span></pre>
+    </div>
+    <div class="start-actions reveal">
+      <a href="/dashboard.html" class="btn btn-primary">Try the demo →</a>
+      <a href="https://github.com/lazy/lodge" class="btn btn-outline" target="_blank" rel="noopener">View source on GitHub</a>
+    </div>
+    <p class="start-note reveal">
+      For cross-device access, expose via <a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/" style="color: var(--action-bright);">Cloudflare Tunnel</a> or <a href="https://tailscale.com/kb/1223/funnel/" style="color: var(--action-bright);">Tailscale Funnel</a> for free HTTPS.
+    </p>
+  </div>
+</section>
+
+<!-- ===== Footer ===== -->
+<footer>
+  <div class="footer-inner">
+    <div>© Lodge · MIT License</div>
+    <div class="footer-links">
+      <a href="https://github.com/lazy/lodge" target="_blank" rel="noopener">GitHub</a>
+      <a href="/dashboard.html">App</a>
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Smooth reveal on scroll
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+  // Code copy
+  document.querySelectorAll('.code-copy').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.copy;
+      if (!t) return;
+      navigator.clipboard.writeText(t).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      });
+    });
+  });
+</script>
+
+</body>
+</html>

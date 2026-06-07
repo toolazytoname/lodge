@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Editors
+.vscode/
+.idea/
+*.iml
+
+# Node (if user uses npx serve)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+
+# Real user data — NEVER commit
+config.real.json
+config.local.json
+config.backup*.json
+*.bak
+my-config.json
+private-config.json
+
+# Local server logs
+server.log
+*.log
+
+# Temporary downloads (config-TIMESTAMP.json)
+# These are intentionally allowed to be committed
+# since they're harmless demo data with empty vault.

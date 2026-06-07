@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "meta": {
+    "created": "2024-01-01T00:00:00.000Z",
+    "lastModified": "2024-01-01T00:00:00.000Z"
+  },
+  "servers": [
+    {
+      "id": "home-nas",
+      "alias": "家庭 NAS",
+      "host": "192.168.1.10",
+      "sshPort": 22,
+      "sshUser": "root",
+      "tags": ["家庭", "存储"],
+      "notes": "群晖 7.x，系统盘 SSD 500G，存储池 4 块 4T"
+    },
+    {
+      "id": "blog-server",
+      "alias": "博客服务器",
+      "host": "blog.example.com",
+      "sshPort": 22,
+      "sshUser": "deploy",
+      "tags": ["生产", "Web"],
+      "notes": "东京 VPS，部署了两个站点 + 反向代理"
+    },
+    {
+      "id": "dev-box",
+      "alias": "开发机",
+      "host": "192.168.1.20",
+      "sshPort": 2222,
+      "sshUser": "coder",
+      "tags": ["家庭", "开发"],
+      "notes": "NUC i7，跑 Docker 做本地开发"
+    }
+  ],
+  "services": [
+    {
+      "id": "jellyfin",
+      "name": "Jellyfin",
+      "url": "http://192.168.1.10:8096",
+      "type": "media",
+      "icon": "J",
+      "serverId": "home-nas",
+      "description": "家庭影音库"
+    },
+    {
+      "id": "synology-dsm",
+      "name": "DSM",
+      "url": "http://192.168.1.10:5000",
+      "type": "admin",
+      "icon": "S",
+      "serverId": "home-nas",
+      "description": "群晖管理后台"
+    },
+    {
+      "id": "nextcloud",
+      "name": "Nextcloud",
+      "url": "http://192.168.1.10:8080",
+      "type": "file",
+      "icon": "N",
+      "serverId": "home-nas",
+      "description": "私人云盘"
+    },
+    {
+      "id": "blog-main",
+      "name": "主博客",
+      "url": "https://blog.example.com",
+      "type": "web",
+      "icon": "B",
+      "serverId": "blog-server",
+      "description": "Hugo 静态站"
+    },
+    {
+      "id": "blog-cdn",
+      "name": "图床",
+      "url": "https://img.example.com",
+      "type": "web",
+      "icon": "I",
+      "serverId": "blog-server",
+      "description": "Cloudflare R2 + 反代"
+    },
+    {
+      "id": "nginx-pm",
+      "name": "Nginx Proxy Manager",
+      "url": "http://192.168.1.20:81",
+      "type": "admin",
+      "icon": "N",
+      "serverId": "dev-box",
+      "description": "反向代理管理"
+    },
+    {
+      "id": "portainer",
+      "name": "Portainer",
+      "url": "http://192.168.1.20:9000",
+      "type": "admin",
+      "icon": "P",
+      "serverId": "dev-box",
+      "description": "Docker 可视化"
+    }
+  ],
+  "vault": {
+    "kdf": "PBKDF2-SHA256",
+    "iterations": 600000,
+    "salt": "mysJGGTiwi0gnfDkZyCh4g==",
+    "verifier": "",
+    "items": []
+  },
+  "settings": {
+    "autoLockMinutes": 5,
+    "theme": "auto",
+    "clearClipboardSeconds": 30
+  }
+}

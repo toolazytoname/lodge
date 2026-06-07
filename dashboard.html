@@ -1,0 +1,2135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>Lodge</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --surface-2: #f5f5f7;
+    --surface-3: #fafafc;
+    --text: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #86868b;
+    --border: #d2d2d7;
+    --border-strong: #86868b;
+    --action: #0071e3;
+    --action-hover: #0077ed;
+    --link: #0066cc;
+    --danger: #d70015;
+    --success: #008009;
+    --warning: #bf5600;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow: 0 4px 14px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+    --shadow-xl: 0 16px 40px rgba(0,0,0,0.16);
+
+    --nav-bg: rgba(245, 245, 247, 0.72);
+    --backdrop: blur(20px) saturate(180%);
+
+    --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter Tight", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace;
+
+    --radius-sm: 5px;
+    --radius: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 28px;
+    --radius-capsule: 980px;
+    --radius-circle: 50%;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --surface: #1d1d1f;
+      --surface-2: #2a2a2c;
+      --surface-3: #262629;
+      --text: #f5f5f7;
+      --text-secondary: #a1a1a6;
+      --text-tertiary: #86868b;
+      --border: #424245;
+      --border-strong: #6e6e73;
+      --action: #2997ff;
+      --action-hover: #4eb0ff;
+      --link: #2997ff;
+      --danger: #ff453a;
+      --success: #30d158;
+
+      --nav-bg: rgba(0, 0, 0, 0.72);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+      --shadow: 0 4px 14px rgba(0,0,0,0.3);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+      --shadow-xl: 0 16px 40px rgba(0,0,0,0.5);
+    }
+  }
+
+  [data-theme="light"] {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --surface-2: #f5f5f7;
+    --surface-3: #fafafc;
+    --text: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #86868b;
+    --border: #d2d2d7;
+    --border-strong: #86868b;
+    --action: #0071e3;
+    --action-hover: #0077ed;
+    --link: #0066cc;
+    --nav-bg: rgba(245, 245, 247, 0.72);
+  }
+  [data-theme="dark"] {
+    --bg: #000000;
+    --surface: #1d1d1f;
+    --surface-2: #2a2a2c;
+    --surface-3: #262629;
+    --text: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --text-tertiary: #86868b;
+    --border: #424245;
+    --border-strong: #6e6e73;
+    --action: #2997ff;
+    --action-hover: #4eb0ff;
+    --link: #2997ff;
+    --nav-bg: rgba(0, 0, 0, 0.72);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: var(--font-text);
+    font-size: 17px;
+    line-height: 1.47;
+    letter-spacing: -0.374px;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100svh;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .hidden { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* ===== Loading screen ===== */
+  .loading-screen {
+    min-height: 100svh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 20px;
+    background: var(--bg);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--action);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Auth screens (Setup / Unlock) ===== */
+  .auth-screen {
+    min-height: 100svh; display: flex; align-items: center; justify-content: center;
+    padding: 24px; background: var(--bg);
+  }
+  .auth-card {
+    width: 100%; max-width: 420px; background: var(--surface);
+    border-radius: var(--radius-lg); padding: 40px 32px;
+    box-shadow: var(--shadow-lg);
+  }
+  .auth-icon {
+    width: 56px; height: 56px; border-radius: var(--radius-md);
+    background: var(--surface-2); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 24px; color: var(--text);
+  }
+  .auth-title {
+    font-family: var(--font-display); font-size: 28px; font-weight: 600;
+    line-height: 1.14; letter-spacing: 0.196px; margin-bottom: 8px;
+  }
+  .auth-subtitle {
+    font-size: 15px; line-height: 1.5; color: var(--text-secondary);
+    margin-bottom: 28px;
+  }
+  .auth-form { display: flex; flex-direction: column; gap: 16px; }
+  .auth-error {
+    background: rgba(215,0,21,0.08); color: var(--danger);
+    font-size: 14px; padding: 10px 14px; border-radius: var(--radius);
+    display: none;
+  }
+  .auth-error.show { display: block; }
+
+  /* ===== Form fields ===== */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field-label {
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+    letter-spacing: 0.12px;
+  }
+  .field-input, .field-textarea, .field-select {
+    width: 100%; padding: 12px 14px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    font-size: 15px; line-height: 1.4;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .field-input:focus, .field-textarea:focus, .field-select:focus {
+    outline: none; border-color: var(--action);
+    box-shadow: 0 0 0 3px rgba(0,113,227,0.18);
+  }
+  .field-textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+
+  /* Diagnostics panel */
+  .diag-row { display: flex; align-items: center; gap: 12px; }
+  .diag-row span { color: var(--text-tertiary); min-width: 110px; font-family: var(--font-text); font-size: 12px; }
+  .diag-row code { color: var(--text); font-size: 12px; word-break: break-all; }
+  .field-hint { font-size: 12px; color: var(--text-tertiary); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ===== Buttons ===== */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 16px; border-radius: var(--radius);
+    font-size: 14px; font-weight: 500; line-height: 1.29;
+    letter-spacing: -0.224px; cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, transform 0.08s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-primary {
+    background: var(--action); color: #ffffff;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--action-hover); }
+
+  .btn-dark {
+    background: var(--text); color: var(--bg);
+  }
+
+  .btn-secondary {
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+
+  .btn-ghost {
+    background: transparent; color: var(--link);
+    padding: 6px 10px;
+  }
+  .btn-ghost:hover { background: var(--surface-2); }
+
+  .btn-danger {
+    background: transparent; color: var(--danger);
+    border: 1px solid var(--border);
+  }
+  .btn-danger:hover:not(:disabled) { background: rgba(215,0,21,0.06); border-color: var(--danger); }
+
+  .btn-capsule {
+    border-radius: var(--radius-capsule);
+    padding: 10px 22px;
+  }
+
+  .btn-block { width: 100%; }
+  .btn-lg { padding: 12px 22px; font-size: 15px; }
+
+  /* ===== Top nav ===== */
+  .topnav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--nav-bg);
+    -webkit-backdrop-filter: var(--backdrop);
+    backdrop-filter: var(--backdrop);
+    border-bottom: 1px solid var(--border);
+  }
+  .topnav-inner {
+    max-width: 1200px; margin: 0 auto;
+    height: 52px; padding: 0 24px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .brand {
+    font-family: var(--font-display); font-size: 19px; font-weight: 600;
+    letter-spacing: 0.228px; color: var(--text);
+    flex-shrink: 0;
+  }
+  .tabs {
+    display: flex; align-items: center; gap: 2px;
+    background: var(--surface-2);
+    border-radius: var(--radius-md);
+    padding: 3px;
+  }
+  .tab {
+    padding: 6px 14px; border-radius: 9px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-secondary);
+    transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    background: var(--surface); color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+  .topnav-spacer { flex: 1; }
+  .topnav-actions { display: flex; align-items: center; gap: 6px; }
+
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: var(--radius-circle);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    transition: background 0.12s, color 0.12s;
+  }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+
+  /* ===== Main layout ===== */
+  .main { max-width: 1200px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  .tab-panel-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 32px; gap: 16px; flex-wrap: wrap;
+  }
+  .tab-title {
+    font-family: var(--font-display); font-size: 40px; font-weight: 600;
+    line-height: 1.10; letter-spacing: -0.144px;
+  }
+  .tab-subtitle {
+    font-size: 17px; color: var(--text-secondary);
+    margin-top: 6px;
+  }
+  .tab-actions { display: flex; gap: 8px; }
+
+  /* ===== Cards grid ===== */
+  .card-grid {
+    display: grid; gap: 20px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) { .card-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1024px) { .card-grid { grid-template-columns: repeat(3, 1fr); } }
+
+  .card {
+    background: var(--surface); border-radius: var(--radius-lg);
+    padding: 24px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 16px;
+    transition: transform 0.18s, box-shadow 0.18s;
+    position: relative;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .card-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.18; letter-spacing: 0.196px; }
+  .card-subtitle { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+
+  .card-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: var(--surface-2); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 20px; font-weight: 600;
+    flex-shrink: 0;
+  }
+  .card-icon.dark { background: var(--text); color: var(--bg); }
+
+  .card-body { display: flex; flex-direction: column; gap: 8px; font-size: 15px; color: var(--text-secondary); }
+  .card-row { display: flex; align-items: center; gap: 8px; }
+  .card-row .label { color: var(--text-tertiary); font-size: 12px; min-width: 56px; }
+  .card-row .value { color: var(--text); font-family: var(--font-mono); font-size: 13px; word-break: break-all; }
+  .card-notes { font-size: 13px; color: var(--text-tertiary); line-height: 1.5; }
+
+  .card-footer { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
+  .card-footer .btn { flex: 0 0 auto; }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    display: inline-block; padding: 3px 10px; border-radius: var(--radius-capsule);
+    background: var(--surface-2); color: var(--text-secondary);
+    font-size: 12px; line-height: 1.5; font-weight: 500;
+  }
+
+  /* ===== Service cards ===== */
+  .service-grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 640px) { .service-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1024px) { .service-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .service-card {
+    background: var(--surface); border-radius: var(--radius-md);
+    padding: 18px; box-shadow: var(--shadow-sm);
+    display: flex; flex-direction: column; gap: 10px;
+    cursor: pointer; text-decoration: none; color: inherit;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    min-height: 110px;
+  }
+  .service-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .service-card:active { transform: translateY(0); background: var(--surface-2); }
+  .service-card-head { display: flex; align-items: center; gap: 10px; }
+  .service-card-icon {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: var(--text); color: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 600; font-size: 16px;
+    flex-shrink: 0;
+  }
+  .service-card-name { font-size: 15px; font-weight: 600; color: var(--text); }
+  .service-card-url { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); word-break: break-all; }
+  .service-card-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+
+  /* ===== Vault items ===== */
+  .vault-list { display: flex; flex-direction: column; gap: 10px; }
+  .vault-row {
+    background: var(--surface); border-radius: var(--radius-md);
+    padding: 16px 18px; box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .vault-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: var(--surface-2); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .vault-info { flex: 1; min-width: 0; }
+  .vault-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .vault-meta { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+  .vault-value {
+    font-family: var(--font-mono); font-size: 13px;
+    color: var(--text-secondary); padding: 4px 10px;
+    background: var(--surface-2); border-radius: var(--radius-sm);
+    max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .vault-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+  .vault-locked-banner {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 48px 24px;
+    text-align: center;
+  }
+  .vault-locked-banner h3 { font-family: var(--font-display); font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+  .vault-locked-banner p { color: var(--text-secondary); margin-bottom: 20px; }
+
+  /* ===== Empty states ===== */
+  .empty {
+    text-align: center; padding: 80px 24px;
+    background: var(--surface); border-radius: var(--radius-lg);
+    border: 1px dashed var(--border);
+  }
+  .empty-icon { color: var(--text-tertiary); margin-bottom: 16px; }
+  .empty-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .empty-desc { color: var(--text-secondary); margin-bottom: 20px; font-size: 15px; }
+
+  /* ===== Modal ===== */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    animation: fadeIn 0.18s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } }
+  .modal {
+    width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+    background: var(--surface); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    animation: slideUp 0.2s ease;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+  }
+  .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+  .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .modal-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 16px 24px; border-top: 1px solid var(--border);
+  }
+
+  /* ===== Toast ===== */
+  .toast-container {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 300; display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    background: rgba(29,29,31,0.92); color: #f5f5f7;
+    padding: 12px 20px; border-radius: var(--radius-capsule);
+    font-size: 14px; font-weight: 500;
+    box-shadow: var(--shadow-lg);
+    animation: toastIn 0.2s ease;
+    pointer-events: auto;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } }
+  .toast.success { background: rgba(0,128,9,0.95); }
+  .toast.error { background: rgba(215,0,21,0.95); }
+
+  /* ===== Footer ===== */
+  .footer {
+    max-width: 1200px; margin: 0 auto; padding: 32px 24px;
+    color: var(--text-tertiary); font-size: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .footer-actions { display: flex; gap: 4px; }
+
+  /* ===== Search ===== */
+  .search-input {
+    width: 100%; max-width: 320px;
+    padding: 8px 14px 8px 36px;
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid transparent; border-radius: var(--radius-md);
+    font-size: 14px; transition: background 0.12s, border-color 0.12s;
+  }
+  .search-input:focus {
+    outline: none; background: var(--surface);
+    border-color: var(--action);
+  }
+  .search-wrap { position: relative; }
+  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); pointer-events: none; }
+  .search-wrap .search-input { padding-left: 36px; }
+
+  /* ===== Section headers ===== */
+  .section-title {
+    font-family: var(--font-display); font-size: 22px; font-weight: 600;
+    margin: 40px 0 16px; letter-spacing: 0.196px;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 640px) {
+    .topnav-inner { padding: 0 16px; gap: 12px; height: 48px; }
+    .brand { font-size: 17px; }
+    .tabs { padding: 2px; }
+    .tab { padding: 5px 10px; font-size: 12px; }
+    .main { padding: 32px 16px 64px; }
+    .tab-title { font-size: 32px; }
+    .tab-panel-header { flex-direction: column; align-items: stretch; }
+    .service-grid { grid-template-columns: 1fr; }
+    .modal { max-height: 95vh; }
+    .auth-card { padding: 32px 24px; }
+    .auth-title { font-size: 24px; }
+    .footer { flex-direction: column; align-items: flex-start; }
+  }
+
+  /* Focus ring (a11y) */
+  :focus-visible { outline: 2px solid var(--action); outline-offset: 2px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen" class="loading-screen">
+  <div class="spinner"></div>
+  <p style="color: var(--text-secondary); font-size: 15px;">正在加载配置…</p>
+</div>
+
+<!-- ===== File picker fallback ===== -->
+<div id="picker-screen" class="loading-screen hidden">
+  <div style="text-align: center; max-width: 400px;">
+    <div style="width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 16px; background: var(--surface); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); color: var(--text);">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    </div>
+    <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 600; margin-bottom: 8px;">选择配置文件</h2>
+    <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 24px;">请选择与 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">dashboard.html</code> 同目录的 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">config.json</code> 文件</p>
+    <button id="picker-btn" class="btn btn-primary btn-lg btn-capsule">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+      选择文件
+    </button>
+    <p style="margin-top: 16px; font-size: 12px; color: var(--text-tertiary);">iPhone 用户: 在"文件"App 中找到 config.json 后长按 → 共享 → 用 Safari 打开</p>
+  </div>
+  <input type="file" id="file-input" accept=".json,application/json" style="display:none">
+</div>
+
+<!-- ===== Setup master password (first time) ===== -->
+<div id="setup-screen" class="auth-screen hidden">
+  <div class="auth-card">
+    <div class="auth-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h1 class="auth-title">设置主密码</h1>
+    <p class="auth-subtitle">这个密码将用于加密你的所有 token 和笔记。<br><strong style="color: var(--text);">密码无法找回，请妥善保管。</strong></p>
+    <form id="setup-form" class="auth-form">
+      <div class="field">
+        <label class="field-label" for="setup-pw1">主密码</label>
+        <input id="setup-pw1" class="field-input" type="password" autocomplete="new-password" required minlength="8" placeholder="至少 8 位">
+      </div>
+      <div class="field">
+        <label class="field-label" for="setup-pw2">确认主密码</label>
+        <input id="setup-pw2" class="field-input" type="password" autocomplete="new-password" required minlength="8" placeholder="再次输入">
+      </div>
+      <div id="setup-error" class="auth-error"></div>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">创建</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Insecure context screen (file:// etc.) ===== -->
+<div id="insecure-screen" class="auth-screen hidden">
+  <div class="auth-card" style="max-width: 540px;">
+    <div class="auth-icon" style="background: rgba(215,0,21,0.08); color: var(--danger);">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <h1 class="auth-title">需要安全上下文</h1>
+    <p class="auth-subtitle">当前打开方式不支持 Web Crypto API，无法加密你的数据。<br>这是浏览器安全限制，<strong style="color: var(--text);">与本应用无关</strong>。</p>
+
+    <div style="background: var(--surface-2); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
+      <div style="font-size: 12px; font-weight: 600; color: var(--text-tertiary); margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase;">检测到的环境</div>
+      <div id="diag-content" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono);"></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 1px solid var(--action);">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span style="background: var(--action); color: #fff; border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">1</span>
+          最快：Cloudflare 隧道（5 分钟，免账号）
+        </div>
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;">在 Linux 服务器上另一个终端执行：</p>
+        <div style="display: flex; align-items: center; gap: 8px; background: var(--bg); padding: 10px 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--text);">
+          <code style="flex: 1; word-break: break-all;">cloudflared tunnel --url http://localhost:9001</code>
+          <button class="btn btn-secondary" data-copy="cloudflared tunnel --url http://localhost:9001" style="padding: 4px 10px; font-size: 12px;">复制</button>
+        </div>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px; line-height: 1.5;">没装先装：<code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg &gt;/dev/null</code></p>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.5;">执行后会得到一个 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">https://xxx.trycloudflare.com</code>，用这个 URL 访问即可。</p>
+      </div>
+
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span style="background: var(--text); color: var(--bg); border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">2</span>
+          Mac 本地：localhost
+        </div>
+        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">把文件拷到本机，<code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">cd Dashboard && python3 -m http.server 9001</code>，访问 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">http://localhost:9001</code>。</p>
+      </div>
+
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span style="background: var(--text); color: var(--bg); border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">3</span>
+          长期：Tailscale Funnel
+        </div>
+        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">装 <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a>，执行 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">tailscale funnel 9001</code>，获得带 HTTPS 的 tailnet 域名。</p>
+      </div>
+    </div>
+
+    <p style="font-size: 12px; color: var(--text-tertiary); text-align: center;">这是浏览器安全模型限制，HTTP 公网下 Web Crypto API 永远不可用，与本应用无关。</p>
+  </div>
+</div>
+
+<!-- ===== Unlock ===== -->
+<div id="unlock-screen" class="auth-screen hidden">
+  <div class="auth-card">
+    <div class="auth-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h1 class="auth-title">解锁你的保险库</h1>
+    <p class="auth-subtitle">输入主密码以查看加密的 token 和笔记</p>
+    <form id="unlock-form" class="auth-form">
+      <div class="field">
+        <label class="field-label" for="unlock-pw">主密码</label>
+        <input id="unlock-pw" class="field-input" type="password" autocomplete="current-password" required autofocus>
+      </div>
+      <div id="unlock-error" class="auth-error"></div>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">解锁</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Main app ===== -->
+<div id="app" class="hidden">
+  <header class="topnav">
+    <div class="topnav-inner">
+      <div class="brand">Lodge</div>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="servers" role="tab">服务器</button>
+        <button class="tab" data-tab="services" role="tab">服务</button>
+        <button class="tab" data-tab="vault" role="tab">保险库</button>
+      </nav>
+      <div class="topnav-spacer"></div>
+      <div class="topnav-actions">
+        <button class="icon-btn" id="lock-btn" title="锁定" aria-label="锁定">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+        <button class="icon-btn" id="settings-btn" title="设置" aria-label="设置">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- Servers tab -->
+    <section id="tab-servers" class="tab-panel">
+      <div class="tab-panel-header">
+        <div>
+          <h1 class="tab-title">服务器</h1>
+          <p class="tab-subtitle" id="servers-count">— 台</p>
+        </div>
+        <div class="tab-actions">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="servers-search" class="search-input" type="search" placeholder="搜索服务器…">
+          </div>
+          <button class="btn btn-primary" id="add-server-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加
+          </button>
+        </div>
+      </div>
+      <div id="servers-grid" class="card-grid"></div>
+    </section>
+
+    <!-- Services tab -->
+    <section id="tab-services" class="tab-panel hidden">
+      <div class="tab-panel-header">
+        <div>
+          <h1 class="tab-title">服务</h1>
+          <p class="tab-subtitle" id="services-count">— 个</p>
+        </div>
+        <div class="tab-actions">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="services-search" class="search-input" type="search" placeholder="搜索服务…">
+          </div>
+          <button class="btn btn-primary" id="add-service-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加
+          </button>
+        </div>
+      </div>
+      <div id="services-container"></div>
+    </section>
+
+    <!-- Vault tab -->
+    <section id="tab-vault" class="tab-panel hidden">
+      <div class="tab-panel-header">
+        <div>
+          <h1 class="tab-title">保险库</h1>
+          <p class="tab-subtitle" id="vault-count">— 条</p>
+        </div>
+        <div class="tab-actions">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="vault-search" class="search-input" type="search" placeholder="搜索条目…">
+          </div>
+          <button class="btn btn-primary" id="add-vault-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加
+          </button>
+        </div>
+      </div>
+      <div id="vault-container"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>本地存储 · 零网络请求</div>
+    <div class="footer-actions">
+      <span id="save-status" style="color: var(--text-tertiary);">未保存</span>
+      <button class="btn btn-ghost" id="save-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        保存到文件
+      </button>
+    </div>
+  </footer>
+</div>
+
+<!-- ===== Server modal ===== -->
+<div id="server-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="server-modal-title">
+    <div class="modal-header">
+      <h2 id="server-modal-title" class="modal-title">添加服务器</h2>
+      <button class="icon-btn" data-close>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="server-form">
+      <div class="modal-body">
+        <input type="hidden" id="server-id">
+        <div class="field">
+          <label class="field-label" for="server-alias">名称</label>
+          <input id="server-alias" class="field-input" type="text" required placeholder="例: 家庭 NAS">
+        </div>
+        <div class="field">
+          <label class="field-label" for="server-host">主机</label>
+          <input id="server-host" class="field-input" type="text" required placeholder="IP 或域名">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="server-port">SSH 端口</label>
+            <input id="server-port" class="field-input" type="number" min="1" max="65535" value="22" required>
+          </div>
+          <div class="field">
+            <label class="field-label" for="server-user">用户名</label>
+            <input id="server-user" class="field-input" type="text" required placeholder="root">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="server-tags">标签 <span class="field-hint">(逗号分隔)</span></label>
+          <input id="server-tags" class="field-input" type="text" placeholder="家庭, 存储">
+        </div>
+        <div class="field">
+          <label class="field-label" for="server-notes">备注</label>
+          <textarea id="server-notes" class="field-textarea" rows="2" placeholder="可选"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger hidden" id="server-delete">删除</button>
+        <div style="flex: 1;"></div>
+        <button type="button" class="btn btn-secondary" data-close>取消</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Service modal ===== -->
+<div id="service-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="service-modal-title">
+    <div class="modal-header">
+      <h2 id="service-modal-title" class="modal-title">添加服务</h2>
+      <button class="icon-btn" data-close>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="service-form">
+      <div class="modal-body">
+        <input type="hidden" id="service-id">
+        <div class="field">
+          <label class="field-label" for="service-name">名称</label>
+          <input id="service-name" class="field-input" type="text" required placeholder="Jellyfin">
+        </div>
+        <div class="field">
+          <label class="field-label" for="service-url">URL</label>
+          <input id="service-url" class="field-input" type="url" required placeholder="http://192.168.1.10:8096">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="service-type">类型</label>
+            <select id="service-type" class="field-select">
+              <option value="web">Web</option>
+              <option value="media">媒体</option>
+              <option value="file">文件</option>
+              <option value="db">数据库</option>
+              <option value="admin">管理</option>
+              <option value="proxy">代理</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="service-server">归属服务器</label>
+            <select id="service-server" class="field-select">
+              <option value="">— 无 —</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="service-icon">图标字符 <span class="field-hint">(1 个字母或 emoji)</span></label>
+          <input id="service-icon" class="field-input" type="text" maxlength="2" value="A">
+        </div>
+        <div class="field">
+          <label class="field-label" for="service-desc">描述</label>
+          <input id="service-desc" class="field-input" type="text" placeholder="可选">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger hidden" id="service-delete">删除</button>
+        <div style="flex: 1;"></div>
+        <button type="button" class="btn btn-secondary" data-close>取消</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Vault modal ===== -->
+<div id="vault-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="vault-modal-title">
+    <div class="modal-header">
+      <h2 id="vault-modal-title" class="modal-title">添加条目</h2>
+      <button class="icon-btn" data-close>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="vault-form">
+      <div class="modal-body">
+        <input type="hidden" id="vault-id">
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="vault-type">类型</label>
+            <select id="vault-type" class="field-select">
+              <option value="token">Token</option>
+              <option value="password">密码</option>
+              <option value="note">笔记</option>
+              <option value="card">卡片</option>
+              <option value="ssh_key">SSH 密钥</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="vault-title">标题</label>
+            <input id="vault-title" class="field-input" type="text" required placeholder="例: GitHub PAT">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="vault-url">URL</label>
+          <input id="vault-url" class="field-input" type="text" placeholder="可选">
+        </div>
+        <div class="field">
+          <label class="field-label" for="vault-username">用户名</label>
+          <input id="vault-username" class="field-input" type="text" placeholder="可选">
+        </div>
+        <div class="field">
+          <label class="field-label" for="vault-value" id="vault-value-label">值</label>
+          <textarea id="vault-value" class="field-textarea" rows="3" required></textarea>
+          <span class="field-hint">本地加密 (AES-GCM 256) 后保存</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger hidden" id="vault-delete">删除</button>
+        <div style="flex: 1;"></div>
+        <button type="button" class="btn btn-secondary" data-close>取消</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Settings modal ===== -->
+<div id="settings-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="settings-modal-title">
+    <div class="modal-header">
+      <h2 id="settings-modal-title" class="modal-title">设置</h2>
+      <button class="icon-btn" data-close>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label" for="settings-theme">主题</label>
+        <select id="settings-theme" class="field-select">
+          <option value="auto">跟随系统</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="settings-lock">自动锁定</label>
+        <select id="settings-lock" class="field-select">
+          <option value="1">1 分钟</option>
+          <option value="5">5 分钟</option>
+          <option value="15">15 分钟</option>
+          <option value="30">30 分钟</option>
+          <option value="0">从不</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="settings-clip">剪贴板自动清除</label>
+        <select id="settings-clip" class="field-select">
+          <option value="15">15 秒</option>
+          <option value="30" selected>30 秒</option>
+          <option value="60">60 秒</option>
+          <option value="0">不清除</option>
+        </select>
+      </div>
+      <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
+      <div class="field">
+        <label class="field-label">更改主密码</label>
+        <button type="button" class="btn btn-secondary" id="change-pw-btn" style="align-self: flex-start;">更改主密码</button>
+      </div>
+      <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <button type="button" class="btn btn-secondary" id="export-config-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出 config.json
+        </button>
+        <button type="button" class="btn btn-secondary" id="import-config-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          导入 config.json
+        </button>
+        <input type="file" id="import-file-input" accept=".json,application/json" style="display:none">
+      </div>
+      <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
+      <div class="field">
+        <label class="field-label">本地缓存</label>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px;">浏览器 localStorage 中存有当前配置的缓存（不含 vault 密钥）。切换设备前可清除。</p>
+        <button type="button" class="btn btn-danger" id="clear-cache-btn" style="align-self: flex-start;">清除本地缓存</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div style="flex: 1;"></div>
+      <button type="button" class="btn btn-primary" data-close>完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Change password modal ===== -->
+<div id="change-pw-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog">
+    <div class="modal-header">
+      <h2 class="modal-title">更改主密码</h2>
+      <button class="icon-btn" data-close>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="change-pw-form">
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label" for="cp-current">当前主密码</label>
+          <input id="cp-current" class="field-input" type="password" required>
+        </div>
+        <div class="field">
+          <label class="field-label" for="cp-new1">新主密码</label>
+          <input id="cp-new1" class="field-input" type="password" required minlength="8">
+        </div>
+        <div class="field">
+          <label class="field-label" for="cp-new2">确认新主密码</label>
+          <input id="cp-new2" class="field-input" type="password" required minlength="8">
+        </div>
+        <div id="cp-error" class="auth-error"></div>
+        <p style="font-size: 13px; color: var(--text-tertiary);">更改后所有 vault 条目会重新加密。</p>
+      </div>
+      <div class="modal-footer">
+        <div style="flex: 1;"></div>
+        <button type="button" class="btn btn-secondary" data-close>取消</button>
+        <button type="submit" class="btn btn-primary">更新</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Toast container ===== -->
+<div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ============================================================
+  // State
+  // ============================================================
+  const state = {
+    config: null,
+    masterKey: null,
+    isInitialized: false,    // vault.salt + verifier set
+    isUnlocked: false,
+    currentTab: 'servers',
+    search: { servers: '', services: '', vault: '' },
+    settings: { autoLockMinutes: 5, theme: 'auto', clearClipboardSeconds: 30 },
+    hasUnsavedChanges: false,
+    lastActivity: Date.now(),
+  };
+
+  const DEFAULT_CONFIG = {
+    version: 1,
+    meta: { created: new Date().toISOString(), lastModified: new Date().toISOString() },
+    servers: [],
+    services: [],
+    vault: { kdf: 'PBKDF2-SHA256', iterations: 600000, salt: '', verifier: '', items: [] },
+    settings: state.settings,
+  };
+
+  // ============================================================
+  // Utilities
+  // ============================================================
+  const $ = (id) => document.getElementById(id);
+  const $$ = (sel) => document.querySelectorAll(sel);
+  const show = (el) => el.classList.remove('hidden');
+  const hide = (el) => el.classList.add('hidden');
+
+  const b64 = {
+    encode: (bytes) => {
+      let s = '';
+      for (const b of bytes) s += String.fromCharCode(b);
+      return btoa(s);
+    },
+    decode: (str) => {
+      const bin = atob(str);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr;
+    },
+  };
+
+  const randomId = (len = 10) => {
+    const arr = new Uint8Array(len);
+    crypto.getRandomValues(arr);
+    return b64.encode(arr).replace(/[+/=]/g, '').slice(0, len);
+  };
+
+  const debounce = (fn, ms) => {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  };
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function toast(msg, type = '') {
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    $('toast-container').appendChild(el);
+    setTimeout(() => {
+      el.style.transition = 'opacity 0.2s';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 220);
+    }, type === 'error' ? 4000 : 2400);
+  }
+
+  // ============================================================
+  // Crypto (Web Crypto API)
+  // ============================================================
+  const Crypto = {
+    async generateSalt() {
+      return b64.encode(crypto.getRandomValues(new Uint8Array(16)));
+    },
+
+    async deriveKey(password, saltB64, iterations) {
+      const enc = new TextEncoder();
+      const baseKey = await crypto.subtle.importKey(
+        'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+      );
+      const salt = b64.decode(saltB64);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+        baseKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    },
+
+    async encrypt(plaintext, key) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const enc = new TextEncoder();
+      const ct = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv }, key, enc.encode(plaintext)
+      );
+      return { ciphertext: b64.encode(new Uint8Array(ct)), iv: b64.encode(iv) };
+    },
+
+    async decrypt(ciphertextB64, ivB64, key) {
+      const ct = b64.decode(ciphertextB64);
+      const iv = b64.decode(ivB64);
+      const pt = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv }, key, ct
+      );
+      return new TextDecoder().decode(pt);
+    },
+
+    async createVerifier(key) {
+      return this.encrypt('VAULT_OK', key);
+    },
+
+    async verifyPassword(key, verifierCipher, verifierIv) {
+      try {
+        const pt = await this.decrypt(verifierCipher, verifierIv, key);
+        return pt === 'VAULT_OK';
+      } catch {
+        return false;
+      }
+    },
+  };
+
+  // ============================================================
+  // Storage
+  // ============================================================
+  const Storage = {
+    async tryFetch() {
+      try {
+        const res = await fetch('config.json', { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    },
+
+    pickFile() {
+      return new Promise((resolve) => {
+        const input = $('file-input');
+        const handler = (e) => {
+          input.removeEventListener('change', handler);
+          const file = e.target.files[0];
+          resolve(file);
+        };
+        input.addEventListener('change', handler);
+        input.click();
+      });
+    },
+
+    readFile(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => {
+          try { resolve(JSON.parse(r.result)); }
+          catch (e) { reject(e); }
+        };
+        r.onerror = reject;
+        r.readAsText(file);
+      });
+    },
+
+    downloadConfig() {
+      const cfg = state.config;
+      cfg.meta.lastModified = new Date().toISOString();
+      const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `config-${ts}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    cacheLocal() {
+      try {
+        localStorage.setItem('dashboard.cache', JSON.stringify({
+          config: state.config,
+          lastSaved: Date.now(),
+        }));
+      } catch {}
+    },
+
+    loadCache() {
+      try {
+        const raw = localStorage.getItem('dashboard.cache');
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    },
+
+    clearCache() { localStorage.removeItem('dashboard.cache'); },
+  };
+
+  // ============================================================
+  // SSH
+  // ============================================================
+  const SSH = {
+    deepLink(s) {
+      return `ssh://${s.sshUser}@${s.host}:${s.sshPort}`;
+    },
+    command(s) {
+      let cmd = `ssh ${s.sshUser}@${s.host}`;
+      if (s.sshPort && s.sshPort !== 22) cmd += ` -p ${s.sshPort}`;
+      return cmd;
+    },
+    async open(server) {
+      const link = this.deepLink(server);
+      // Try opening deep link, fallback to copy command
+      const a = document.createElement('a');
+      a.href = link;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 100);
+      // Also copy command to clipboard as fallback
+      setTimeout(() => this.copyCommand(server, false), 100);
+    },
+    async copyCommand(server, showToast = true) {
+      const cmd = this.command(server);
+      try {
+        await navigator.clipboard.writeText(cmd);
+        if (showToast) toast('SSH 命令已复制');
+        Clipboard.scheduleClear();
+      } catch {
+        toast('复制失败，请手动复制: ' + cmd, 'error');
+      }
+    },
+  };
+
+  // ============================================================
+  // Clipboard auto-clear
+  // ============================================================
+  let clipboardTimer = null;
+  const Clipboard = {
+    scheduleClear() {
+      clearTimeout(clipboardTimer);
+      const sec = state.settings.clearClipboardSeconds;
+      if (sec > 0) {
+        clipboardTimer = setTimeout(async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            // Only clear if it still looks like our SSH command
+            if (text && text.startsWith('ssh ')) {
+              await navigator.clipboard.writeText('');
+            }
+          } catch {}
+        }, sec * 1000);
+      }
+    },
+  };
+
+  // ============================================================
+  // Auto-lock
+  // ============================================================
+  const AutoLock = {
+    init() {
+      ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'].forEach((evt) => {
+        document.addEventListener(evt, () => {
+          state.lastActivity = Date.now();
+        }, { passive: true });
+      });
+      setInterval(() => {
+        if (!state.isUnlocked) return;
+        const min = state.settings.autoLockMinutes;
+        if (min === 0) return;
+        if (Date.now() - state.lastActivity > min * 60 * 1000) {
+          lock();
+          toast('已自动锁定');
+        }
+      }, 10000);
+    },
+  };
+
+  // ============================================================
+  // Lock / Unlock
+  // ============================================================
+  function lock() {
+    state.masterKey = null;
+    state.isUnlocked = false;
+    $('app').classList.add('hidden');
+    if (state.isInitialized) {
+      $('unlock-screen').classList.remove('hidden');
+      $('unlock-pw').value = '';
+      $('unlock-pw').focus();
+    } else {
+      $('setup-screen').classList.remove('hidden');
+    }
+    render();
+  }
+
+  function unlock() {
+    state.isUnlocked = true;
+    state.lastActivity = Date.now();
+    $('unlock-screen').classList.add('hidden');
+    $('setup-screen').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    render();
+  }
+
+  // ============================================================
+  // Init flow
+  // ============================================================
+  function checkSecureContext() {
+    // Web Crypto API subtle is only available in secure contexts:
+    // HTTPS, localhost, or file:// (varies by browser — Safari blocks file://)
+    const isSecure = window.isSecureContext === true;
+    const hasSubtle = !!(window.crypto && window.crypto.subtle);
+    if (isSecure && hasSubtle) return { ok: true };
+
+    let reason;
+    if (!window.crypto) {
+      reason = 'no-crypto';
+    } else if (!window.crypto.subtle) {
+      reason = window.isSecureContext ? 'no-subtle-secure' : 'insecure-context';
+    } else {
+      reason = 'unknown';
+    }
+    return { ok: false, reason };
+  }
+
+  function showInsecureContextError(reason) {
+    hide($('loading-screen'));
+    hide($('picker-screen'));
+    show($('insecure-screen'));
+    // Populate diagnostics
+    const diag = $('diag-content');
+    if (diag) {
+      diag.innerHTML = `
+        <div class="diag-row"><span>当前 URL</span><code>${escapeHtml(location.href)}</code></div>
+        <div class="diag-row"><span>协议</span><code>${escapeHtml(location.protocol.replace(':', ''))}</code></div>
+        <div class="diag-row"><span>isSecureContext</span><code>${window.isSecureContext}</code></div>
+        <div class="diag-row"><span>crypto.subtle</span><code>${!!(window.crypto && window.crypto.subtle) ? '可用' : '不可用'}</code></div>
+        <div class="diag-row"><span>检测原因</span><code>${escapeHtml(reason)}</code></div>
+      `;
+    }
+    console.warn('[Dashboard] Insecure context:', reason, {
+      isSecureContext: window.isSecureContext,
+      protocol: location.protocol,
+      hasSubtle: !!(window.crypto && window.crypto.subtle),
+    });
+  }
+
+  // Wire up copy buttons in the insecure screen
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-copy]');
+    if (!btn) return;
+    const text = btn.dataset.copy;
+    navigator.clipboard?.writeText(text).then(
+      () => toast('已复制'),
+      () => toast('复制失败', 'error')
+    );
+  });
+
+  async function init() {
+    applyTheme();
+
+    // 0. Pre-flight: check Web Crypto availability
+    const ctx = checkSecureContext();
+    if (!ctx.ok) {
+      showInsecureContextError(ctx.reason);
+      return;
+    }
+
+    AutoLock.init();
+
+    // 1. Try fetch config.json
+    let cfg = await Storage.tryFetch();
+
+    // 2. Fallback: file picker
+    if (!cfg) {
+      hide($('loading-screen'));
+      show($('picker-screen'));
+      $('picker-btn').addEventListener('click', async () => {
+        const file = await Storage.pickFile();
+        if (!file) return;
+        try {
+          cfg = await Storage.readFile(file);
+          await proceedWithConfig(cfg);
+        } catch (e) {
+          toast('解析文件失败: ' + e.message, 'error');
+        }
+      });
+      return;
+    }
+
+    await proceedWithConfig(cfg);
+  }
+
+  async function proceedWithConfig(cfg) {
+    // Validate / normalize
+    cfg = normalizeConfig(cfg);
+    state.config = cfg;
+    state.settings = { ...state.settings, ...cfg.settings };
+
+    hide($('loading-screen'));
+    hide($('picker-screen'));
+
+    state.isInitialized = !!(cfg.vault.salt && cfg.vault.verifier);
+    applyTheme();
+
+    if (!state.isInitialized) {
+      show($('setup-screen'));
+    } else {
+      show($('unlock-screen'));
+      $('unlock-pw').focus();
+    }
+  }
+
+  function normalizeConfig(c) {
+    return {
+      version: 1,
+      meta: c.meta || { created: new Date().toISOString(), lastModified: new Date().toISOString() },
+      servers: Array.isArray(c.servers) ? c.servers : [],
+      services: Array.isArray(c.services) ? c.services : [],
+      vault: {
+        kdf: 'PBKDF2-SHA256',
+        iterations: c.vault?.iterations || 600000,
+        salt: c.vault?.salt || '',
+        verifier: c.vault?.verifier || '',
+        items: Array.isArray(c.vault?.items) ? c.vault.items : [],
+      },
+      settings: c.settings || state.settings,
+    };
+  }
+
+  // ============================================================
+  // Setup master password
+  // ============================================================
+  $('setup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pw1 = $('setup-pw1').value;
+    const pw2 = $('setup-pw2').value;
+    const errEl = $('setup-error');
+
+    if (pw1.length < 8) {
+      errEl.textContent = '主密码至少 8 位'; errEl.classList.add('show'); return;
+    }
+    if (pw1 !== pw2) {
+      errEl.textContent = '两次输入不一致'; errEl.classList.add('show'); return;
+    }
+
+    errEl.classList.remove('show');
+
+    try {
+      const salt = await Crypto.generateSalt();
+      const key = await Crypto.deriveKey(pw1, salt, state.config.vault.iterations);
+      const verifier = await Crypto.createVerifier(key);
+      state.config.vault.salt = salt;
+      state.config.vault.verifier = verifier.ciphertext;
+      state.config.vault.verifierIv = verifier.iv;
+      state.masterKey = key;
+      state.isInitialized = true;
+      markDirty();
+      Storage.cacheLocal();
+      unlock();
+      toast('主密码已设置');
+    } catch (err) {
+      errEl.textContent = '设置失败: ' + err.message;
+      errEl.classList.add('show');
+    }
+  });
+
+  // ============================================================
+  // Unlock
+  // ============================================================
+  $('unlock-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pw = $('unlock-pw').value;
+    const errEl = $('unlock-error');
+    errEl.classList.remove('show');
+
+    try {
+      const key = await Crypto.deriveKey(pw, state.config.vault.salt, state.config.vault.iterations);
+      const ok = await Crypto.verifyPassword(key, state.config.vault.verifier, state.config.vault.verifierIv);
+      if (!ok) {
+        errEl.textContent = '主密码错误';
+        errEl.classList.add('show');
+        $('unlock-pw').select();
+        return;
+      }
+      state.masterKey = key;
+      unlock();
+    } catch (err) {
+      errEl.textContent = '验证失败: ' + err.message;
+      errEl.classList.add('show');
+    }
+  });
+
+  // ============================================================
+  // Tabs
+  // ============================================================
+  $$('.tab').forEach((btn) => {
+    btn.addEventListener('click', () => setTab(btn.dataset.tab));
+  });
+
+  function setTab(name) {
+    state.currentTab = name;
+    $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+    $$('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.id !== `tab-${name}`));
+    render();
+  }
+
+  // ============================================================
+  // Search
+  // ============================================================
+  ['servers', 'services', 'vault'].forEach((k) => {
+    $(`${k}-search`).addEventListener('input', debounce((e) => {
+      state.search[k] = e.target.value.toLowerCase();
+      render();
+    }, 150));
+  });
+
+  // ============================================================
+  // Render
+  // ============================================================
+  function render() {
+    renderServers();
+    renderServices();
+    renderVault();
+    renderSaveStatus();
+  }
+
+  function renderSaveStatus() {
+    $('save-status').textContent = state.hasUnsavedChanges ? '有未保存的更改' : '已同步';
+  }
+
+  function renderServers() {
+    const list = state.config.servers;
+    $('servers-count').textContent = `${list.length} 台`;
+    const q = state.search.servers;
+    const filtered = list.filter((s) =>
+      !q || s.alias.toLowerCase().includes(q) || s.host.toLowerCase().includes(q) ||
+      (s.tags || []).some((t) => t.toLowerCase().includes(q))
+    );
+
+    if (filtered.length === 0) {
+      $('servers-grid').innerHTML = `
+        <div class="empty" style="grid-column: 1 / -1;">
+          <div class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <h3 class="empty-title">${list.length === 0 ? '还没有服务器' : '没有匹配的服务器'}</h3>
+          <p class="empty-desc">${list.length === 0 ? '添加你的第一台服务器，开始管理' : '尝试调整搜索关键词'}</p>
+          ${list.length === 0 ? '<button class="btn btn-primary" onclick="document.getElementById(\'add-server-btn\').click()">+ 添加服务器</button>' : ''}
+        </div>`;
+      return;
+    }
+
+    $('servers-grid').innerHTML = filtered.map(serverCardHTML).join('');
+  }
+
+  function serverCardHTML(s) {
+    const tags = (s.tags || []).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+    return `
+      <article class="card" data-id="${escapeHtml(s.id)}">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">${escapeHtml(s.alias)}</h3>
+            <p class="card-subtitle">${escapeHtml(s.sshUser)}@${escapeHtml(s.host)}</p>
+          </div>
+          <div class="card-icon dark">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-row">
+            <span class="label">地址</span>
+            <span class="value">${escapeHtml(s.host)}${s.sshPort !== 22 ? ':' + s.sshPort : ''}</span>
+          </div>
+          ${s.notes ? `<p class="card-notes">${escapeHtml(s.notes)}</p>` : ''}
+        </div>
+        ${tags ? `<div class="tag-row">${tags}</div>` : ''}
+        <div class="card-footer">
+          <button class="btn btn-primary btn-capsule" data-action="ssh" data-id="${escapeHtml(s.id)}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            SSH
+          </button>
+          <button class="btn btn-secondary" data-action="copy" data-id="${escapeHtml(s.id)}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            复制
+          </button>
+          <button class="btn btn-ghost" data-action="edit" data-id="${escapeHtml(s.id)}" aria-label="编辑">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+      </article>`;
+  }
+
+  function renderServices() {
+    const list = state.config.services;
+    $('services-count').textContent = `${list.length} 个`;
+    const q = state.search.services;
+    const filtered = list.filter((s) =>
+      !q || s.name.toLowerCase().includes(q) || s.url.toLowerCase().includes(q) ||
+      (s.type || '').toLowerCase().includes(q)
+    );
+
+    if (filtered.length === 0) {
+      $('services-container').innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <h3 class="empty-title">${list.length === 0 ? '还没有服务' : '没有匹配的服务'}</h3>
+          <p class="empty-desc">${list.length === 0 ? '把你所有 Web 服务收藏到这里' : '尝试调整搜索关键词'}</p>
+          ${list.length === 0 ? '<button class="btn btn-primary" onclick="document.getElementById(\'add-service-btn\').click()">+ 添加服务</button>' : ''}
+        </div>`;
+      return;
+    }
+
+    // Group by server
+    const byServer = new Map();
+    byServer.set('', []);
+    for (const s of state.config.servers) byServer.set(s.id, []);
+    for (const svc of filtered) {
+      const k = svc.serverId || '';
+      if (!byServer.has(k)) byServer.set(k, []);
+      byServer.get(k).push(svc);
+    }
+
+    const sections = [];
+    for (const [sid, svcs] of byServer) {
+      if (svcs.length === 0) continue;
+      const server = state.config.servers.find((s) => s.id === sid);
+      const title = server ? server.alias : '其他';
+      sections.push(`
+        <h2 class="section-title">${escapeHtml(title)} <span style="color: var(--text-tertiary); font-size: 14px; font-weight: 400; font-family: var(--font-text);">· ${svcs.length}</span></h2>
+        <div class="service-grid">${svcs.map(serviceCardHTML).join('')}</div>
+      `);
+    }
+
+    $('services-container').innerHTML = sections.join('');
+  }
+
+  function serviceCardHTML(s) {
+    const initial = (s.icon || s.name[0] || '?').toUpperCase().slice(0, 1);
+    return `
+      <a class="service-card" href="${escapeHtml(s.url)}" target="_blank" rel="noopener" data-action="service" data-id="${escapeHtml(s.id)}">
+        <div class="service-card-head">
+          <div class="service-card-icon">${escapeHtml(initial)}</div>
+          <div style="min-width: 0; flex: 1;">
+            <div class="service-card-name">${escapeHtml(s.name)}</div>
+            <div class="service-card-url">${escapeHtml(s.url)}</div>
+          </div>
+        </div>
+        ${s.description ? `<div class="service-card-desc">${escapeHtml(s.description)}</div>` : ''}
+      </a>`;
+  }
+
+  function renderVault() {
+    const list = state.config.vault.items;
+    $('vault-count').textContent = `${list.length} 条`;
+
+    if (!state.isUnlocked) {
+      $('vault-container').innerHTML = `
+        <div class="vault-locked-banner">
+          <h3>保险库已锁定</h3>
+          <p>解锁后查看加密的 token 和笔记</p>
+          <button class="btn btn-primary btn-capsule" onclick="document.getElementById('lock-btn').click()">解锁</button>
+        </div>`;
+      return;
+    }
+
+    const q = state.search.vault;
+    const filtered = list.filter((item) =>
+      !q || item.title.toLowerCase().includes(q) ||
+      (item.url || '').toLowerCase().includes(q) ||
+      (item.username || '').toLowerCase().includes(q) ||
+      (item.type || '').toLowerCase().includes(q)
+    );
+
+    if (filtered.length === 0) {
+      $('vault-container').innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3 class="empty-title">${list.length === 0 ? '保险库是空的' : '没有匹配的条目'}</h3>
+          <p class="empty-desc">${list.length === 0 ? '添加你的第一条加密记录' : '尝试调整搜索关键词'}</p>
+          ${list.length === 0 ? '<button class="btn btn-primary" onclick="document.getElementById(\'add-vault-btn\').click()">+ 添加条目</button>' : ''}
+        </div>`;
+      return;
+    }
+
+    $('vault-container').innerHTML = `<div class="vault-list">${filtered.map(vaultRowHTML).join('')}</div>`;
+  }
+
+  function vaultRowHTML(item) {
+    const meta = [item.type, item.username, item.url].filter(Boolean).join(' · ');
+    const typeIcon = {
+      token: '🔑', password: '🔒', note: '📝', card: '💳', ssh_key: '🗝'
+    }[item.type] || '🔐';
+    return `
+      <div class="vault-row" data-id="${escapeHtml(item.id)}">
+        <div class="vault-icon">${typeIcon}</div>
+        <div class="vault-info">
+          <div class="vault-title">${escapeHtml(item.title)}</div>
+          <div class="vault-meta">${escapeHtml(meta)}</div>
+        </div>
+        <div class="vault-actions">
+          <button class="btn btn-secondary" data-action="copy-vault" data-id="${escapeHtml(item.id)}" title="复制">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          <button class="btn btn-secondary" data-action="edit-vault" data-id="${escapeHtml(item.id)}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            编辑
+          </button>
+        </div>
+      </div>`;
+  }
+
+  // ============================================================
+  // Card actions (event delegation)
+  // ============================================================
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+
+    if (action === 'ssh') {
+      const s = state.config.servers.find((x) => x.id === id);
+      if (s) SSH.open(s);
+    } else if (action === 'copy') {
+      const s = state.config.servers.find((x) => x.id === id);
+      if (s) SSH.copyCommand(s);
+    } else if (action === 'edit') {
+      const s = state.config.servers.find((x) => x.id === id);
+      if (s) openServerModal(s);
+    } else if (action === 'edit-vault') {
+      const item = state.config.vault.items.find((x) => x.id === id);
+      if (item) {
+        const plain = await Crypto.decrypt(item.ciphertext, item.iv, state.masterKey);
+        openVaultModal({ ...item, _plain: plain });
+      }
+    } else if (action === 'copy-vault') {
+      const item = state.config.vault.items.find((x) => x.id === id);
+      if (item) {
+        const plain = await Crypto.decrypt(item.ciphertext, item.iv, state.masterKey);
+        try {
+          await navigator.clipboard.writeText(plain);
+          toast('已复制 · ' + state.settings.clearClipboardSeconds + 's 后清除');
+          Clipboard.scheduleClear();
+        } catch {
+          toast('复制失败', 'error');
+        }
+      }
+    }
+  });
+
+  // ============================================================
+  // Modals
+  // ============================================================
+  function openModal(id) {
+    $(id).classList.remove('hidden');
+    const inp = $(id).querySelector('input:not([type=hidden]), textarea, select');
+    if (inp) setTimeout(() => inp.focus(), 50);
+  }
+  function closeModal(id) { $(id).classList.add('hidden'); }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.matches('[data-close]') || e.target.closest('[data-close]')) {
+      const modal = e.target.closest('.modal-backdrop');
+      if (modal) modal.classList.add('hidden');
+    }
+    if (e.target.classList?.contains('modal-backdrop')) {
+      e.target.classList.add('hidden');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      $$('.modal-backdrop:not(.hidden)').forEach((m) => m.classList.add('hidden'));
+    }
+  });
+
+  // ----- Server modal -----
+  $('add-server-btn').addEventListener('click', () => openServerModal(null));
+
+  function openServerModal(server) {
+    $('server-modal-title').textContent = server ? '编辑服务器' : '添加服务器';
+    $('server-id').value = server?.id || '';
+    $('server-alias').value = server?.alias || '';
+    $('server-host').value = server?.host || '';
+    $('server-port').value = server?.sshPort || 22;
+    $('server-user').value = server?.sshUser || '';
+    $('server-tags').value = (server?.tags || []).join(', ');
+    $('server-notes').value = server?.notes || '';
+    $('server-delete').classList.toggle('hidden', !server);
+    if (server) {
+      $('server-delete').onclick = () => {
+        if (confirm(`确定删除「${server.alias}」？关联的服务不会被删除。`)) {
+          state.config.servers = state.config.servers.filter((s) => s.id !== server.id);
+          // Clear serverId from related services
+          state.config.services.forEach((s) => {
+            if (s.serverId === server.id) s.serverId = '';
+          });
+          markDirty();
+          render();
+          closeModal('server-modal');
+          toast('已删除');
+        }
+      };
+    }
+    openModal('server-modal');
+  }
+
+  $('server-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = $('server-id').value;
+    const data = {
+      id: id || randomId(),
+      alias: $('server-alias').value.trim(),
+      host: $('server-host').value.trim(),
+      sshPort: parseInt($('server-port').value, 10) || 22,
+      sshUser: $('server-user').value.trim(),
+      tags: $('server-tags').value.split(',').map((t) => t.trim()).filter(Boolean),
+      notes: $('server-notes').value.trim(),
+    };
+    if (id) {
+      const idx = state.config.servers.findIndex((s) => s.id === id);
+      if (idx >= 0) state.config.servers[idx] = data;
+    } else {
+      state.config.servers.push(data);
+    }
+    markDirty();
+    render();
+    closeModal('server-modal');
+    toast(id ? '已更新' : '已添加');
+  });
+
+  // ----- Service modal -----
+  $('add-service-btn').addEventListener('click', () => openServiceModal(null));
+
+  function openServiceModal(svc) {
+    // Populate server dropdown
+    const sel = $('service-server');
+    sel.innerHTML = '<option value="">— 无 —</option>' +
+      state.config.servers.map((s) =>
+        `<option value="${escapeHtml(s.id)}">${escapeHtml(s.alias)}</option>`
+      ).join('');
+
+    $('service-modal-title').textContent = svc ? '编辑服务' : '添加服务';
+    $('service-id').value = svc?.id || '';
+    $('service-name').value = svc?.name || '';
+    $('service-url').value = svc?.url || '';
+    $('service-type').value = svc?.type || 'web';
+    $('service-server').value = svc?.serverId || '';
+    $('service-icon').value = svc?.icon || (svc?.name?.[0] || 'A');
+    $('service-desc').value = svc?.description || '';
+    $('service-delete').classList.toggle('hidden', !svc);
+    if (svc) {
+      $('service-delete').onclick = () => {
+        if (confirm(`确定删除「${svc.name}」？`)) {
+          state.config.services = state.config.services.filter((s) => s.id !== svc.id);
+          markDirty();
+          render();
+          closeModal('service-modal');
+          toast('已删除');
+        }
+      };
+    }
+    openModal('service-modal');
+  }
+
+  $('service-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = $('service-id').value;
+    const data = {
+      id: id || randomId(),
+      name: $('service-name').value.trim(),
+      url: $('service-url').value.trim(),
+      type: $('service-type').value,
+      serverId: $('service-server').value,
+      icon: $('service-icon').value.trim() || ($('service-name').value[0] || 'A'),
+      description: $('service-desc').value.trim(),
+    };
+    if (id) {
+      const idx = state.config.services.findIndex((s) => s.id === id);
+      if (idx >= 0) state.config.services[idx] = data;
+    } else {
+      state.config.services.push(data);
+    }
+    markDirty();
+    render();
+    closeModal('service-modal');
+    toast(id ? '已更新' : '已添加');
+  });
+
+  // ----- Vault modal -----
+  $('add-vault-btn').addEventListener('click', () => {
+    if (!state.isUnlocked) {
+      toast('请先解锁保险库', 'error');
+      return;
+    }
+    openVaultModal(null);
+  });
+
+  async function openVaultModal(item) {
+    $('vault-modal-title').textContent = item ? '编辑条目' : '添加条目';
+    $('vault-id').value = item?.id || '';
+    $('vault-type').value = item?.type || 'token';
+    $('vault-title').value = item?.title || '';
+    $('vault-url').value = item?.url || '';
+    $('vault-username').value = item?.username || '';
+    $('vault-value').value = item?._plain || '';
+    $('vault-delete').classList.toggle('hidden', !item);
+    if (item) {
+      $('vault-delete').onclick = () => {
+        if (confirm(`确定删除「${item.title}」？`)) {
+          state.config.vault.items = state.config.vault.items.filter((x) => x.id !== item.id);
+          markDirty();
+          render();
+          closeModal('vault-modal');
+          toast('已删除');
+        }
+      };
+    }
+    openModal('vault-modal');
+  }
+
+  $('vault-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!state.isUnlocked) { toast('请先解锁', 'error'); return; }
+    const id = $('vault-id').value;
+    const plain = $('vault-value').value;
+    if (!plain) { toast('值不能为空', 'error'); return; }
+
+    const { ciphertext, iv } = await Crypto.encrypt(plain, state.masterKey);
+    const data = {
+      id: id || randomId(),
+      type: $('vault-type').value,
+      title: $('vault-title').value.trim(),
+      url: $('vault-url').value.trim(),
+      username: $('vault-username').value.trim(),
+      ciphertext,
+      iv,
+      updatedAt: new Date().toISOString(),
+    };
+    if (!data.title) { toast('标题不能为空', 'error'); return; }
+    if (id) {
+      const idx = state.config.vault.items.findIndex((x) => x.id === id);
+      if (idx >= 0) state.config.vault.items[idx] = data;
+    } else {
+      data.createdAt = new Date().toISOString();
+      state.config.vault.items.push(data);
+    }
+    markDirty();
+    render();
+    closeModal('vault-modal');
+    toast(id ? '已更新' : '已添加');
+  });
+
+  // ============================================================
+  // Top bar
+  // ============================================================
+  $('lock-btn').addEventListener('click', () => {
+    if (state.hasUnsavedChanges) {
+      if (!confirm('有未保存的更改，锁定后将丢失（仅内存中）。继续？')) return;
+    }
+    lock();
+  });
+
+  $('settings-btn').addEventListener('click', () => {
+    $('settings-theme').value = state.settings.theme;
+    $('settings-lock').value = String(state.settings.autoLockMinutes);
+    $('settings-clip').value = String(state.settings.clearClipboardSeconds);
+    openModal('settings-modal');
+  });
+
+  $('settings-theme').addEventListener('change', (e) => {
+    state.settings.theme = e.target.value;
+    state.config.settings = state.config.settings || {};
+    state.config.settings.theme = state.settings.theme;
+    applyTheme();
+    markDirty();
+  });
+  $('settings-lock').addEventListener('change', (e) => {
+    state.settings.autoLockMinutes = parseInt(e.target.value, 10);
+    state.config.settings.autoLockMinutes = state.settings.autoLockMinutes;
+    markDirty();
+  });
+  $('settings-clip').addEventListener('change', (e) => {
+    state.settings.clearClipboardSeconds = parseInt(e.target.value, 10);
+    state.config.settings.clearClipboardSeconds = state.settings.clearClipboardSeconds;
+    markDirty();
+  });
+
+  $('change-pw-btn').addEventListener('click', () => {
+    $('cp-current').value = '';
+    $('cp-new1').value = '';
+    $('cp-new2').value = '';
+    $('cp-error').classList.remove('show');
+    closeModal('settings-modal');
+    openModal('change-pw-modal');
+  });
+
+  $('change-pw-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = $('cp-error');
+    errEl.classList.remove('show');
+    const cur = $('cp-current').value;
+    const n1 = $('cp-new1').value;
+    const n2 = $('cp-new2').value;
+
+    // Verify current
+    const curKey = await Crypto.deriveKey(cur, state.config.vault.salt, state.config.vault.iterations);
+    const ok = await Crypto.verifyPassword(curKey, state.config.vault.verifier, state.config.vault.verifierIv);
+    if (!ok) { errEl.textContent = '当前主密码错误'; errEl.classList.add('show'); return; }
+    if (n1.length < 8) { errEl.textContent = '新密码至少 8 位'; errEl.classList.add('show'); return; }
+    if (n1 !== n2) { errEl.textContent = '两次输入不一致'; errEl.classList.add('show'); return; }
+
+    // Re-encrypt all items with new key
+    const newSalt = await Crypto.generateSalt();
+    const newKey = await Crypto.deriveKey(n1, newSalt, state.config.vault.iterations);
+
+    const decrypted = [];
+    for (const item of state.config.vault.items) {
+      const plain = await Crypto.decrypt(item.ciphertext, item.iv, curKey);
+      decrypted.push(plain);
+    }
+    for (let i = 0; i < state.config.vault.items.length; i++) {
+      const { ciphertext, iv } = await Crypto.encrypt(decrypted[i], newKey);
+      state.config.vault.items[i].ciphertext = ciphertext;
+      state.config.vault.items[i].iv = iv;
+      state.config.vault.items[i].updatedAt = new Date().toISOString();
+    }
+    const verifier = await Crypto.createVerifier(newKey);
+    state.config.vault.salt = newSalt;
+    state.config.vault.verifier = verifier.ciphertext;
+    state.config.vault.verifierIv = verifier.iv;
+    state.masterKey = newKey;
+    markDirty();
+    closeModal('change-pw-modal');
+    toast('主密码已更新');
+  });
+
+  $('export-config-btn').addEventListener('click', () => {
+    Storage.downloadConfig();
+    state.hasUnsavedChanges = false;
+    renderSaveStatus();
+    Storage.cacheLocal();
+    toast('config.json 已下载');
+  });
+
+  $('import-config-btn').addEventListener('click', () => {
+    if (state.hasUnsavedChanges && !confirm('当前有未保存的更改，导入新配置会覆盖。继续？')) return;
+    $('import-file-input').click();
+  });
+
+  $('import-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const cfg = await Storage.readFile(file);
+      state.config = normalizeConfig(cfg);
+      state.settings = { ...state.settings, ...state.config.settings };
+      markDirty();
+      closeModal('settings-modal');
+      lock();
+      // Re-trigger setup/unlock
+      if (state.config.vault.salt && state.config.vault.verifier) {
+        $('unlock-pw').focus();
+      }
+      toast('配置已导入，请重新解锁');
+    } catch (err) {
+      toast('导入失败: ' + err.message, 'error');
+    }
+  });
+
+  $('clear-cache-btn').addEventListener('click', () => {
+    if (!confirm('确认清除浏览器本地缓存？将关闭此页面并重新加载。')) return;
+    Storage.clearCache();
+    location.reload();
+  });
+
+  // ============================================================
+  // Save button
+  // ============================================================
+  $('save-btn').addEventListener('click', () => {
+    Storage.downloadConfig();
+    state.hasUnsavedChanges = false;
+    renderSaveStatus();
+    Storage.cacheLocal();
+    toast('已保存到本地下载');
+  });
+
+  function markDirty() {
+    state.hasUnsavedChanges = true;
+    state.config.meta = state.config.meta || {};
+    state.config.meta.lastModified = new Date().toISOString();
+    renderSaveStatus();
+    Storage.cacheLocal();
+  }
+
+  // ============================================================
+  // Theme
+  // ============================================================
+  function applyTheme() {
+    const t = state.settings.theme || 'auto';
+    if (t === 'auto') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', t);
+    }
+  }
+
+  // ============================================================
+  // Go
+  // ============================================================
+  init();
+
+})();
+</script>
+</body>
+</html>
