@@ -29,7 +29,7 @@ vercel.json      Vercel configuration
 ### 1. Local development
 
 ```bash
-git clone https://github.com/lazy/lodge.git
+git clone https://github.com/toolazytoname/lodge.git
 cd lodge
 python3 -m http.server 9001
 # Open http://localhost:9001/dashboard.html

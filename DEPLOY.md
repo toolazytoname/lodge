@@ -19,7 +19,7 @@ GitHub will show you a "push an existing repository" command. Use this:
 
 ```bash
 cd /path/to/lodge
-git remote add origin https://github.com/lazy/lodge.git
+git remote add origin https://github.com/toolazytoname/lodge.git
 git push -u origin main
 ```
 
@@ -27,14 +27,14 @@ If 2FA is enabled, you'll need a [Personal Access Token](https://github.com/sett
 
 ### Verify the push
 
-Visit `https://github.com/lazy/lodge` — you should see all 9 files.
+Visit `https://github.com/toolazytoname/lodge` — you should see all 9 files.
 
 ## 2. Deploy to Vercel
 
 ### Option A: One-click via Vercel dashboard (easiest)
 
 1. Go to https://vercel.com/new
-2. **Import** the `lazy/lodge` repository
+2. **Import** the `toolazytoname/lodge` repository
 3. Framework preset: **Other**
 4. Root directory: `./` (default)
 5. Click **Deploy**
