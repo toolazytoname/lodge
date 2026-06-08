@@ -1,10 +1,14 @@
 # Lodge
 
+<p align="left">
+  <img src="assets/logo-wordmark.svg" alt="Lodge" width="180">
+</p>
+
 > Your private home base for servers, services, and secrets.
 
 A self-hosted personal console. **One HTML file + one JSON file**. Zero servers, zero telemetry, end-to-end encrypted.
 
-[中文文档](README.md) · [Live demo](https://lodge.vercel.app/dashboard.html)
+[中文文档](README.md) · [Live demo](https://lodge-iota.vercel.app/dashboard.html)
 
 ## Features
 

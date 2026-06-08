@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title>Lodge</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
 <style>
   :root {
     --bg: #f5f5f7;
@@ -292,6 +293,21 @@
   }
   .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 
+  .lang-switch {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 4px 10px; border-radius: var(--radius-capsule);
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 1px solid transparent;
+    transition: background 0.12s, color 0.12s;
+    margin: 0 4px;
+  }
+  .lang-switch:hover { background: var(--surface-3); color: var(--text); }
+  .lang-opt { opacity: 0.5; transition: opacity 0.12s; }
+  .lang-opt.active { opacity: 1; font-weight: 600; color: var(--text); }
+  .lang-switch .sep { opacity: 0.3; }
+
   /* ===== Main layout ===== */
   .main { max-width: 1200px; margin: 0 auto; padding: 48px 24px 96px; }
 
@@ -529,7 +545,7 @@
 
 <div id="loading-screen" class="loading-screen">
   <div class="spinner"></div>
-  <p style="color: var(--text-secondary); font-size: 15px;">正在加载配置…</p>
+  <p style="color: var(--text-secondary); font-size: 15px;" data-i18n="loading">正在加载配置…</p>
 </div>
 
 <!-- ===== File picker fallback ===== -->
@@ -538,13 +554,13 @@
     <div style="width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 16px; background: var(--surface); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); color: var(--text);">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
     </div>
-    <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 600; margin-bottom: 8px;">选择配置文件</h2>
-    <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 24px;">请选择与 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">dashboard.html</code> 同目录的 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">config.json</code> 文件</p>
-    <button id="picker-btn" class="btn btn-primary btn-lg btn-capsule">
+    <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 600; margin-bottom: 8px;" data-i18n="picker.title">选择配置文件</h2>
+    <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 24px;" data-i18n="picker.desc">请选择与 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">dashboard.html</code> 同目录的 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">config.json</code> 文件</p>
+    <button id="picker-btn" class="btn btn-primary btn-lg btn-capsule" data-i18n="picker.btn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
       选择文件
     </button>
-    <p style="margin-top: 16px; font-size: 12px; color: var(--text-tertiary);">iPhone 用户: 在"文件"App 中找到 config.json 后长按 → 共享 → 用 Safari 打开</p>
+    <p style="margin-top: 16px; font-size: 12px; color: var(--text-tertiary);" data-i18n="picker.note">iPhone 用户: 在"文件"App 中找到 config.json 后长按 → 共享 → 用 Safari 打开</p>
   </div>
   <input type="file" id="file-input" accept=".json,application/json" style="display:none">
 </div>
@@ -555,19 +571,19 @@
     <div class="auth-icon">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </div>
-    <h1 class="auth-title">设置主密码</h1>
-    <p class="auth-subtitle">这个密码将用于加密你的所有 token 和笔记。<br><strong style="color: var(--text);">密码无法找回，请妥善保管。</strong></p>
+    <h1 class="auth-title" data-i18n="setup.title">设置主密码</h1>
+    <p class="auth-subtitle" data-i18n="setup.desc">这个密码将用于加密你的所有 token 和笔记。<br><strong style="color: var(--text);">密码无法找回，请妥善保管。</strong></p>
     <form id="setup-form" class="auth-form">
       <div class="field">
-        <label class="field-label" for="setup-pw1">主密码</label>
-        <input id="setup-pw1" class="field-input" type="password" autocomplete="new-password" required minlength="8" placeholder="至少 8 位">
+        <label class="field-label" for="setup-pw1" data-i18n="setup.pw1">主密码</label>
+        <input id="setup-pw1" class="field-input" type="password" autocomplete="new-password" required minlength="8" data-i18n-ph="setup.pw1.placeholder" placeholder="至少 8 位">
       </div>
       <div class="field">
-        <label class="field-label" for="setup-pw2">确认主密码</label>
-        <input id="setup-pw2" class="field-input" type="password" autocomplete="new-password" required minlength="8" placeholder="再次输入">
+        <label class="field-label" for="setup-pw2" data-i18n="setup.pw2">确认主密码</label>
+        <input id="setup-pw2" class="field-input" type="password" autocomplete="new-password" required minlength="8" data-i18n-ph="setup.pw2.placeholder" placeholder="再次输入">
       </div>
       <div id="setup-error" class="auth-error"></div>
-      <button type="submit" class="btn btn-primary btn-lg btn-block">创建</button>
+      <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="setup.submit">创建</button>
     </form>
   </div>
 </div>
@@ -578,7 +594,7 @@
     <div class="auth-icon" style="background: rgba(215,0,21,0.08); color: var(--danger);">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </div>
-    <h1 class="auth-title">需要安全上下文</h1>
+    <h1 class="auth-title" data-i18n="insecure.title">需要安全上下文</h1>
     <p class="auth-subtitle">当前打开方式不支持 Web Crypto API，无法加密你的数据。<br>这是浏览器安全限制，<strong style="color: var(--text);">与本应用无关</strong>。</p>
 
     <div style="background: var(--surface-2); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
@@ -628,15 +644,15 @@
     <div class="auth-icon">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </div>
-    <h1 class="auth-title">解锁你的保险库</h1>
-    <p class="auth-subtitle">输入主密码以查看加密的 token 和笔记</p>
+    <h1 class="auth-title" data-i18n="unlock.title">解锁你的保险库</h1>
+    <p class="auth-subtitle" data-i18n="unlock.desc">输入主密码以查看加密的 token 和笔记</p>
     <form id="unlock-form" class="auth-form">
       <div class="field">
-        <label class="field-label" for="unlock-pw">主密码</label>
+        <label class="field-label" for="unlock-pw" data-i18n="setup.pw1">主密码</label>
         <input id="unlock-pw" class="field-input" type="password" autocomplete="current-password" required autofocus>
       </div>
       <div id="unlock-error" class="auth-error"></div>
-      <button type="submit" class="btn btn-primary btn-lg btn-block">解锁</button>
+      <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="unlock.submit">解锁</button>
     </form>
   </div>
 </div>
@@ -645,16 +661,24 @@
 <div id="app" class="hidden">
   <header class="topnav">
     <div class="topnav-inner">
-      <div class="brand">Lodge</div>
+      <div class="brand">
+        <img src="assets/logo-mark.svg" alt="" width="24" height="24" aria-hidden="true">
+        <span>Lodge</span>
+      </div>
       <nav class="tabs" role="tablist">
-        <button class="tab active" data-tab="servers" role="tab">服务器</button>
-        <button class="tab" data-tab="services" role="tab">服务</button>
-        <button class="tab" data-tab="vault" role="tab">保险库</button>
+        <button class="tab active" data-tab="servers" role="tab" data-i18n="tab.servers">服务器</button>
+        <button class="tab" data-tab="services" role="tab" data-i18n="tab.services">服务</button>
+        <button class="tab" data-tab="vault" role="tab" data-i18n="tab.vault">保险库</button>
       </nav>
       <div class="topnav-spacer"></div>
       <div class="topnav-actions">
-        <button class="icon-btn" id="lock-btn" title="锁定" aria-label="锁定">
+        <button class="icon-btn" id="lock-btn" data-i18n-title="common.unlock" title="锁定" aria-label="锁定">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+        <button class="lang-switch" id="lang-switch" aria-label="Language">
+          <span class="lang-opt" data-lang="en">EN</span>
+          <span class="sep">/</span>
+          <span class="lang-opt" data-lang="zh">中</span>
         </button>
         <button class="icon-btn" id="settings-btn" title="设置" aria-label="设置">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -668,15 +692,15 @@
     <section id="tab-servers" class="tab-panel">
       <div class="tab-panel-header">
         <div>
-          <h1 class="tab-title">服务器</h1>
-          <p class="tab-subtitle" id="servers-count">— 台</p>
+          <h1 class="tab-title" data-i18n="servers.title">服务器</h1>
+          <p class="tab-subtitle" id="servers-count">—</p>
         </div>
         <div class="tab-actions">
           <div class="search-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="servers-search" class="search-input" type="search" placeholder="搜索服务器…">
+            <input id="servers-search" class="search-input" type="search" data-i18n-ph="common.search.servers" placeholder="搜索服务器…">
           </div>
-          <button class="btn btn-primary" id="add-server-btn">
+          <button class="btn btn-primary" id="add-server-btn" data-i18n="common.add">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             添加
           </button>
@@ -689,15 +713,15 @@
     <section id="tab-services" class="tab-panel hidden">
       <div class="tab-panel-header">
         <div>
-          <h1 class="tab-title">服务</h1>
-          <p class="tab-subtitle" id="services-count">— 个</p>
+          <h1 class="tab-title" data-i18n="services.title">服务</h1>
+          <p class="tab-subtitle" id="services-count">—</p>
         </div>
         <div class="tab-actions">
           <div class="search-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="services-search" class="search-input" type="search" placeholder="搜索服务…">
+            <input id="services-search" class="search-input" type="search" data-i18n-ph="common.search.services" placeholder="搜索服务…">
           </div>
-          <button class="btn btn-primary" id="add-service-btn">
+          <button class="btn btn-primary" id="add-service-btn" data-i18n="common.add">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             添加
           </button>
@@ -710,15 +734,15 @@
     <section id="tab-vault" class="tab-panel hidden">
       <div class="tab-panel-header">
         <div>
-          <h1 class="tab-title">保险库</h1>
-          <p class="tab-subtitle" id="vault-count">— 条</p>
+          <h1 class="tab-title" data-i18n="vault.title">保险库</h1>
+          <p class="tab-subtitle" id="vault-count">—</p>
         </div>
         <div class="tab-actions">
           <div class="search-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="vault-search" class="search-input" type="search" placeholder="搜索条目…">
+            <input id="vault-search" class="search-input" type="search" data-i18n-ph="common.search.vault" placeholder="搜索条目…">
           </div>
-          <button class="btn btn-primary" id="add-vault-btn">
+          <button class="btn btn-primary" id="add-vault-btn" data-i18n="common.add">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             添加
           </button>
@@ -729,10 +753,10 @@
   </main>
 
   <footer class="footer">
-    <div>本地存储 · 零网络请求</div>
+    <div data-i18n="footer.local">本地存储 · 零网络请求</div>
     <div class="footer-actions">
-      <span id="save-status" style="color: var(--text-tertiary);">未保存</span>
-      <button class="btn btn-ghost" id="save-btn">
+      <span id="save-status" style="color: var(--text-tertiary);" data-i18n="footer.synced">已同步</span>
+      <button class="btn btn-ghost" id="save-btn" data-i18n="footer.save">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         保存到文件
       </button>
@@ -744,7 +768,7 @@
 <div id="server-modal" class="modal-backdrop hidden">
   <div class="modal" role="dialog" aria-labelledby="server-modal-title">
     <div class="modal-header">
-      <h2 id="server-modal-title" class="modal-title">添加服务器</h2>
+      <h2 id="server-modal-title" class="modal-title" data-i18n="server.modal.add">添加服务器</h2>
       <button class="icon-btn" data-close>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -753,37 +777,37 @@
       <div class="modal-body">
         <input type="hidden" id="server-id">
         <div class="field">
-          <label class="field-label" for="server-alias">名称</label>
-          <input id="server-alias" class="field-input" type="text" required placeholder="例: 家庭 NAS">
+          <label class="field-label" for="server-alias" data-i18n="server.alias">名称</label>
+          <input id="server-alias" class="field-input" type="text" required data-i18n-ph="server.alias.placeholder" placeholder="例: 家庭 NAS">
         </div>
         <div class="field">
-          <label class="field-label" for="server-host">主机</label>
-          <input id="server-host" class="field-input" type="text" required placeholder="IP 或域名">
+          <label class="field-label" for="server-host" data-i18n="server.host">主机</label>
+          <input id="server-host" class="field-input" type="text" required data-i18n-ph="server.host.placeholder" placeholder="IP 或域名">
         </div>
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="server-port">SSH 端口</label>
+            <label class="field-label" for="server-port" data-i18n="server.port">SSH 端口</label>
             <input id="server-port" class="field-input" type="number" min="1" max="65535" value="22" required>
           </div>
           <div class="field">
-            <label class="field-label" for="server-user">用户名</label>
-            <input id="server-user" class="field-input" type="text" required placeholder="root">
+            <label class="field-label" for="server-user" data-i18n="server.user">用户名</label>
+            <input id="server-user" class="field-input" type="text" required data-i18n-ph="server.user.placeholder" placeholder="root">
           </div>
         </div>
         <div class="field">
-          <label class="field-label" for="server-tags">标签 <span class="field-hint">(逗号分隔)</span></label>
-          <input id="server-tags" class="field-input" type="text" placeholder="家庭, 存储">
+          <label class="field-label" for="server-tags" data-i18n="server.tags">标签 <span class="field-hint" data-i18n="server.tags.hint">(逗号分隔)</span></label>
+          <input id="server-tags" class="field-input" type="text" data-i18n-ph="server.tags.placeholder" placeholder="家庭, 存储">
         </div>
         <div class="field">
-          <label class="field-label" for="server-notes">备注</label>
-          <textarea id="server-notes" class="field-textarea" rows="2" placeholder="可选"></textarea>
+          <label class="field-label" for="server-notes" data-i18n="server.notes">备注</label>
+          <textarea id="server-notes" class="field-textarea" rows="2" data-i18n-ph="common.optional" placeholder="可选"></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-danger hidden" id="server-delete">删除</button>
+        <button type="button" class="btn btn-danger hidden" id="server-delete" data-i18n="common.delete">删除</button>
         <div style="flex: 1;"></div>
-        <button type="button" class="btn btn-secondary" data-close>取消</button>
-        <button type="submit" class="btn btn-primary">保存</button>
+        <button type="button" class="btn btn-secondary" data-close data-i18n="common.cancel">取消</button>
+        <button type="submit" class="btn btn-primary" data-i18n="common.save">保存</button>
       </div>
     </form>
   </div>
@@ -793,7 +817,7 @@
 <div id="service-modal" class="modal-backdrop hidden">
   <div class="modal" role="dialog" aria-labelledby="service-modal-title">
     <div class="modal-header">
-      <h2 id="service-modal-title" class="modal-title">添加服务</h2>
+      <h2 id="service-modal-title" class="modal-title" data-i18n="service.modal.add">添加服务</h2>
       <button class="icon-btn" data-close>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -802,47 +826,47 @@
       <div class="modal-body">
         <input type="hidden" id="service-id">
         <div class="field">
-          <label class="field-label" for="service-name">名称</label>
-          <input id="service-name" class="field-input" type="text" required placeholder="Jellyfin">
+          <label class="field-label" for="service-name" data-i18n="service.name">名称</label>
+          <input id="service-name" class="field-input" type="text" required data-i18n-ph="service.name.placeholder" placeholder="Jellyfin">
         </div>
         <div class="field">
-          <label class="field-label" for="service-url">URL</label>
-          <input id="service-url" class="field-input" type="url" required placeholder="http://192.168.1.10:8096">
+          <label class="field-label" for="service-url" data-i18n="service.url">URL</label>
+          <input id="service-url" class="field-input" type="url" required data-i18n-ph="service.url.placeholder" placeholder="http://192.168.1.10:8096">
         </div>
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="service-type">类型</label>
+            <label class="field-label" for="service-type" data-i18n="service.type">类型</label>
             <select id="service-type" class="field-select">
-              <option value="web">Web</option>
-              <option value="media">媒体</option>
-              <option value="file">文件</option>
-              <option value="db">数据库</option>
-              <option value="admin">管理</option>
-              <option value="proxy">代理</option>
-              <option value="other">其他</option>
+              <option value="web" data-i18n="service.type.web">Web</option>
+              <option value="media" data-i18n="service.type.media">媒体</option>
+              <option value="file" data-i18n="service.type.file">文件</option>
+              <option value="db" data-i18n="service.type.db">数据库</option>
+              <option value="admin" data-i18n="service.type.admin">管理</option>
+              <option value="proxy" data-i18n="service.type.proxy">代理</option>
+              <option value="other" data-i18n="service.type.other">其他</option>
             </select>
           </div>
           <div class="field">
-            <label class="field-label" for="service-server">归属服务器</label>
+            <label class="field-label" for="service-server" data-i18n="service.server">归属服务器</label>
             <select id="service-server" class="field-select">
-              <option value="">— 无 —</option>
+              <option value="" data-i18n="service.server.none">— 无 —</option>
             </select>
           </div>
         </div>
         <div class="field">
-          <label class="field-label" for="service-icon">图标字符 <span class="field-hint">(1 个字母或 emoji)</span></label>
+          <label class="field-label" for="service-icon" data-i18n="service.icon">图标字符 <span class="field-hint" data-i18n="service.icon.hint">(1 个字母或 emoji)</span></label>
           <input id="service-icon" class="field-input" type="text" maxlength="2" value="A">
         </div>
         <div class="field">
-          <label class="field-label" for="service-desc">描述</label>
-          <input id="service-desc" class="field-input" type="text" placeholder="可选">
+          <label class="field-label" for="service-desc" data-i18n="service.desc">描述</label>
+          <input id="service-desc" class="field-input" type="text" data-i18n-ph="common.optional" placeholder="可选">
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-danger hidden" id="service-delete">删除</button>
+        <button type="button" class="btn btn-danger hidden" id="service-delete" data-i18n="common.delete">删除</button>
         <div style="flex: 1;"></div>
-        <button type="button" class="btn btn-secondary" data-close>取消</button>
-        <button type="submit" class="btn btn-primary">保存</button>
+        <button type="button" class="btn btn-secondary" data-close data-i18n="common.cancel">取消</button>
+        <button type="submit" class="btn btn-primary" data-i18n="common.save">保存</button>
       </div>
     </form>
   </div>
@@ -852,7 +876,7 @@
 <div id="vault-modal" class="modal-backdrop hidden">
   <div class="modal" role="dialog" aria-labelledby="vault-modal-title">
     <div class="modal-header">
-      <h2 id="vault-modal-title" class="modal-title">添加条目</h2>
+      <h2 id="vault-modal-title" class="modal-title" data-i18n="vault.modal.add">添加条目</h2>
       <button class="icon-btn" data-close>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -862,39 +886,39 @@
         <input type="hidden" id="vault-id">
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="vault-type">类型</label>
+            <label class="field-label" for="vault-type" data-i18n="vault.type">类型</label>
             <select id="vault-type" class="field-select">
-              <option value="token">Token</option>
-              <option value="password">密码</option>
-              <option value="note">笔记</option>
-              <option value="card">卡片</option>
-              <option value="ssh_key">SSH 密钥</option>
+              <option value="token" data-i18n="vault.type.token">Token</option>
+              <option value="password" data-i18n="vault.type.password">密码</option>
+              <option value="note" data-i18n="vault.type.note">笔记</option>
+              <option value="card" data-i18n="vault.type.card">卡片</option>
+              <option value="ssh_key" data-i18n="vault.type.ssh_key">SSH 密钥</option>
             </select>
           </div>
           <div class="field">
-            <label class="field-label" for="vault-title">标题</label>
-            <input id="vault-title" class="field-input" type="text" required placeholder="例: GitHub PAT">
+            <label class="field-label" for="vault-title" data-i18n="vault.title.field">标题</label>
+            <input id="vault-title" class="field-input" type="text" required data-i18n-ph="vault.title.placeholder" placeholder="例: GitHub PAT">
           </div>
         </div>
         <div class="field">
-          <label class="field-label" for="vault-url">URL</label>
-          <input id="vault-url" class="field-input" type="text" placeholder="可选">
+          <label class="field-label" for="vault-url" data-i18n="vault.url">URL</label>
+          <input id="vault-url" class="field-input" type="text" data-i18n-ph="common.optional" placeholder="可选">
         </div>
         <div class="field">
-          <label class="field-label" for="vault-username">用户名</label>
-          <input id="vault-username" class="field-input" type="text" placeholder="可选">
+          <label class="field-label" for="vault-username" data-i18n="vault.username">用户名</label>
+          <input id="vault-username" class="field-input" type="text" data-i18n-ph="common.optional" placeholder="可选">
         </div>
         <div class="field">
-          <label class="field-label" for="vault-value" id="vault-value-label">值</label>
+          <label class="field-label" for="vault-value" id="vault-value-label" data-i18n="vault.value">值</label>
           <textarea id="vault-value" class="field-textarea" rows="3" required></textarea>
-          <span class="field-hint">本地加密 (AES-GCM 256) 后保存</span>
+          <span class="field-hint" data-i18n="vault.value.hint">本地加密 (AES-GCM 256) 后保存</span>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-danger hidden" id="vault-delete">删除</button>
+        <button type="button" class="btn btn-danger hidden" id="vault-delete" data-i18n="common.delete">删除</button>
         <div style="flex: 1;"></div>
-        <button type="button" class="btn btn-secondary" data-close>取消</button>
-        <button type="submit" class="btn btn-primary">保存</button>
+        <button type="button" class="btn btn-secondary" data-close data-i18n="common.cancel">取消</button>
+        <button type="submit" class="btn btn-primary" data-i18n="common.save">保存</button>
       </div>
     </form>
   </div>
@@ -904,51 +928,51 @@
 <div id="settings-modal" class="modal-backdrop hidden">
   <div class="modal" role="dialog" aria-labelledby="settings-modal-title">
     <div class="modal-header">
-      <h2 id="settings-modal-title" class="modal-title">设置</h2>
+      <h2 id="settings-modal-title" class="modal-title" data-i18n="settings.title">设置</h2>
       <button class="icon-btn" data-close>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="modal-body">
       <div class="field">
-        <label class="field-label" for="settings-theme">主题</label>
+        <label class="field-label" for="settings-theme" data-i18n="settings.theme">主题</label>
         <select id="settings-theme" class="field-select">
-          <option value="auto">跟随系统</option>
-          <option value="light">浅色</option>
-          <option value="dark">深色</option>
+          <option value="auto" data-i18n="settings.theme.auto">跟随系统</option>
+          <option value="light" data-i18n="settings.theme.light">浅色</option>
+          <option value="dark" data-i18n="settings.theme.dark">深色</option>
         </select>
       </div>
       <div class="field">
-        <label class="field-label" for="settings-lock">自动锁定</label>
+        <label class="field-label" for="settings-lock" data-i18n="settings.lock">自动锁定</label>
         <select id="settings-lock" class="field-select">
-          <option value="1">1 分钟</option>
-          <option value="5">5 分钟</option>
-          <option value="15">15 分钟</option>
-          <option value="30">30 分钟</option>
-          <option value="0">从不</option>
+          <option value="1" data-i18n="settings.lock.1">1 分钟</option>
+          <option value="5" data-i18n="settings.lock.5">5 分钟</option>
+          <option value="15" data-i18n="settings.lock.15">15 分钟</option>
+          <option value="30" data-i18n="settings.lock.30">30 分钟</option>
+          <option value="0" data-i18n="settings.lock.0">从不</option>
         </select>
       </div>
       <div class="field">
-        <label class="field-label" for="settings-clip">剪贴板自动清除</label>
+        <label class="field-label" for="settings-clip" data-i18n="settings.clip">剪贴板自动清除</label>
         <select id="settings-clip" class="field-select">
-          <option value="15">15 秒</option>
-          <option value="30" selected>30 秒</option>
-          <option value="60">60 秒</option>
-          <option value="0">不清除</option>
+          <option value="15" data-i18n="settings.clip.15">15 秒</option>
+          <option value="30" selected data-i18n="settings.clip.30">30 秒</option>
+          <option value="60" data-i18n="settings.clip.60">60 秒</option>
+          <option value="0" data-i18n="settings.clip.0">不清除</option>
         </select>
       </div>
       <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
       <div class="field">
-        <label class="field-label">更改主密码</label>
-        <button type="button" class="btn btn-secondary" id="change-pw-btn" style="align-self: flex-start;">更改主密码</button>
+        <label class="field-label" data-i18n="settings.changepw.btn">更改主密码</label>
+        <button type="button" class="btn btn-secondary" id="change-pw-btn" style="align-self: flex-start;" data-i18n="settings.changepw.btn">更改主密码</button>
       </div>
       <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
       <div style="display: flex; flex-direction: column; gap: 6px;">
-        <button type="button" class="btn btn-secondary" id="export-config-btn">
+        <button type="button" class="btn btn-secondary" id="export-config-btn" data-i18n="settings.export">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           导出 config.json
         </button>
-        <button type="button" class="btn btn-secondary" id="import-config-btn">
+        <button type="button" class="btn btn-secondary" id="import-config-btn" data-i18n="settings.import">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           导入 config.json
         </button>
@@ -956,14 +980,14 @@
       </div>
       <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
       <div class="field">
-        <label class="field-label">本地缓存</label>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px;">浏览器 localStorage 中存有当前配置的缓存（不含 vault 密钥）。切换设备前可清除。</p>
-        <button type="button" class="btn btn-danger" id="clear-cache-btn" style="align-self: flex-start;">清除本地缓存</button>
+        <label class="field-label" data-i18n="settings.cache.title">本地缓存</label>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px;" data-i18n="settings.cache.desc">浏览器 localStorage 中存有当前配置的缓存（不含 vault 密钥）。切换设备前可清除。</p>
+        <button type="button" class="btn btn-danger" id="clear-cache-btn" style="align-self: flex-start;" data-i18n="settings.cache.btn">清除本地缓存</button>
       </div>
     </div>
     <div class="modal-footer">
       <div style="flex: 1;"></div>
-      <button type="button" class="btn btn-primary" data-close>完成</button>
+      <button type="button" class="btn btn-primary" data-close data-i18n="common.done">完成</button>
     </div>
   </div>
 </div>
@@ -972,7 +996,7 @@
 <div id="change-pw-modal" class="modal-backdrop hidden">
   <div class="modal" role="dialog">
     <div class="modal-header">
-      <h2 class="modal-title">更改主密码</h2>
+      <h2 class="modal-title" data-i18n="changepw.title">更改主密码</h2>
       <button class="icon-btn" data-close>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -980,24 +1004,24 @@
     <form id="change-pw-form">
       <div class="modal-body">
         <div class="field">
-          <label class="field-label" for="cp-current">当前主密码</label>
+          <label class="field-label" for="cp-current" data-i18n="changepw.current">当前主密码</label>
           <input id="cp-current" class="field-input" type="password" required>
         </div>
         <div class="field">
-          <label class="field-label" for="cp-new1">新主密码</label>
+          <label class="field-label" for="cp-new1" data-i18n="changepw.new1">新主密码</label>
           <input id="cp-new1" class="field-input" type="password" required minlength="8">
         </div>
         <div class="field">
-          <label class="field-label" for="cp-new2">确认新主密码</label>
+          <label class="field-label" for="cp-new2" data-i18n="changepw.new2">确认新主密码</label>
           <input id="cp-new2" class="field-input" type="password" required minlength="8">
         </div>
         <div id="cp-error" class="auth-error"></div>
-        <p style="font-size: 13px; color: var(--text-tertiary);">更改后所有 vault 条目会重新加密。</p>
+        <p style="font-size: 13px; color: var(--text-tertiary);" data-i18n="changepw.note">更改后所有 vault 条目会重新加密。</p>
       </div>
       <div class="modal-footer">
         <div style="flex: 1;"></div>
-        <button type="button" class="btn btn-secondary" data-close>取消</button>
-        <button type="submit" class="btn btn-primary">更新</button>
+        <button type="button" class="btn btn-secondary" data-close data-i18n="common.cancel">取消</button>
+        <button type="submit" class="btn btn-primary" data-i18n="changepw.update">更新</button>
       </div>
     </form>
   </div>
@@ -1009,6 +1033,426 @@
 <script>
 (() => {
   'use strict';
+
+  // ============================================================
+  // i18n
+  // ============================================================
+  const I18N = {
+    en: {
+      'meta.title': 'Lodge',
+      'brand': 'Lodge',
+      'tab.servers': 'Servers',
+      'tab.services': 'Services',
+      'tab.vault': 'Vault',
+      'common.search.servers': 'Search servers…',
+      'common.search.services': 'Search services…',
+      'common.search.vault': 'Search vault…',
+      'common.add': 'Add',
+      'common.cancel': 'Cancel',
+      'common.save': 'Save',
+      'common.delete': 'Delete',
+      'common.done': 'Done',
+      'common.close': 'Close',
+      'common.update': 'Update',
+      'common.optional': 'Optional',
+      'common.required': 'Required',
+      'common.unlock': 'Unlock',
+      'common.locked': 'Locked',
+
+      'loading': 'Loading configuration…',
+      'picker.title': 'Select config file',
+      'picker.desc': 'Please select <code>config.json</code> located in the same folder as <code>dashboard.html</code>',
+      'picker.btn': 'Select file',
+      'picker.note': 'iPhone users: in Files app, find config.json, long-press → Share → Open in Safari',
+
+      'insecure.title': 'Secure context required',
+      'insecure.desc': 'Your current access method does not support Web Crypto API, so data cannot be encrypted.<br>This is a browser security restriction, <strong>not a Lodge issue</strong>.',
+
+      'setup.title': 'Set master password',
+      'setup.desc': 'This password will encrypt all your tokens and notes.<br><strong style="color: var(--text);">It cannot be recovered. Store it safely.</strong>',
+      'setup.pw1': 'Master password',
+      'setup.pw1.placeholder': 'At least 8 characters',
+      'setup.pw2': 'Confirm password',
+      'setup.pw2.placeholder': 'Enter again',
+      'setup.submit': 'Create',
+      'setup.err.short': 'Password must be at least 8 characters',
+      'setup.err.mismatch': 'The two entries do not match',
+      'setup.err.generic': 'Setup failed: ',
+
+      'unlock.title': 'Unlock your vault',
+      'unlock.desc': 'Enter your master password to view encrypted tokens and notes',
+      'unlock.submit': 'Unlock',
+      'unlock.err': 'Wrong master password',
+      'unlock.err.generic': 'Verification failed: ',
+
+      'servers.title': 'Servers',
+      'servers.count': 'servers',
+      'servers.empty.title': 'No servers yet',
+      'servers.empty.desc': 'Add your first server to get started',
+      'servers.empty.search': 'No matching servers',
+      'servers.empty.search.desc': 'Try a different search term',
+      'servers.empty.btn': '+ Add server',
+      'servers.card.address': 'Address',
+      'servers.btn.ssh': 'SSH',
+      'servers.btn.copy': 'Copy',
+      'servers.btn.edit': 'Edit',
+
+      'services.title': 'Services',
+      'services.count': 'services',
+      'services.empty.title': 'No services yet',
+      'services.empty.desc': 'Bookmark all your web services here',
+      'services.empty.search': 'No matching services',
+      'services.empty.search.desc': 'Try a different search term',
+      'services.empty.btn': '+ Add service',
+      'services.group.other': 'Other',
+
+      'vault.title': 'Vault',
+      'vault.count': 'items',
+      'vault.locked.title': 'Vault locked',
+      'vault.locked.desc': 'Unlock to view encrypted tokens and notes',
+      'vault.locked.btn': 'Unlock',
+      'vault.empty.title': 'Vault is empty',
+      'vault.empty.desc': 'Add your first encrypted entry',
+      'vault.empty.search': 'No matching entries',
+      'vault.empty.search.desc': 'Try a different search term',
+      'vault.empty.btn': '+ Add entry',
+
+      'server.modal.add': 'Add server',
+      'server.modal.edit': 'Edit server',
+      'server.alias': 'Name',
+      'server.alias.placeholder': 'e.g. Home NAS',
+      'server.host': 'Host',
+      'server.host.placeholder': 'IP or domain',
+      'server.port': 'SSH port',
+      'server.user': 'Username',
+      'server.user.placeholder': 'root',
+      'server.tags': 'Tags',
+      'server.tags.hint': '(comma separated)',
+      'server.tags.placeholder': 'home, storage',
+      'server.notes': 'Notes',
+      'server.del.confirm': 'Delete "NAME"? Linked services will not be deleted.',
+
+      'service.modal.add': 'Add service',
+      'service.modal.edit': 'Edit service',
+      'service.name': 'Name',
+      'service.name.placeholder': 'Jellyfin',
+      'service.url': 'URL',
+      'service.url.placeholder': 'http://192.168.1.10:8096',
+      'service.type': 'Type',
+      'service.type.web': 'Web',
+      'service.type.media': 'Media',
+      'service.type.file': 'File',
+      'service.type.db': 'Database',
+      'service.type.admin': 'Admin',
+      'service.type.proxy': 'Proxy',
+      'service.type.other': 'Other',
+      'service.server': 'Server',
+      'service.server.none': '— None —',
+      'service.icon': 'Icon',
+      'service.icon.hint': '(1 letter or emoji)',
+      'service.desc': 'Description',
+      'service.del.confirm': 'Delete "NAME"?',
+
+      'vault.modal.add': 'Add entry',
+      'vault.modal.edit': 'Edit entry',
+      'vault.type': 'Type',
+      'vault.type.token': 'Token',
+      'vault.type.password': 'Password',
+      'vault.type.note': 'Note',
+      'vault.type.card': 'Card',
+      'vault.type.ssh_key': 'SSH key',
+      'vault.title.field': 'Title',
+      'vault.title.placeholder': 'e.g. GitHub PAT',
+      'vault.url': 'URL',
+      'vault.username': 'Username',
+      'vault.value': 'Value',
+      'vault.value.hint': 'Encrypted locally (AES-GCM 256) before saving',
+      'vault.del.confirm': 'Delete "TITLE"?',
+
+      'settings.title': 'Settings',
+      'settings.theme': 'Theme',
+      'settings.theme.auto': 'Follow system',
+      'settings.theme.light': 'Light',
+      'settings.theme.dark': 'Dark',
+      'settings.lock': 'Auto-lock',
+      'settings.lock.1': '1 minute',
+      'settings.lock.5': '5 minutes',
+      'settings.lock.15': '15 minutes',
+      'settings.lock.30': '30 minutes',
+      'settings.lock.0': 'Never',
+      'settings.clip': 'Clipboard auto-clear',
+      'settings.clip.15': '15 seconds',
+      'settings.clip.30': '30 seconds',
+      'settings.clip.60': '60 seconds',
+      'settings.clip.0': 'Never clear',
+      'settings.changepw.btn': 'Change master password',
+      'settings.export': 'Export config.json',
+      'settings.import': 'Import config.json',
+      'settings.cache.title': 'Local cache',
+      'settings.cache.desc': 'Browser localStorage contains a cache of the current config (without vault key). Clear before switching devices.',
+      'settings.cache.btn': 'Clear local cache',
+
+      'changepw.title': 'Change master password',
+      'changepw.current': 'Current master password',
+      'changepw.new1': 'New master password',
+      'changepw.new2': 'Confirm new master password',
+      'changepw.update': 'Update',
+      'changepw.note': 'After update, all vault entries will be re-encrypted with the new password.',
+      'changepw.err.current': 'Wrong current master password',
+      'changepw.err.short': 'New password must be at least 8 characters',
+      'changepw.err.mismatch': 'The two entries do not match',
+
+      'toast.ssh.copied': 'SSH command copied',
+      'toast.copy.fail': 'Copy failed, please copy manually: ',
+      'toast.auto.locked': 'Auto-locked',
+      'toast.copied': 'Copied',
+      'toast.copy.failed': 'Copy failed',
+      'toast.parse.fail': 'Failed to parse file: ',
+      'toast.pw.set': 'Master password set',
+      'toast.copied.clip': 'Copied · will clear in {SEC}s',
+      'toast.deleted': 'Deleted',
+      'toast.updated': 'Updated',
+      'toast.added': 'Added',
+      'toast.unlock.first.vault': 'Please unlock the vault first',
+      'toast.unlock.first': 'Please unlock first',
+      'toast.value.empty': 'Value cannot be empty',
+      'toast.title.empty': 'Title cannot be empty',
+      'toast.pw.updated': 'Master password updated',
+      'toast.config.downloaded': 'config.json downloaded',
+      'toast.config.imported': 'Config imported, please re-unlock',
+      'toast.import.fail': 'Import failed: ',
+      'toast.saved': 'Saved to local downloads',
+      'toast.cache.confirm': 'Clear browser local cache? This will close and reload the page.',
+      'toast.lock.confirm': 'You have unsaved changes that will be lost (only in memory). Continue?',
+      'toast.import.overwrite': 'You have unsaved changes. Importing will overwrite them. Continue?',
+
+      'footer.local': 'Local storage · Zero network requests',
+      'footer.unsaved': 'Unsaved changes',
+      'footer.synced': 'Synced',
+      'footer.save': 'Save to file',
+    },
+    zh: {
+      'meta.title': 'Lodge',
+      'brand': 'Lodge',
+      'tab.servers': '服务器',
+      'tab.services': '服务',
+      'tab.vault': '保险库',
+      'common.search.servers': '搜索服务器…',
+      'common.search.services': '搜索服务…',
+      'common.search.vault': '搜索条目…',
+      'common.add': '添加',
+      'common.cancel': '取消',
+      'common.save': '保存',
+      'common.delete': '删除',
+      'common.done': '完成',
+      'common.close': '关闭',
+      'common.update': '更新',
+      'common.optional': '可选',
+      'common.required': '必填',
+      'common.unlock': '解锁',
+      'common.locked': '已锁定',
+
+      'loading': '正在加载配置…',
+      'picker.title': '选择配置文件',
+      'picker.desc': '请选择与 <code>dashboard.html</code> 同目录的 <code>config.json</code> 文件',
+      'picker.btn': '选择文件',
+      'picker.note': 'iPhone 用户: 在"文件"App 中找到 config.json 后长按 → 共享 → 用 Safari 打开',
+
+      'insecure.title': '需要安全上下文',
+      'insecure.desc': '当前打开方式不支持 Web Crypto API，无法加密你的数据。<br>这是浏览器安全限制，<strong style="color: var(--text);">与本应用无关</strong>。',
+
+      'setup.title': '设置主密码',
+      'setup.desc': '这个密码将用于加密你的所有 token 和笔记。<br><strong style="color: var(--text);">密码无法找回，请妥善保管。</strong>',
+      'setup.pw1': '主密码',
+      'setup.pw1.placeholder': '至少 8 位',
+      'setup.pw2': '确认主密码',
+      'setup.pw2.placeholder': '再次输入',
+      'setup.submit': '创建',
+      'setup.err.short': '主密码至少 8 位',
+      'setup.err.mismatch': '两次输入不一致',
+      'setup.err.generic': '设置失败: ',
+
+      'unlock.title': '解锁你的保险库',
+      'unlock.desc': '输入主密码以查看加密的 token 和笔记',
+      'unlock.submit': '解锁',
+      'unlock.err': '主密码错误',
+      'unlock.err.generic': '验证失败: ',
+
+      'servers.title': '服务器',
+      'servers.count': '台',
+      'servers.empty.title': '还没有服务器',
+      'servers.empty.desc': '添加你的第一台服务器，开始管理',
+      'servers.empty.search': '没有匹配的服务器',
+      'servers.empty.search.desc': '尝试调整搜索关键词',
+      'servers.empty.btn': '+ 添加服务器',
+      'servers.card.address': '地址',
+      'servers.btn.ssh': 'SSH',
+      'servers.btn.copy': '复制',
+      'servers.btn.edit': '编辑',
+
+      'services.title': '服务',
+      'services.count': '个',
+      'services.empty.title': '还没有服务',
+      'services.empty.desc': '把你所有 Web 服务收藏到这里',
+      'services.empty.search': '没有匹配的服务',
+      'services.empty.search.desc': '尝试调整搜索关键词',
+      'services.empty.btn': '+ 添加服务',
+      'services.group.other': '其他',
+
+      'vault.title': '保险库',
+      'vault.count': '条',
+      'vault.locked.title': '保险库已锁定',
+      'vault.locked.desc': '解锁后查看加密的 token 和笔记',
+      'vault.locked.btn': '解锁',
+      'vault.empty.title': '保险库是空的',
+      'vault.empty.desc': '添加你的第一条加密记录',
+      'vault.empty.search': '没有匹配的条目',
+      'vault.empty.search.desc': '尝试调整搜索关键词',
+      'vault.empty.btn': '+ 添加条目',
+
+      'server.modal.add': '添加服务器',
+      'server.modal.edit': '编辑服务器',
+      'server.alias': '名称',
+      'server.alias.placeholder': '例: 家庭 NAS',
+      'server.host': '主机',
+      'server.host.placeholder': 'IP 或域名',
+      'server.port': 'SSH 端口',
+      'server.user': '用户名',
+      'server.user.placeholder': 'root',
+      'server.tags': '标签',
+      'server.tags.hint': '(逗号分隔)',
+      'server.tags.placeholder': '家庭, 存储',
+      'server.notes': '备注',
+      'server.del.confirm': '确定删除「NAME」？关联的服务不会被删除。',
+
+      'service.modal.add': '添加服务',
+      'service.modal.edit': '编辑服务',
+      'service.name': '名称',
+      'service.name.placeholder': 'Jellyfin',
+      'service.url': 'URL',
+      'service.url.placeholder': 'http://192.168.1.10:8096',
+      'service.type': '类型',
+      'service.type.web': 'Web',
+      'service.type.media': '媒体',
+      'service.type.file': '文件',
+      'service.type.db': '数据库',
+      'service.type.admin': '管理',
+      'service.type.proxy': '代理',
+      'service.type.other': '其他',
+      'service.server': '归属服务器',
+      'service.server.none': '— 无 —',
+      'service.icon': '图标字符',
+      'service.icon.hint': '(1 个字母或 emoji)',
+      'service.desc': '描述',
+      'service.del.confirm': '确定删除「NAME」？',
+
+      'vault.modal.add': '添加条目',
+      'vault.modal.edit': '编辑条目',
+      'vault.type': '类型',
+      'vault.type.token': 'Token',
+      'vault.type.password': '密码',
+      'vault.type.note': '笔记',
+      'vault.type.card': '卡片',
+      'vault.type.ssh_key': 'SSH 密钥',
+      'vault.title.field': '标题',
+      'vault.title.placeholder': '例: GitHub PAT',
+      'vault.url': 'URL',
+      'vault.username': '用户名',
+      'vault.value': '值',
+      'vault.value.hint': '本地加密 (AES-GCM 256) 后保存',
+      'vault.del.confirm': '确定删除「TITLE」？',
+
+      'settings.title': '设置',
+      'settings.theme': '主题',
+      'settings.theme.auto': '跟随系统',
+      'settings.theme.light': '浅色',
+      'settings.theme.dark': '深色',
+      'settings.lock': '自动锁定',
+      'settings.lock.1': '1 分钟',
+      'settings.lock.5': '5 分钟',
+      'settings.lock.15': '15 分钟',
+      'settings.lock.30': '30 分钟',
+      'settings.lock.0': '从不',
+      'settings.clip': '剪贴板自动清除',
+      'settings.clip.15': '15 秒',
+      'settings.clip.30': '30 秒',
+      'settings.clip.60': '60 秒',
+      'settings.clip.0': '不清除',
+      'settings.changepw.btn': '更改主密码',
+      'settings.export': '导出 config.json',
+      'settings.import': '导入 config.json',
+      'settings.cache.title': '本地缓存',
+      'settings.cache.desc': '浏览器 localStorage 中存有当前配置的缓存（不含 vault 密钥）。切换设备前可清除。',
+      'settings.cache.btn': '清除本地缓存',
+
+      'changepw.title': '更改主密码',
+      'changepw.current': '当前主密码',
+      'changepw.new1': '新主密码',
+      'changepw.new2': '确认新主密码',
+      'changepw.update': '更新',
+      'changepw.note': '更改后所有 vault 条目会重新加密。',
+      'changepw.err.current': '当前主密码错误',
+      'changepw.err.short': '新密码至少 8 位',
+      'changepw.err.mismatch': '两次输入不一致',
+
+      'toast.ssh.copied': 'SSH 命令已复制',
+      'toast.copy.fail': '复制失败，请手动复制: ',
+      'toast.auto.locked': '已自动锁定',
+      'toast.copied': '已复制',
+      'toast.copy.failed': '复制失败',
+      'toast.parse.fail': '解析文件失败: ',
+      'toast.pw.set': '主密码已设置',
+      'toast.copied.clip': '已复制 · {SEC}s 后清除',
+      'toast.deleted': '已删除',
+      'toast.updated': '已更新',
+      'toast.added': '已添加',
+      'toast.unlock.first.vault': '请先解锁保险库',
+      'toast.unlock.first': '请先解锁',
+      'toast.value.empty': '值不能为空',
+      'toast.title.empty': '标题不能为空',
+      'toast.pw.updated': '主密码已更新',
+      'toast.config.downloaded': 'config.json 已下载',
+      'toast.config.imported': '配置已导入，请重新解锁',
+      'toast.import.fail': '导入失败: ',
+      'toast.saved': '已保存到本地下载',
+      'toast.cache.confirm': '确认清除浏览器本地缓存？将关闭此页面并重新加载。',
+      'toast.lock.confirm': '有未保存的更改，锁定后将丢失（仅内存中）。继续？',
+      'toast.import.overwrite': '当前有未保存的更改，导入新配置会覆盖。继续？',
+
+      'footer.local': '本地存储 · 零网络请求',
+      'footer.unsaved': '有未保存的更改',
+      'footer.synced': '已同步',
+      'footer.save': '保存到文件',
+    }
+  };
+
+  let currentLang = (() => {
+    const saved = localStorage.getItem('lodge.lang');
+    if (saved && I18N[saved]) return saved;
+    return (navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  })();
+
+  function t(key) { return I18N[currentLang][key] || I18N.en[key] || key; }
+
+  function applyLang() {
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+    document.title = t('meta.title');
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      el.innerHTML = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-ph]').forEach((el) => {
+      el.placeholder = t(el.dataset.i18nPh);
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach((el) => {
+      el.title = t(el.dataset.i18nTitle);
+    });
+    document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
+      el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    });
+    document.querySelectorAll('.lang-opt').forEach((el) => {
+      el.classList.toggle('active', el.dataset.lang === currentLang);
+    });
+  }
 
   // ============================================================
   // State
@@ -1239,10 +1683,10 @@
       const cmd = this.command(server);
       try {
         await navigator.clipboard.writeText(cmd);
-        if (showToast) toast('SSH 命令已复制');
+        if (showToast) toast(t('toast.ssh.copied'));
         Clipboard.scheduleClear();
       } catch {
-        toast('复制失败，请手动复制: ' + cmd, 'error');
+        toast(t('toast.copy.fail') + cmd, 'error');
       }
     },
   };
@@ -1285,7 +1729,7 @@
         if (min === 0) return;
         if (Date.now() - state.lastActivity > min * 60 * 1000) {
           lock();
-          toast('已自动锁定');
+          toast(t('toast.auto.locked'));
         }
       }, 10000);
     },
@@ -1397,7 +1841,7 @@
           cfg = await Storage.readFile(file);
           await proceedWithConfig(cfg);
         } catch (e) {
-          toast('解析文件失败: ' + e.message, 'error');
+          toast(t('toast.parse.fail') + e.message, 'error');
         }
       });
       return;
@@ -1453,10 +1897,10 @@
     const errEl = $('setup-error');
 
     if (pw1.length < 8) {
-      errEl.textContent = '主密码至少 8 位'; errEl.classList.add('show'); return;
+      errEl.textContent = t('setup.err.short'); errEl.classList.add('show'); return;
     }
     if (pw1 !== pw2) {
-      errEl.textContent = '两次输入不一致'; errEl.classList.add('show'); return;
+      errEl.textContent = t('setup.err.mismatch'); errEl.classList.add('show'); return;
     }
 
     errEl.classList.remove('show');
@@ -1473,9 +1917,9 @@
       markDirty();
       Storage.cacheLocal();
       unlock();
-      toast('主密码已设置');
+      toast(t('toast.pw.set'));
     } catch (err) {
-      errEl.textContent = '设置失败: ' + err.message;
+      errEl.textContent = t('setup.err.generic') + err.message;
       errEl.classList.add('show');
     }
   });
@@ -1493,7 +1937,7 @@
       const key = await Crypto.deriveKey(pw, state.config.vault.salt, state.config.vault.iterations);
       const ok = await Crypto.verifyPassword(key, state.config.vault.verifier, state.config.vault.verifierIv);
       if (!ok) {
-        errEl.textContent = '主密码错误';
+        errEl.textContent = t('unlock.err');
         errEl.classList.add('show');
         $('unlock-pw').select();
         return;
@@ -1501,7 +1945,7 @@
       state.masterKey = key;
       unlock();
     } catch (err) {
-      errEl.textContent = '验证失败: ' + err.message;
+      errEl.textContent = t('unlock.err.generic') + err.message;
       errEl.classList.add('show');
     }
   });
@@ -1541,12 +1985,12 @@
   }
 
   function renderSaveStatus() {
-    $('save-status').textContent = state.hasUnsavedChanges ? '有未保存的更改' : '已同步';
+    $('save-status').textContent = state.hasUnsavedChanges ? t('footer.unsaved') : t('footer.synced');
   }
 
   function renderServers() {
     const list = state.config.servers;
-    $('servers-count').textContent = `${list.length} 台`;
+    $('servers-count').textContent = `${list.length} ${t('servers.count')}`;
     const q = state.search.servers;
     const filtered = list.filter((s) =>
       !q || s.alias.toLowerCase().includes(q) || s.host.toLowerCase().includes(q) ||
@@ -1559,9 +2003,9 @@
           <div class="empty-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
           </div>
-          <h3 class="empty-title">${list.length === 0 ? '还没有服务器' : '没有匹配的服务器'}</h3>
-          <p class="empty-desc">${list.length === 0 ? '添加你的第一台服务器，开始管理' : '尝试调整搜索关键词'}</p>
-          ${list.length === 0 ? '<button class="btn btn-primary" onclick="document.getElementById(\'add-server-btn\').click()">+ 添加服务器</button>' : ''}
+          <h3 class="empty-title">${t(list.length === 0 ? 'servers.empty.title' : 'servers.empty.search')}</h3>
+          <p class="empty-desc">${t(list.length === 0 ? 'servers.empty.desc' : 'servers.empty.search.desc')}</p>
+          ${list.length === 0 ? `<button class="btn btn-primary" onclick="document.getElementById('add-server-btn').click()">${escapeHtml(t('servers.empty.btn'))}</button>` : ''}
         </div>`;
       return;
     }
@@ -1584,7 +2028,7 @@
         </div>
         <div class="card-body">
           <div class="card-row">
-            <span class="label">地址</span>
+            <span class="label">${escapeHtml(t('servers.card.address'))}</span>
             <span class="value">${escapeHtml(s.host)}${s.sshPort !== 22 ? ':' + s.sshPort : ''}</span>
           </div>
           ${s.notes ? `<p class="card-notes">${escapeHtml(s.notes)}</p>` : ''}
@@ -1593,13 +2037,13 @@
         <div class="card-footer">
           <button class="btn btn-primary btn-capsule" data-action="ssh" data-id="${escapeHtml(s.id)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-            SSH
+            ${escapeHtml(t('servers.btn.ssh'))}
           </button>
           <button class="btn btn-secondary" data-action="copy" data-id="${escapeHtml(s.id)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            复制
+            ${escapeHtml(t('servers.btn.copy'))}
           </button>
-          <button class="btn btn-ghost" data-action="edit" data-id="${escapeHtml(s.id)}" aria-label="编辑">
+          <button class="btn btn-ghost" data-action="edit" data-id="${escapeHtml(s.id)}" aria-label="${escapeHtml(t('servers.btn.edit'))}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
         </div>
@@ -1608,7 +2052,7 @@
 
   function renderServices() {
     const list = state.config.services;
-    $('services-count').textContent = `${list.length} 个`;
+    $('services-count').textContent = `${list.length} ${t('services.count')}`;
     const q = state.search.services;
     const filtered = list.filter((s) =>
       !q || s.name.toLowerCase().includes(q) || s.url.toLowerCase().includes(q) ||
@@ -1621,9 +2065,9 @@
           <div class="empty-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           </div>
-          <h3 class="empty-title">${list.length === 0 ? '还没有服务' : '没有匹配的服务'}</h3>
-          <p class="empty-desc">${list.length === 0 ? '把你所有 Web 服务收藏到这里' : '尝试调整搜索关键词'}</p>
-          ${list.length === 0 ? '<button class="btn btn-primary" onclick="document.getElementById(\'add-service-btn\').click()">+ 添加服务</button>' : ''}
+          <h3 class="empty-title">${t(list.length === 0 ? 'services.empty.title' : 'services.empty.search')}</h3>
+          <p class="empty-desc">${t(list.length === 0 ? 'services.empty.desc' : 'services.empty.search.desc')}</p>
+          ${list.length === 0 ? `<button class="btn btn-primary" onclick="document.getElementById('add-service-btn').click()">${escapeHtml(t('services.empty.btn'))}</button>` : ''}
         </div>`;
       return;
     }
@@ -1642,7 +2086,7 @@
     for (const [sid, svcs] of byServer) {
       if (svcs.length === 0) continue;
       const server = state.config.servers.find((s) => s.id === sid);
-      const title = server ? server.alias : '其他';
+      const title = server ? server.alias : t('services.group.other');
       sections.push(`
         <h2 class="section-title">${escapeHtml(title)} <span style="color: var(--text-tertiary); font-size: 14px; font-weight: 400; font-family: var(--font-text);">· ${svcs.length}</span></h2>
         <div class="service-grid">${svcs.map(serviceCardHTML).join('')}</div>
@@ -1669,14 +2113,14 @@
 
   function renderVault() {
     const list = state.config.vault.items;
-    $('vault-count').textContent = `${list.length} 条`;
+    $('vault-count').textContent = `${list.length} ${t('vault.count')}`;
 
     if (!state.isUnlocked) {
       $('vault-container').innerHTML = `
         <div class="vault-locked-banner">
-          <h3>保险库已锁定</h3>
-          <p>解锁后查看加密的 token 和笔记</p>
-          <button class="btn btn-primary btn-capsule" onclick="document.getElementById('lock-btn').click()">解锁</button>
+          <h3>${escapeHtml(t('vault.locked.title'))}</h3>
+          <p>${escapeHtml(t('vault.locked.desc'))}</p>
+          <button class="btn btn-primary btn-capsule" onclick="document.getElementById('lock-btn').click()">${escapeHtml(t('vault.locked.btn'))}</button>
         </div>`;
       return;
     }
@@ -1695,9 +2139,9 @@
           <div class="empty-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
-          <h3 class="empty-title">${list.length === 0 ? '保险库是空的' : '没有匹配的条目'}</h3>
-          <p class="empty-desc">${list.length === 0 ? '添加你的第一条加密记录' : '尝试调整搜索关键词'}</p>
-          ${list.length === 0 ? '<button class="btn btn-primary" onclick="document.getElementById(\'add-vault-btn\').click()">+ 添加条目</button>' : ''}
+          <h3 class="empty-title">${t(list.length === 0 ? 'vault.empty.title' : 'vault.empty.search')}</h3>
+          <p class="empty-desc">${t(list.length === 0 ? 'vault.empty.desc' : 'vault.empty.search.desc')}</p>
+          ${list.length === 0 ? `<button class="btn btn-primary" onclick="document.getElementById('add-vault-btn').click()">${escapeHtml(t('vault.empty.btn'))}</button>` : ''}
         </div>`;
       return;
     }
@@ -1759,7 +2203,7 @@
         const plain = await Crypto.decrypt(item.ciphertext, item.iv, state.masterKey);
         try {
           await navigator.clipboard.writeText(plain);
-          toast('已复制 · ' + state.settings.clearClipboardSeconds + 's 后清除');
+          toast(t('toast.copied.clip').replace('{SEC}', state.settings.clearClipboardSeconds));
           Clipboard.scheduleClear();
         } catch {
           toast('复制失败', 'error');
@@ -1797,7 +2241,7 @@
   $('add-server-btn').addEventListener('click', () => openServerModal(null));
 
   function openServerModal(server) {
-    $('server-modal-title').textContent = server ? '编辑服务器' : '添加服务器';
+    $('server-modal-title').textContent = server ? t('server.modal.edit') : t('server.modal.add');
     $('server-id').value = server?.id || '';
     $('server-alias').value = server?.alias || '';
     $('server-host').value = server?.host || '';
@@ -1808,7 +2252,7 @@
     $('server-delete').classList.toggle('hidden', !server);
     if (server) {
       $('server-delete').onclick = () => {
-        if (confirm(`确定删除「${server.alias}」？关联的服务不会被删除。`)) {
+        if (confirm(t('server.del.confirm').replace('NAME', server.alias))) {
           state.config.servers = state.config.servers.filter((s) => s.id !== server.id);
           // Clear serverId from related services
           state.config.services.forEach((s) => {
@@ -1817,7 +2261,7 @@
           markDirty();
           render();
           closeModal('server-modal');
-          toast('已删除');
+          toast(t('toast.deleted'));
         }
       };
     }
@@ -1845,7 +2289,7 @@
     markDirty();
     render();
     closeModal('server-modal');
-    toast(id ? '已更新' : '已添加');
+    toast(id ? t('toast.updated') : t('toast.added'));
   });
 
   // ----- Service modal -----
@@ -1859,7 +2303,7 @@
         `<option value="${escapeHtml(s.id)}">${escapeHtml(s.alias)}</option>`
       ).join('');
 
-    $('service-modal-title').textContent = svc ? '编辑服务' : '添加服务';
+    $('service-modal-title').textContent = svc ? t('service.modal.edit') : t('service.modal.add');
     $('service-id').value = svc?.id || '';
     $('service-name').value = svc?.name || '';
     $('service-url').value = svc?.url || '';
@@ -1870,12 +2314,12 @@
     $('service-delete').classList.toggle('hidden', !svc);
     if (svc) {
       $('service-delete').onclick = () => {
-        if (confirm(`确定删除「${svc.name}」？`)) {
+        if (confirm(t('service.del.confirm').replace('NAME', svc.name))) {
           state.config.services = state.config.services.filter((s) => s.id !== svc.id);
           markDirty();
           render();
           closeModal('service-modal');
-          toast('已删除');
+          toast(t('toast.deleted'));
         }
       };
     }
@@ -1903,20 +2347,20 @@
     markDirty();
     render();
     closeModal('service-modal');
-    toast(id ? '已更新' : '已添加');
+    toast(id ? t('toast.updated') : t('toast.added'));
   });
 
   // ----- Vault modal -----
   $('add-vault-btn').addEventListener('click', () => {
     if (!state.isUnlocked) {
-      toast('请先解锁保险库', 'error');
+      toast(t('toast.unlock.first.vault'), 'error');
       return;
     }
     openVaultModal(null);
   });
 
   async function openVaultModal(item) {
-    $('vault-modal-title').textContent = item ? '编辑条目' : '添加条目';
+    $('vault-modal-title').textContent = item ? t('vault.modal.edit') : t('vault.modal.add');
     $('vault-id').value = item?.id || '';
     $('vault-type').value = item?.type || 'token';
     $('vault-title').value = item?.title || '';
@@ -1926,12 +2370,12 @@
     $('vault-delete').classList.toggle('hidden', !item);
     if (item) {
       $('vault-delete').onclick = () => {
-        if (confirm(`确定删除「${item.title}」？`)) {
+        if (confirm(t('vault.del.confirm').replace('TITLE', item.title))) {
           state.config.vault.items = state.config.vault.items.filter((x) => x.id !== item.id);
           markDirty();
           render();
           closeModal('vault-modal');
-          toast('已删除');
+          toast(t('toast.deleted'));
         }
       };
     }
@@ -1940,10 +2384,10 @@
 
   $('vault-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!state.isUnlocked) { toast('请先解锁', 'error'); return; }
+    if (!state.isUnlocked) { toast(t('toast.unlock.first'), 'error'); return; }
     const id = $('vault-id').value;
     const plain = $('vault-value').value;
-    if (!plain) { toast('值不能为空', 'error'); return; }
+    if (!plain) { toast(t('toast.value.empty'), 'error'); return; }
 
     const { ciphertext, iv } = await Crypto.encrypt(plain, state.masterKey);
     const data = {
@@ -1956,7 +2400,7 @@
       iv,
       updatedAt: new Date().toISOString(),
     };
-    if (!data.title) { toast('标题不能为空', 'error'); return; }
+    if (!data.title) { toast(t('toast.title.empty'), 'error'); return; }
     if (id) {
       const idx = state.config.vault.items.findIndex((x) => x.id === id);
       if (idx >= 0) state.config.vault.items[idx] = data;
@@ -1967,7 +2411,7 @@
     markDirty();
     render();
     closeModal('vault-modal');
-    toast(id ? '已更新' : '已添加');
+    toast(id ? t('toast.updated') : t('toast.added'));
   });
 
   // ============================================================
@@ -1975,7 +2419,7 @@
   // ============================================================
   $('lock-btn').addEventListener('click', () => {
     if (state.hasUnsavedChanges) {
-      if (!confirm('有未保存的更改，锁定后将丢失（仅内存中）。继续？')) return;
+      if (!confirm(t('toast.lock.confirm'))) return;
     }
     lock();
   });
@@ -2025,9 +2469,9 @@
     // Verify current
     const curKey = await Crypto.deriveKey(cur, state.config.vault.salt, state.config.vault.iterations);
     const ok = await Crypto.verifyPassword(curKey, state.config.vault.verifier, state.config.vault.verifierIv);
-    if (!ok) { errEl.textContent = '当前主密码错误'; errEl.classList.add('show'); return; }
-    if (n1.length < 8) { errEl.textContent = '新密码至少 8 位'; errEl.classList.add('show'); return; }
-    if (n1 !== n2) { errEl.textContent = '两次输入不一致'; errEl.classList.add('show'); return; }
+    if (!ok) { errEl.textContent = t('changepw.err.current'); errEl.classList.add('show'); return; }
+    if (n1.length < 8) { errEl.textContent = t('changepw.err.short'); errEl.classList.add('show'); return; }
+    if (n1 !== n2) { errEl.textContent = t('changepw.err.mismatch'); errEl.classList.add('show'); return; }
 
     // Re-encrypt all items with new key
     const newSalt = await Crypto.generateSalt();
@@ -2051,7 +2495,7 @@
     state.masterKey = newKey;
     markDirty();
     closeModal('change-pw-modal');
-    toast('主密码已更新');
+    toast(t('toast.pw.updated'));
   });
 
   $('export-config-btn').addEventListener('click', () => {
@@ -2059,11 +2503,11 @@
     state.hasUnsavedChanges = false;
     renderSaveStatus();
     Storage.cacheLocal();
-    toast('config.json 已下载');
+    toast(t('toast.config.downloaded'));
   });
 
   $('import-config-btn').addEventListener('click', () => {
-    if (state.hasUnsavedChanges && !confirm('当前有未保存的更改，导入新配置会覆盖。继续？')) return;
+    if (state.hasUnsavedChanges && !confirm(t('toast.import.overwrite'))) return;
     $('import-file-input').click();
   });
 
@@ -2081,14 +2525,14 @@
       if (state.config.vault.salt && state.config.vault.verifier) {
         $('unlock-pw').focus();
       }
-      toast('配置已导入，请重新解锁');
+      toast(t('toast.config.imported'));
     } catch (err) {
-      toast('导入失败: ' + err.message, 'error');
+      toast(t('toast.import.fail') + err.message, 'error');
     }
   });
 
   $('clear-cache-btn').addEventListener('click', () => {
-    if (!confirm('确认清除浏览器本地缓存？将关闭此页面并重新加载。')) return;
+    if (!confirm(t('toast.cache.confirm'))) return;
     Storage.clearCache();
     location.reload();
   });
@@ -2101,7 +2545,7 @@
     state.hasUnsavedChanges = false;
     renderSaveStatus();
     Storage.cacheLocal();
-    toast('已保存到本地下载');
+    toast(t('toast.saved'));
   });
 
   function markDirty() {
@@ -2128,6 +2572,18 @@
   // Go
   // ============================================================
   init();
+
+  // Language switcher
+  document.getElementById('lang-switch')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    currentLang = currentLang === 'en' ? 'zh' : 'en';
+    localStorage.setItem('lodge.lang', currentLang);
+    applyLang();
+    render();  // re-render tabs with new language
+  });
+
+  // Apply language on load (translates static text)
+  applyLang();
 
 })();
 </script>

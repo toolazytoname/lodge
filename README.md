@@ -1,8 +1,14 @@
 # Lodge
 
+<p align="left">
+  <img src="assets/logo-wordmark.svg" alt="Lodge" width="180">
+</p>
+
 > 自托管的个人控制台 —— 一个 HTML 文件 + 一个 JSON 文件，管理服务器、服务订阅、加密 token。
 
 Lodge = 山间小屋（home base） + 寄托存放（lodge something）。集中托管你日常会用到的所有"个人基础设施"。
+
+[English docs](README.en.md)
 
 ## 特性
 

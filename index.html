@@ -14,14 +14,15 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Lodge — Your private home base">
 <meta property="og:description" content="One HTML file. Zero servers. End-to-end encrypted. Manage servers, services, and secrets — privately.">
+<meta property="og:image" content="https://lodge-iota.vercel.app/assets/og.svg">
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Lodge — Your private home base">
 <meta name="twitter:description" content="One HTML file. Zero servers. End-to-end encrypted.">
 
-<!-- Favicon (inline SVG) -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23000'/%3E%3Cpath d='M30 65 L50 35 L70 65 L60 65 L50 50 L40 65 Z' fill='%23fff'/%3E%3Crect x='46' y='62' width='8' height='12' fill='%23fff'/%3E%3C/svg%3E">
+<!-- Favicon -->
+<link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
 
 <style>
   :root {
@@ -104,6 +105,7 @@
     font-family: var(--font-display); font-weight: 600; font-size: 19px;
     letter-spacing: 0.228px; color: var(--text);
     text-decoration: none;
+    display: inline-flex; align-items: center;
   }
   .nav-links {
     display: flex; align-items: center; gap: 28px;
@@ -123,8 +125,24 @@
   .nav-cta:hover { opacity: 0.85; text-decoration: none; }
   @media (max-width: 640px) {
     .nav-links { gap: 16px; }
-    .nav-links a:not(.nav-cta) { display: none; }
+    .nav-links a:not(.nav-cta):not(.lang-switch) { display: none; }
   }
+
+  /* Language switcher */
+  .lang-switch {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: var(--radius-capsule);
+    background: var(--bg-alt);
+    color: var(--text);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border);
+    transition: background 0.15s, border-color 0.15s;
+    text-decoration: none;
+  }
+  .lang-switch:hover { background: var(--bg); border-color: var(--text-tertiary); text-decoration: none; }
+  .lang-switch .lang-opt { opacity: 0.5; }
+  .lang-switch .lang-opt.active { opacity: 1; font-weight: 600; }
+  .lang-switch .sep { opacity: 0.3; }
 
   /* ===== Hero ===== */
   .hero {
@@ -543,12 +561,20 @@
 <!-- ===== Nav ===== -->
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/" class="nav-brand">Lodge</a>
+    <a href="/" class="nav-brand">
+      <img src="assets/logo-mark.svg" alt="Lodge" width="28" height="28" style="display:block; margin-right: 10px;">
+      <span>Lodge</span>
+    </a>
     <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#security">Security</a>
-      <a href="#start">Get Started</a>
-      <a href="https://github.com/toolazytoname/lodge" class="nav-cta" target="_blank" rel="noopener">GitHub</a>
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#security" data-i18n="nav.security">Security</a>
+      <a href="#start" data-i18n="nav.start">Get Started</a>
+      <a href="#" class="lang-switch" id="lang-switch" aria-label="Language">
+        <span class="lang-opt" data-lang="en">EN</span>
+        <span class="sep">/</span>
+        <span class="lang-opt" data-lang="zh">中</span>
+      </a>
+      <a href="https://github.com/toolazytoname/lodge" class="nav-cta" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
     </div>
   </div>
 </nav>
@@ -556,15 +582,15 @@
 <!-- ===== Hero ===== -->
 <section class="hero">
   <div class="hero-inner">
-    <div class="hero-badge reveal">v1.0 · Open Source · MIT</div>
-    <h1 class="hero-title reveal">Lodge.</h1>
-    <p class="hero-subtitle reveal">
+    <div class="hero-badge reveal" data-i18n="hero.badge">v1.0 · Open Source · MIT</div>
+    <h1 class="hero-title reveal" data-i18n="hero.title">Lodge.</h1>
+    <p class="hero-subtitle reveal" data-i18n="hero.subtitle">
       Your private home base for servers, services, and secrets.<br>
       One HTML file. Zero servers. End-to-end encrypted.
     </p>
     <div class="hero-cta reveal">
-      <a href="#start" class="btn btn-primary">Get Started →</a>
-      <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener">View on GitHub</a>
+      <a href="#start" class="btn btn-primary" data-i18n="hero.cta.start">Get Started →</a>
+      <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener" data-i18n="hero.cta.github">View on GitHub</a>
     </div>
     <div class="hero-terminal reveal">
       <div><span class="prompt">$</span> <span class="cmd">git clone https://github.com/toolazytoname/lodge.git</span></div>
@@ -577,19 +603,19 @@
 <!-- ===== Trust strip ===== -->
 <div class="strip">
   <div class="strip-inner">
-    <div class="strip-item">Zero network requests</div>
-    <div class="strip-item">Single 90KB file</div>
-    <div class="strip-item">AES-GCM 256 encrypted</div>
-    <div class="strip-item">Works on every device</div>
-    <div class="strip-item">No account, no telemetry</div>
+    <div class="strip-item" data-i18n="strip.0">Zero network requests</div>
+    <div class="strip-item" data-i18n="strip.1">Single 90KB file</div>
+    <div class="strip-item" data-i18n="strip.2">AES-GCM 256 encrypted</div>
+    <div class="strip-item" data-i18n="strip.3">Works on every device</div>
+    <div class="strip-item" data-i18n="strip.4">No account, no telemetry</div>
   </div>
 </div>
 
 <!-- ===== Features ===== -->
 <section class="features" id="features">
   <div class="container">
-    <h2 class="section-title reveal">Three things. One file.</h2>
-    <p class="section-subtitle reveal">
+    <h2 class="section-title reveal" data-i18n="features.title">Three things. One file.</h2>
+    <p class="section-subtitle reveal" data-i18n="features.subtitle">
       Lodge brings together the three things every maker accumulates — machines, services, and tokens —
       into a single private workspace.
     </p>
@@ -598,8 +624,8 @@
         <div class="feature-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
         </div>
-        <h3 class="feature-title">Server Inventory</h3>
-        <p class="feature-desc">
+        <h3 class="feature-title" data-i18n="features.1.title">Server Inventory</h3>
+        <p class="feature-desc" data-i18n="features.1.desc">
           Every machine, one list. Aliases, tags, SSH credentials at a glance. One click launches
           your terminal with the right connection.
         </p>
@@ -608,8 +634,8 @@
         <div class="feature-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         </div>
-        <h3 class="feature-title">Service Catalog</h3>
-        <p class="feature-desc">
+        <h3 class="feature-title" data-i18n="features.2.title">Service Catalog</h3>
+        <p class="feature-desc" data-i18n="features.2.desc">
           Every endpoint, one tap. Group web apps, media servers, admin panels by host. Search
           across hundreds in milliseconds.
         </p>
@@ -618,8 +644,8 @@
         <div class="feature-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <h3 class="feature-title">Encrypted Vault</h3>
-        <p class="feature-desc">
+        <h3 class="feature-title" data-i18n="features.3.title">Encrypted Vault</h3>
+        <p class="feature-desc" data-i18n="features.3.desc">
           Every secret, one password. Tokens, notes, API keys — all AES-GCM 256 encrypted
           in your browser. Zero-knowledge by design.
         </p>
@@ -631,8 +657,8 @@
 <!-- ===== Preview ===== -->
 <section class="preview">
   <div class="container">
-    <h2 class="section-title reveal">A workspace that just feels right.</h2>
-    <p class="section-subtitle reveal">
+    <h2 class="section-title reveal" data-i18n="preview.title">A workspace that just feels right.</h2>
+    <p class="section-subtitle reveal" data-i18n="preview.subtitle">
       Designed for clarity. Built for speed. No clutter, no learning curve.
     </p>
     <div class="preview-frame reveal">
@@ -735,26 +761,26 @@
 <!-- ===== Security (dark) ===== -->
 <section class="security" id="security">
   <div class="container">
-    <h2 class="section-title reveal">Zero-knowledge by design.</h2>
-    <p class="section-subtitle reveal">
+    <h2 class="section-title reveal" data-i18n="security.title">Zero-knowledge by design.</h2>
+    <p class="section-subtitle reveal" data-i18n="security.subtitle">
       Your master password never leaves your browser. Not by network, not by telemetry, not by accident.
     </p>
     <div class="security-grid reveal">
       <div class="security-item">
-        <div class="security-key">AES-GCM 256</div>
-        <p class="security-desc">Military-grade authenticated encryption. Every vault item gets its own IV, so identical values produce different ciphertexts.</p>
+        <div class="security-key" data-i18n="security.1.key">AES-GCM 256</div>
+        <p class="security-desc" data-i18n="security.1.desc">Military-grade authenticated encryption. Every vault item gets its own IV, so identical values produce different ciphertexts.</p>
       </div>
       <div class="security-item">
-        <div class="security-key">PBKDF2 · 600k</div>
-        <p class="security-desc">OWASP 2023-recommended key derivation iterations with SHA-256. Slow on purpose — fast for you, brutal for attackers.</p>
+        <div class="security-key" data-i18n="security.2.key">PBKDF2 · 600k</div>
+        <p class="security-desc" data-i18n="security.2.desc">OWASP 2023-recommended key derivation iterations with SHA-256. Slow on purpose — fast for you, brutal for attackers.</p>
       </div>
       <div class="security-item">
-        <div class="security-key">No servers</div>
-        <p class="security-desc">Lodge runs entirely in your browser. There's no backend to hack, no database to leak, no API to rate-limit.</p>
+        <div class="security-key" data-i18n="security.3.key">No servers</div>
+        <p class="security-desc" data-i18n="security.3.desc">Lodge runs entirely in your browser. There's no backend to hack, no database to leak, no API to rate-limit.</p>
       </div>
       <div class="security-item">
-        <div class="security-key">No telemetry</div>
-        <p class="security-desc">Zero network requests. Open DevTools, watch the Network tab — every page load is silent.</p>
+        <div class="security-key" data-i18n="security.4.key">No telemetry</div>
+        <p class="security-desc" data-i18n="security.4.desc">Zero network requests. Open DevTools, watch the Network tab — every page load is silent.</p>
       </div>
     </div>
   </div>
@@ -763,29 +789,29 @@
 <!-- ===== How it works ===== -->
 <section class="how">
   <div class="container">
-    <h2 class="section-title reveal">Three steps to private.</h2>
-    <p class="section-subtitle reveal">
+    <h2 class="section-title reveal" data-i18n="how.title">Three steps to private.</h2>
+    <p class="section-subtitle reveal" data-i18n="how.subtitle">
       Drop two files. Set one password. Done.
     </p>
     <div class="how-steps">
       <div class="how-step reveal">
         <div class="how-num">1</div>
-        <h3 class="how-step-title">Drop the files</h3>
-        <p class="how-step-desc">
+        <h3 class="how-step-title" data-i18n="how.1.title">Drop the files</h3>
+        <p class="how-step-desc" data-i18n="how.1.desc">
           Place <code>dashboard.html</code> and <code>config.json</code> anywhere you can serve static files — local folder, NAS, VPS.
         </p>
       </div>
       <div class="how-step reveal">
         <div class="how-num">2</div>
-        <h3 class="how-step-title">Set a master password</h3>
-        <p class="how-step-desc">
+        <h3 class="how-step-title" data-i18n="how.2.title">Set a master password</h3>
+        <p class="how-step-desc" data-i18n="how.2.desc">
           First time you open it, you create a master password. This derives your encryption key — it's never stored, never sent anywhere.
         </p>
       </div>
       <div class="how-step reveal">
         <div class="how-num">3</div>
-        <h3 class="how-step-title">Access anywhere</h3>
-        <p class="how-step-desc">
+        <h3 class="how-step-title" data-i18n="how.3.title">Access anywhere</h3>
+        <p class="how-step-desc" data-i18n="how.3.desc">
           Sync the two files via iCloud, Dropbox, or your own server. Open on any device. Your vault follows you, encrypted end-to-end.
         </p>
       </div>
@@ -796,16 +822,16 @@
 <!-- ===== Get Started (dark) ===== -->
 <section class="start" id="start">
   <div class="container">
-    <h2 class="section-title reveal">Up and running in 60 seconds.</h2>
-    <p class="section-subtitle reveal">
+    <h2 class="section-title reveal" data-i18n="start.title">Up and running in 60 seconds.</h2>
+    <p class="section-subtitle reveal" data-i18n="start.subtitle">
       Clone, serve, open. No build step, no dependencies, no install.
     </p>
     <div class="code-wrap reveal">
       <div class="code-head">
         <span>Terminal</span>
-        <button class="code-copy" data-copy="git clone https://github.com/toolazytoname/lodge.git && cd lodge && python3 -m http.server 9001">Copy</button>
+        <button class="code-copy" data-copy="git clone https://github.com/toolazytoname/lodge.git && cd lodge && python3 -m http.server 9001" data-i18n="start.copy">Copy</button>
       </div>
-      <pre class="code-body"><span class="c-comment"># Clone the repo</span>
+      <pre class="code-body" data-i18n-code="start.code"><span class="c-comment"># Clone the repo</span>
 <span class="c-cmd">git clone https://github.com/toolazytoname/lodge.git</span>
 <span class="c-cmd">cd lodge</span>
 
@@ -819,10 +845,10 @@
 <span class="c-cmd">open http://localhost:9001/dashboard.html</span></pre>
     </div>
     <div class="start-actions reveal">
-      <a href="/dashboard.html" class="btn btn-primary">Try the demo →</a>
-      <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener">View source on GitHub</a>
+      <a href="/dashboard.html" class="btn btn-primary" data-i18n="start.cta.demo">Try the demo →</a>
+      <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener" data-i18n="start.cta.source">View source on GitHub</a>
     </div>
-    <p class="start-note reveal">
+    <p class="start-note reveal" data-i18n="start.note">
       For cross-device access, expose via <a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/" style="color: var(--action-bright);">Cloudflare Tunnel</a> or <a href="https://tailscale.com/kb/1223/funnel/" style="color: var(--action-bright);">Tailscale Funnel</a> for free HTTPS.
     </p>
   </div>
@@ -831,17 +857,198 @@
 <!-- ===== Footer ===== -->
 <footer>
   <div class="footer-inner">
-    <div>© Lodge · MIT License</div>
+    <div data-i18n="footer.copy">© Lodge · MIT License</div>
     <div class="footer-links">
-      <a href="https://github.com/toolazytoname/lodge" target="_blank" rel="noopener">GitHub</a>
-      <a href="/dashboard.html">App</a>
-      <a href="#features">Features</a>
-      <a href="#security">Security</a>
+      <a href="https://github.com/toolazytoname/lodge" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
+      <a href="/dashboard.html" data-i18n="footer.app">App</a>
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#security" data-i18n="nav.security">Security</a>
     </div>
   </div>
 </footer>
 
 <script>
+  // ============================================================
+  // i18n
+  // ============================================================
+  const I18N = {
+    en: {
+      'meta.title': 'Lodge — Your private home base for servers, services, and secrets',
+      'meta.description': 'A self-hosted personal console. One HTML file, zero servers, end-to-end encrypted. Manage your servers, service subscriptions, and tokens — privately.',
+
+      'nav.features': 'Features',
+      'nav.security': 'Security',
+      'nav.start': 'Get Started',
+      'nav.github': 'GitHub',
+
+      'hero.badge': 'v1.0 · Open Source · MIT',
+      'hero.title': 'Lodge.',
+      'hero.subtitle': 'Your private home base for servers, services, and secrets.<br>One HTML file. Zero servers. End-to-end encrypted.',
+      'hero.cta.start': 'Get Started →',
+      'hero.cta.github': 'View on GitHub',
+      'hero.terminal.copy': 'Copy',
+
+      'strip.0': 'Zero network requests',
+      'strip.1': 'Single 90KB file',
+      'strip.2': 'AES-GCM 256 encrypted',
+      'strip.3': 'Works on every device',
+      'strip.4': 'No account, no telemetry',
+
+      'features.title': 'Three things. One file.',
+      'features.subtitle': 'Lodge brings together the three things every maker accumulates — machines, services, and tokens — into a single private workspace.',
+      'features.1.title': 'Server Inventory',
+      'features.1.desc': 'Every machine, one list. Aliases, tags, SSH credentials at a glance. One click launches your terminal with the right connection.',
+      'features.2.title': 'Service Catalog',
+      'features.2.desc': 'Every endpoint, one tap. Group web apps, media servers, admin panels by host. Search across hundreds in milliseconds.',
+      'features.3.title': 'Encrypted Vault',
+      'features.3.desc': 'Every secret, one password. Tokens, notes, API keys — all AES-GCM 256 encrypted in your browser. Zero-knowledge by design.',
+
+      'preview.title': 'A workspace that just feels right.',
+      'preview.subtitle': 'Designed for clarity. Built for speed. No clutter, no learning curve.',
+
+      'security.title': 'Zero-knowledge by design.',
+      'security.subtitle': 'Your master password never leaves your browser. Not by network, not by telemetry, not by accident.',
+      'security.1.key': 'AES-GCM 256',
+      'security.1.desc': 'Military-grade authenticated encryption. Every vault item gets its own IV, so identical values produce different ciphertexts.',
+      'security.2.key': 'PBKDF2 · 600k',
+      'security.2.desc': 'OWASP 2023-recommended key derivation iterations with SHA-256. Slow on purpose — fast for you, brutal for attackers.',
+      'security.3.key': 'No servers',
+      'security.3.desc': 'Lodge runs entirely in your browser. There\'s no backend to hack, no database to leak, no API to rate-limit.',
+      'security.4.key': 'No telemetry',
+      'security.4.desc': 'Zero network requests. Open DevTools, watch the Network tab — every page load is silent.',
+
+      'how.title': 'Three steps to private.',
+      'how.subtitle': 'Drop two files. Set one password. Done.',
+      'how.1.title': 'Drop the files',
+      'how.1.desc': 'Place dashboard.html and config.json anywhere you can serve static files — local folder, NAS, VPS.',
+      'how.2.title': 'Set a master password',
+      'how.2.desc': 'First time you open it, you create a master password. This derives your encryption key — it\'s never stored, never sent anywhere.',
+      'how.3.title': 'Access anywhere',
+      'how.3.desc': 'Sync the two files via iCloud, Dropbox, or your own server. Open on any device. Your vault follows you, encrypted end-to-end.',
+
+      'start.title': 'Up and running in 60 seconds.',
+      'start.subtitle': 'Clone, serve, open. No build step, no dependencies, no install.',
+      'start.copy': 'Copy',
+      'start.copied': 'Copied',
+      'start.code': '# Clone the repo\ngit clone https://github.com/toolazytoname/lodge.git\ncd lodge\n\n# Serve (Python 3 built-in)\npython3 -m http.server 9001\n\n# Or with Node\nnpx serve -l 9001\n\n# Then open\nopen http://localhost:9001/dashboard.html',
+      'start.cta.demo': 'Try the demo →',
+      'start.cta.source': 'View source on GitHub',
+      'start.note': 'For cross-device access, expose via Cloudflare Tunnel or Tailscale Funnel for free HTTPS.',
+
+      'footer.copy': '© Lodge · MIT License',
+      'footer.app': 'App',
+    },
+    zh: {
+      'meta.title': 'Lodge — 你的私人服务器、服务订阅、加密 Token 中心',
+      'meta.description': '自托管个人控制台。一个 HTML 文件，零服务器，端到端加密。私密地管理你的服务器、服务订阅和 Token。',
+
+      'nav.features': '功能',
+      'nav.security': '安全',
+      'nav.start': '开始',
+      'nav.github': 'GitHub',
+
+      'hero.badge': 'v1.0 · 开源 · MIT',
+      'hero.title': 'Lodge.',
+      'hero.subtitle': '你的服务器、服务、密钥的私人归宿。<br>一个 HTML 文件，零服务器，端到端加密。',
+      'hero.cta.start': '开始使用 →',
+      'hero.cta.github': '在 GitHub 查看',
+      'hero.terminal.copy': '复制',
+
+      'strip.0': '零网络请求',
+      'strip.1': '单文件 90KB',
+      'strip.2': 'AES-GCM 256 加密',
+      'strip.3': '全设备通用',
+      'strip.4': '无账号，无埋点',
+
+      'features.title': '三件事，一个文件。',
+      'features.subtitle': 'Lodge 把每个开发者都会积累的三样东西——机器、服务、Token——集中到一个私密工作台。',
+      'features.1.title': '服务器清单',
+      'features.1.desc': '每台机器，一张清单。别名、标签、SSH 凭据一目了然。一键唤起终端连过去。',
+      'features.2.title': '服务目录',
+      'features.2.desc': '每个端点，一键直达。按主机分组 Web、媒体、管理面板，毫秒级搜索。',
+      'features.3.title': '加密保险库',
+      'features.3.desc': '每个密钥，一个主密码。Token、笔记、API Key——全部 AES-GCM 256 浏览器端加密。零知识设计。',
+
+      'preview.title': '一个用起来就顺手的工作台。',
+      'preview.subtitle': '为清晰而设计，为速度而生。无杂乱，无学习曲线。',
+
+      'security.title': '零知识，与生俱来。',
+      'security.subtitle': '主密码永不出浏览器。不通过网络，不通过埋点，不因任何意外泄露。',
+      'security.1.key': 'AES-GCM 256',
+      'security.1.desc': '军用级认证加密。每个 vault 条目独立 IV，相同明文产生不同密文。',
+      'security.2.key': 'PBKDF2 · 60 万次',
+      'security.2.desc': '遵循 OWASP 2023 推荐的密钥派生迭代 + SHA-256。慢是刻意的——对你快，对攻击者残忍。',
+      'security.3.key': '零服务器',
+      'security.3.desc': 'Lodge 完全在浏览器里跑。没有后端可黑，没有数据库可漏，没有 API 可限流。',
+      'security.4.key': '零埋点',
+      'security.4.desc': '零网络请求。打开 DevTools 的 Network 面板——每次加载都是静默的。',
+
+      'how.title': '三步，回归私密。',
+      'how.subtitle': '放两个文件，设一个密码，完事。',
+      'how.1.title': '放文件',
+      'how.1.desc': '把 dashboard.html 和 config.json 放在任意能托管静态文件的地方——本地、NAS、VPS。',
+      'how.2.title': '设主密码',
+      'how.2.desc': '首次打开时设一个主密码。它派生你的加密密钥——永不存储，永不外传。',
+      'how.3.title': '随时访问',
+      'how.3.desc': '通过 iCloud、Dropbox 或自己的服务器同步两个文件。任何设备都能开。保险库跟着你，端到端加密。',
+
+      'start.title': '60 秒跑起来。',
+      'start.subtitle': '克隆、服务、打开。无构建步骤，无依赖，无安装。',
+      'start.copy': '复制',
+      'start.copied': '已复制',
+      'start.code': '# 克隆仓库\ngit clone https://github.com/toolazytoname/lodge.git\ncd lodge\n\n# 用 Python 3 启动（内置）\npython3 -m http.server 9001\n\n# 或者用 Node\nnpx serve -l 9001\n\n# 然后浏览器打开\nopen http://localhost:9001/dashboard.html',
+      'start.cta.demo': '试用 demo →',
+      'start.cta.source': '在 GitHub 查看源码',
+      'start.note': '跨设备访问？通过 Cloudflare Tunnel 或 Tailscale Funnel 免费暴露 HTTPS。',
+
+      'footer.copy': '© Lodge · MIT 协议',
+      'footer.app': '应用',
+    }
+  };
+
+  let currentLang = (() => {
+    const saved = localStorage.getItem('lodge.lang');
+    if (saved && I18N[saved]) return saved;
+    return (navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  })();
+
+  function t(key) { return I18N[currentLang][key] || I18N.en[key] || key; }
+
+  function applyLang() {
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+    document.title = t('meta.title');
+    document.querySelector('meta[name="description"]').setAttribute('content', t('meta.description'));
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      el.innerHTML = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach((el) => {
+      el.textContent = t(el.dataset.i18nHtml);
+    });
+    // Update language switcher
+    document.querySelectorAll('.lang-opt').forEach((el) => {
+      el.classList.toggle('active', el.dataset.lang === currentLang);
+    });
+    // Update code block if present
+    const codeEl = document.querySelector('[data-i18n-code]');
+    if (codeEl) {
+      codeEl.textContent = t('start.code');
+    }
+    // Update OG meta
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute('content', t('nav.github') === 'GitHub' ? 'Lodge — Your private home base' : 'Lodge — 你的私人归宿');
+  }
+
+  // Initialize
+  applyLang();
+
+  // Language switcher
+  document.getElementById('lang-switch')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    currentLang = currentLang === 'en' ? 'zh' : 'en';
+    localStorage.setItem('lodge.lang', currentLang);
+    applyLang();
+  });
+
   // Smooth reveal on scroll
   const io = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
@@ -859,8 +1066,9 @@
       const t = btn.dataset.copy;
       if (!t) return;
       navigator.clipboard.writeText(t).then(() => {
-        const orig = btn.textContent;
-        btn.textContent = 'Copied';
+        const orig = btn.dataset.label || btn.textContent;
+        const newLabel = currentLang === 'zh' ? '已复制' : 'Copied';
+        btn.textContent = newLabel;
         setTimeout(() => { btn.textContent = orig; }, 1500);
       });
     });
