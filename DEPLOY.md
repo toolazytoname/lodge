@@ -50,13 +50,19 @@ vercel login
 vercel --prod
 ```
 
-### Configure custom domain (optional)
+### Configure custom domain (optional but recommended)
 
 1. In Vercel dashboard → your project → **Settings** → **Domains**
 2. Add your domain (e.g., `lodge.example.com`)
 3. Follow DNS instructions
 
 Vercel auto-provisions HTTPS certificates — no extra work.
+
+**Example (this repo's deployed URL):**
+- Marketing: `https://lodge.weichao.studio/`
+- App: `https://lodge.weichao.studio/dashboard.html`
+
+After setting up a custom domain, update `og:image` URL in `index.html` and any "live demo" links in the README files to use the custom domain (the default `vercel.app` URL still works but is less professional).
 
 ## 3. What gets deployed
 

@@ -8,7 +8,7 @@
 
 A self-hosted personal console. **One HTML file + one JSON file**. Zero servers, zero telemetry, end-to-end encrypted.
 
-[中文文档](README.md) · [Live demo](https://lodge-iota.vercel.app/dashboard.html)
+[中文文档](README.md) · [Live demo](https://lodge.weichao.studio/dashboard.html)
 
 ## Features
 
@@ -30,57 +30,24 @@ vercel.json      Vercel configuration
 
 ## Quick Start
 
-### 1. Local development
+Lodge is hosted at **<https://lodge.weichao.studio>** — just open it.
 
-```bash
-git clone https://github.com/toolazytoname/lodge.git
-cd lodge
-python3 -m http.server 9001
-# Open http://localhost:9001/dashboard.html
-```
+### 1. Open the URL
 
-Or with Node:
+Visit **<https://lodge.weichao.studio/dashboard.html>** in any browser (desktop, phone, tablet).
 
-```bash
-npx serve -l 9001
-```
+- macOS / Windows / Linux: open in your usual browser
+- iPhone / iPad: open in Safari (or any browser)
 
-### 2. Public access (HTTPS required)
+### 2. Pick your `config.json` (first time per device)
 
-The Web Crypto API only works in secure contexts. Three easiest paths:
+The first time you open it on a device, a file picker appears. Choose your `config.json` from anywhere on your device — typically in iCloud Drive.
 
-| Option | Difficulty | Notes |
-|--------|------------|-------|
-| **Cloudflare Tunnel** | ⭐ Easiest | No account needed, 5 min, `trycloudflare.com` domain |
-| **Tailscale Funnel** | Easy | Install clients, automatic HTTPS |
-| **Caddy + domain** | Medium | Own domain + DNS, set-and-forget |
+> Your real `config.json` is read directly by your browser. **It is never uploaded anywhere.** The deployed app at `lodge.weichao.studio` only contains the HTML skeleton, no real data.
 
-**Cloudflare Tunnel one-liner** (recommended):
+### 3. Done
 
-```bash
-# Install cloudflared
-curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list
-sudo apt update && sudo apt install -y cloudflared
-
-# Start tunnel (ensure dashboard.html is being served on :9001 in another terminal)
-cloudflared tunnel --url http://localhost:9001
-```
-
-You'll get a `https://xxx.trycloudflare.com` URL — use that to access.
-
-### 3. iCloud Drive cross-device sync
-
-```bash
-cp dashboard.html config.json ~/Library/Mobile\ Documents/iCloud~is~workflow/Documents/Lodge/
-```
-
-On iPhone:
-1. Open **Files** app → iCloud Drive → **Lodge** folder
-2. Long-press `dashboard.html` → Share → Open in Safari
-3. First time, you'll be asked to select `config.json` — Safari remembers after that
-
-> **Important**: `file://` protocol on iPhone doesn't support Web Crypto. **You must access via HTTPS** (Cloudflare Tunnel, Tailscale, etc.).
+The config is cached in your browser. Next time you open the URL, it loads instantly. To update from a newer `config.json` (e.g., after editing on another device), go to **Settings → Import config.json** in the app.
 
 ### 4. SSH connections
 
@@ -178,7 +145,7 @@ Lodge supports **seamless cross-device use** with two modes:
 ### Mode A: Vercel deploy (recommended for iPhone)
 
 1. **Your real data stays in iCloud Drive.** The repo's `config.json` is excluded from Vercel via `.vercelignore`.
-2. Open `https://lodge-iota.vercel.app/dashboard.html` on any device's browser (Safari/Chrome).
+2. Open `https://lodge.weichao.studio/dashboard.html` on any device's browser (Safari/Chrome).
 3. **First time on each device**: file picker shows. Navigate to iCloud Drive → select your real `config.json`.
 4. **After that**: localStorage caches the config. Subsequent opens on the same device load instantly.
 5. After editing, click **Save to file** → replace the iCloud file with the downloaded one → all your devices see the latest data next time they re-pick.

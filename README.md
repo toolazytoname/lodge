@@ -27,61 +27,24 @@ config.json      数据（服务器/服务/加密 Vault）
 
 ## 快速开始
 
-### 1. 部署
+Lodge 已经部署在 **<https://lodge.weichao.studio>** —— 直接打开就行。
 
-把两个文件放在任意 HTTPS 可达的目录。最简单的方式：
+### 1. 打开 URL
 
-```bash
-# macOS 本地
-mkdir -p ~/Documents/Lodge
-cp dashboard.html config.json ~/Documents/Lodge/
-cd ~/Documents/Lodge && python3 -m http.server 9001
+在任何浏览器（电脑 / 手机 / 平板）访问 **<https://lodge.weichao.studio/dashboard.html>**
 
-# Linux 服务器
-mkdir -p /opt/lodge
-cp dashboard.html config.json /opt/lodge/
-cd /opt/lodge && python3 -m http.server 9001
-```
+- macOS / Windows / Linux：任意浏览器
+- iPhone / iPad：Safari 或任意浏览器
 
-浏览器访问 `http://localhost:9001/dashboard.html`。
+### 2. 选 `config.json`（每台设备首次）
 
-### 2. 公网访问（必须 HTTPS）
+每台设备第一次打开会弹出文件选择器。从设备任意位置（通常在 iCloud Drive）选你的 `config.json`。
 
-由于浏览器安全模型限制，**HTTP 公网下无法使用 Vault**（Web Crypto API 不可用）。三种最简单方案：
+> 真实 `config.json` 由浏览器直接读取，**不会上传到任何地方**。`lodge.weichao.studio` 上只 serve HTML 骨架，不含真实数据。
 
-| 方案 | 难度 | 备注 |
-|------|-----|------|
-| **Cloudflare Tunnel** | ⭐ 最简单 | 免账号、5 分钟、`trycloudflare.com` 域名 |
-| **Tailscale Funnel** | 简单 | 需装客户端、自动 HTTPS |
-| **Caddy + 域名** | 中等 | 自有域名 + DNS，一劳永逸 |
+### 3. 完事
 
-**Cloudflare Tunnel 一行启动**（推荐）：
-
-```bash
-# 安装 cloudflared
-curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list
-sudo apt update && sudo apt install -y cloudflared
-
-# 启动隧道（先确保 dashboard.html 已在另一终端通过 http.server 9001 提供）
-cloudflared tunnel --url http://localhost:9001
-```
-
-会输出 `https://xxx.trycloudflare.com`，用这个 URL 访问即可。
-
-### 3. iCloud Drive 跨设备同步
-
-```bash
-# macOS
-cp dashboard.html config.json ~/Library/Mobile\ Documents/iCloud~is~workflow/Documents/Lodge/
-```
-
-iPhone 上：
-1. 打开"文件"App → iCloud Drive → Lodge 文件夹
-2. 长按 `dashboard.html` → 共享 → Safari 打开
-3. 首次会要求选 `config.json`，授权后 Safari 会记住
-
-> **重要**：iPhone 上 file:// 协议不支持 Web Crypto。**必须**通过 Cloudflare Tunnel / Tailscale 等 HTTPS 方式访问。
+配置缓存在浏览器里，下次打开 URL 直接加载。想换成另一个 `config.json`（比如另一台设备编辑过），进 app 的 **设置 → 导入 config.json** 即可。
 
 ### 4. SSH 连接
 
@@ -174,7 +137,7 @@ Lodge 支持两种跨设备模式：
 **模式 A：部署到 Vercel（iPhone 推荐）**
 
 1. **真实数据放在你 iCloud Drive。** 仓库的 `config.json` 已通过 `.vercelignore` 排除在 Vercel 部署之外。
-2. 在任何设备的浏览器打开 `https://lodge-iota.vercel.app/dashboard.html`
+2. 在任何设备的浏览器打开 `https://lodge.weichao.studio/dashboard.html`
 3. **每台设备首次**：弹出文件选择器 → 进 iCloud Drive → 选你的真实 `config.json`
 4. **之后**：localStorage 缓存，下次直接打开就加载
 5. 改完点"保存到文件" → 把下载的文件替换 iCloud 那个 → 其他设备下次选文件时就看到最新数据

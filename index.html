@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Lodge — Your private home base">
 <meta property="og:description" content="One HTML file. Zero servers. End-to-end encrypted. Manage servers, services, and secrets — privately.">
-<meta property="og:image" content="https://lodge-iota.vercel.app/assets/og.svg">
+<meta property="og:image" content="https://lodge.weichao.studio/assets/og.svg">
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary">
@@ -487,6 +487,74 @@
     -webkit-text-fill-color: transparent;
   }
   .start .section-subtitle { color: var(--text-tertiary-on-dark); }
+
+  /* URL bar (the new "how to use") */
+  .url-bar {
+    max-width: 720px; margin: 0 auto 40px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 8px 8px 18px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border-on-dark);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(10px);
+  }
+  .url-bar-text {
+    flex: 1; min-width: 0;
+    font-family: var(--font-mono); font-size: 14px;
+    color: var(--text-on-dark);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 8px 4px;
+  }
+  .url-bar .btn { flex-shrink: 0; }
+  .url-bar .btn-primary {
+    background: var(--text-on-dark); color: var(--text);
+  }
+  .url-bar .btn-primary:hover { background: #fff; }
+
+  .start-steps {
+    list-style: none; counter-reset: step;
+    max-width: 720px; margin: 0 auto 48px;
+    padding: 0;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .start-steps li {
+    display: flex; align-items: flex-start; gap: 16px;
+    font-size: 17px; line-height: 1.5;
+    color: var(--text-on-dark);
+  }
+  .start-steps li::before {
+    counter-increment: step;
+    content: counter(step);
+    flex-shrink: 0;
+    width: 32px; height: 32px; line-height: 32px; text-align: center;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+    font-family: var(--font-display);
+    font-weight: 600; font-size: 15px;
+    color: var(--text-on-dark);
+  }
+  .start-steps li strong { color: var(--text-on-dark); font-weight: 500; }
+
+  .data-stays {
+    max-width: 720px; margin: 0 auto 32px;
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 20px 24px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-on-dark);
+    border-radius: var(--radius-lg);
+    text-align: left;
+  }
+  .data-stays-icon {
+    flex-shrink: 0;
+    width: 40px; height: 40px;
+    background: rgba(41,151,255,0.15);
+    color: var(--action-bright);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .data-stays-text { color: var(--text-tertiary-on-dark); font-size: 14px; line-height: 1.5; }
+  .data-stays-text strong { display: block; color: var(--text-on-dark); font-size: 15px; margin-bottom: 4px; }
+
   .code-wrap {
     max-width: 720px; margin: 0 auto 32px;
     background: rgba(255,255,255,0.04);
@@ -589,7 +657,7 @@
       One HTML file. Zero servers. End-to-end encrypted.
     </p>
     <div class="hero-cta reveal">
-      <a href="#start" class="btn btn-primary" data-i18n="hero.cta.start">Get Started →</a>
+      <a href="https://lodge.weichao.studio/dashboard.html" class="btn btn-primary" data-i18n="hero.cta.start">Try Lodge →</a>
       <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener" data-i18n="hero.cta.github">View on GitHub</a>
     </div>
     <div class="hero-terminal reveal">
@@ -822,34 +890,35 @@
 <!-- ===== Get Started (dark) ===== -->
 <section class="start" id="start">
   <div class="container">
-    <h2 class="section-title reveal" data-i18n="start.title">Up and running in 60 seconds.</h2>
+    <h2 class="section-title reveal" data-i18n="start.title">Open. Pick. Done.</h2>
     <p class="section-subtitle reveal" data-i18n="start.subtitle">
-      Clone, serve, open. No build step, no dependencies, no install.
+      No install. No server. No signup. Open the URL, point it at your config, start managing.
     </p>
-    <div class="code-wrap reveal">
-      <div class="code-head">
-        <span>Terminal</span>
-        <button class="code-copy" data-copy="git clone https://github.com/toolazytoname/lodge.git && cd lodge && python3 -m http.server 9001" data-i18n="start.copy">Copy</button>
+
+    <div class="url-bar reveal">
+      <code class="url-bar-text">https://lodge.weichao.studio/dashboard.html</code>
+      <a href="https://lodge.weichao.studio/dashboard.html" target="_blank" rel="noopener" class="btn btn-primary" data-i18n="start.open">Open</a>
+      <button class="btn btn-secondary" data-copy="https://lodge.weichao.studio/dashboard.html" data-i18n="start.copy">Copy</button>
+    </div>
+
+    <ol class="start-steps reveal">
+      <li><span data-i18n="start.step1">Open the URL above in any browser — Mac, Windows, Linux, iPhone, iPad.</span></li>
+      <li><span data-i18n="start.step2">First time on a device: a file picker appears. Choose your config.json from iCloud Drive (or anywhere on your device).</span></li>
+      <li><span data-i18n="start.step3">That's it. The config is cached in the browser. Next time, open the URL and it loads instantly.</span></li>
+    </ol>
+
+    <div class="data-stays reveal">
+      <div class="data-stays-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </div>
-      <pre class="code-body" data-i18n-code="start.code"><span class="c-comment"># Clone the repo</span>
-<span class="c-cmd">git clone https://github.com/toolazytoname/lodge.git</span>
-<span class="c-cmd">cd lodge</span>
-
-<span class="c-comment"># Serve (Python 3 built-in)</span>
-<span class="c-cmd">python3 -m http.server 9001</span>
-
-<span class="c-comment"># Or with Node</span>
-<span class="c-cmd">npx serve -l 9001</span>
-
-<span class="c-comment"># Then open</span>
-<span class="c-cmd">open http://localhost:9001/dashboard.html</span></pre>
+      <div class="data-stays-text">
+        <strong data-i18n="start.privacy.title">Your data never leaves your device</strong>
+        <span data-i18n="start.privacy.desc">Lodge only serves the HTML skeleton. Your config.json is read by your browser, never uploaded. Vault items are AES-GCM 256 encrypted with your master password — zero-knowledge.</span>
+      </div>
     </div>
-    <div class="start-actions reveal">
-      <a href="/dashboard.html" class="btn btn-primary" data-i18n="start.cta.demo">Try the demo →</a>
-      <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener" data-i18n="start.cta.source">View source on GitHub</a>
-    </div>
+
     <p class="start-note reveal" data-i18n="start.note">
-      For cross-device access, expose via <a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/" style="color: var(--action-bright);">Cloudflare Tunnel</a> or <a href="https://tailscale.com/kb/1223/funnel/" style="color: var(--action-bright);">Tailscale Funnel</a> for free HTTPS.
+      Want to self-host? Clone the repo and push to Vercel / Netlify / GitHub Pages — same result, your own URL.
     </p>
   </div>
 </section>
@@ -884,7 +953,7 @@
       'hero.badge': 'v1.0 · Open Source · MIT',
       'hero.title': 'Lodge.',
       'hero.subtitle': 'Your private home base for servers, services, and secrets.<br>One HTML file. Zero servers. End-to-end encrypted.',
-      'hero.cta.start': 'Get Started →',
+      'hero.cta.start': 'Try Lodge →',
       'hero.cta.github': 'View on GitHub',
       'hero.terminal.copy': 'Copy',
 
@@ -926,14 +995,17 @@
       'how.3.title': 'Access anywhere',
       'how.3.desc': 'Sync the two files via iCloud, Dropbox, or your own server. Open on any device. Your vault follows you, encrypted end-to-end.',
 
-      'start.title': 'Up and running in 60 seconds.',
-      'start.subtitle': 'Clone, serve, open. No build step, no dependencies, no install.',
+      'start.title': 'Open. Pick. Done.',
+      'start.subtitle': 'No install. No server. No signup. Open the URL, point it at your config, start managing.',
+      'start.open': 'Open',
       'start.copy': 'Copy',
       'start.copied': 'Copied',
-      'start.code': '# Clone the repo\ngit clone https://github.com/toolazytoname/lodge.git\ncd lodge\n\n# Serve (Python 3 built-in)\npython3 -m http.server 9001\n\n# Or with Node\nnpx serve -l 9001\n\n# Then open\nopen http://localhost:9001/dashboard.html',
-      'start.cta.demo': 'Try the demo →',
-      'start.cta.source': 'View source on GitHub',
-      'start.note': 'For cross-device access, expose via Cloudflare Tunnel or Tailscale Funnel for free HTTPS.',
+      'start.step1': 'Open the URL above in any browser — Mac, Windows, Linux, iPhone, iPad.',
+      'start.step2': 'First time on a device: a file picker appears. Choose your config.json from iCloud Drive (or anywhere on your device).',
+      'start.step3': "That's it. The config is cached in the browser. Next time, open the URL and it loads instantly.",
+      'start.privacy.title': 'Your data never leaves your device',
+      'start.privacy.desc': 'Lodge only serves the HTML skeleton. Your config.json is read by your browser, never uploaded. Vault items are AES-GCM 256 encrypted with your master password — zero-knowledge.',
+      'start.note': 'Want to self-host? Clone the repo and push to Vercel / Netlify / GitHub Pages — same result, your own URL.',
 
       'footer.copy': '© Lodge · MIT License',
       'footer.app': 'App',
@@ -950,7 +1022,7 @@
       'hero.badge': 'v1.0 · 开源 · MIT',
       'hero.title': 'Lodge.',
       'hero.subtitle': '你的服务器、服务、密钥的私人归宿。<br>一个 HTML 文件，零服务器，端到端加密。',
-      'hero.cta.start': '开始使用 →',
+      'hero.cta.start': '试用 Lodge →',
       'hero.cta.github': '在 GitHub 查看',
       'hero.terminal.copy': '复制',
 
@@ -992,14 +1064,17 @@
       'how.3.title': '随时访问',
       'how.3.desc': '通过 iCloud、Dropbox 或自己的服务器同步两个文件。任何设备都能开。保险库跟着你，端到端加密。',
 
-      'start.title': '60 秒跑起来。',
-      'start.subtitle': '克隆、服务、打开。无构建步骤，无依赖，无安装。',
+      'start.title': '打开。选文件。完事。',
+      'start.subtitle': '免安装。免服务器。免注册。打开 URL，指向你的 config，开始管理。',
+      'start.open': '打开',
       'start.copy': '复制',
       'start.copied': '已复制',
-      'start.code': '# 克隆仓库\ngit clone https://github.com/toolazytoname/lodge.git\ncd lodge\n\n# 用 Python 3 启动（内置）\npython3 -m http.server 9001\n\n# 或者用 Node\nnpx serve -l 9001\n\n# 然后浏览器打开\nopen http://localhost:9001/dashboard.html',
-      'start.cta.demo': '试用 demo →',
-      'start.cta.source': '在 GitHub 查看源码',
-      'start.note': '跨设备访问？通过 Cloudflare Tunnel 或 Tailscale Funnel 免费暴露 HTTPS。',
+      'start.step1': '在任意浏览器打开上面这个 URL —— Mac、Windows、Linux、iPhone、iPad 都可以。',
+      'start.step2': '每台设备首次打开：弹出文件选择器。从 iCloud Drive（或设备任何位置）选你的 config.json。',
+      'start.step3': '搞定。配置缓存在浏览器里。下次打开 URL 直接加载。',
+      'start.privacy.title': '你的数据从不离开你的设备',
+      'start.privacy.desc': 'Lodge 只 serve HTML 骨架。你的 config.json 由浏览器读取，不会上传。Vault 条目用主密码 AES-GCM 256 加密 —— 零知识。',
+      'start.note': '想自托管？克隆仓库，推到 Vercel / Netlify / GitHub Pages，效果一样，用你自己的 URL。',
 
       'footer.copy': '© Lodge · MIT 协议',
       'footer.app': '应用',
@@ -1028,11 +1103,6 @@
     document.querySelectorAll('.lang-opt').forEach((el) => {
       el.classList.toggle('active', el.dataset.lang === currentLang);
     });
-    // Update code block if present
-    const codeEl = document.querySelector('[data-i18n-code]');
-    if (codeEl) {
-      codeEl.textContent = t('start.code');
-    }
     // Update OG meta
     const ogTitle = document.querySelector('meta[property="og:title"]');
     if (ogTitle) ogTitle.setAttribute('content', t('nav.github') === 'GitHub' ? 'Lodge — Your private home base' : 'Lodge — 你的私人归宿');
@@ -1060,15 +1130,14 @@
   }, { threshold: 0.12 });
   document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
 
-  // Code copy
-  document.querySelectorAll('.code-copy').forEach((btn) => {
+  // Copy buttons (anything with data-copy)
+  document.querySelectorAll('[data-copy]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const t = btn.dataset.copy;
-      if (!t) return;
-      navigator.clipboard.writeText(t).then(() => {
+      const text = btn.dataset.copy;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
         const orig = btn.dataset.label || btn.textContent;
-        const newLabel = currentLang === 'zh' ? '已复制' : 'Copied';
-        btn.textContent = newLabel;
+        btn.textContent = t('start.copied');
         setTimeout(() => { btn.textContent = orig; }, 1500);
       });
     });
