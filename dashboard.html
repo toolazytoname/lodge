@@ -556,9 +556,9 @@
     </div>
     <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 600; margin-bottom: 8px;" data-i18n="picker.title">选择配置文件</h2>
     <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 24px;" data-i18n="picker.desc">请选择与 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">dashboard.html</code> 同目录的 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">config.json</code> 文件</p>
-    <button id="picker-btn" class="btn btn-primary btn-lg btn-capsule" data-i18n="picker.btn">
+    <button id="picker-btn" class="btn btn-primary btn-lg btn-capsule">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
-      选择文件
+      <span data-i18n="picker.btn">选择文件</span>
     </button>
     <p style="margin-top: 16px; font-size: 12px; color: var(--text-tertiary);" data-i18n="picker.note">iPhone 用户: 在"文件"App 中找到 config.json 后长按 → 共享 → 用 Safari 打开</p>
   </div>
@@ -595,10 +595,10 @@
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </div>
     <h1 class="auth-title" data-i18n="insecure.title">需要安全上下文</h1>
-    <p class="auth-subtitle">当前打开方式不支持 Web Crypto API，无法加密你的数据。<br>这是浏览器安全限制，<strong style="color: var(--text);">与本应用无关</strong>。</p>
+    <p class="auth-subtitle" data-i18n="insecure.desc">当前打开方式不支持 Web Crypto API，无法加密你的数据。<br>这是浏览器安全限制，<strong style="color: var(--text);">与本应用无关</strong>。</p>
 
     <div style="background: var(--surface-2); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
-      <div style="font-size: 12px; font-weight: 600; color: var(--text-tertiary); margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase;">检测到的环境</div>
+      <div style="font-size: 12px; font-weight: 600; color: var(--text-tertiary); margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase;" data-i18n="insecure.diag.title">检测到的环境</div>
       <div id="diag-content" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono);"></div>
     </div>
 
@@ -606,35 +606,35 @@
       <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 1px solid var(--action);">
         <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
           <span style="background: var(--action); color: #fff; border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">1</span>
-          最快：Cloudflare 隧道（5 分钟，免账号）
+          <span data-i18n="insecure.opt1.title">最快：Cloudflare 隧道（5 分钟，免账号）</span>
         </div>
-        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;">在 Linux 服务器上另一个终端执行：</p>
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;" data-i18n="insecure.opt1.desc">在 Linux 服务器上另一个终端执行：</p>
         <div style="display: flex; align-items: center; gap: 8px; background: var(--bg); padding: 10px 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--text);">
           <code style="flex: 1; word-break: break-all;">cloudflared tunnel --url http://localhost:9001</code>
-          <button class="btn btn-secondary" data-copy="cloudflared tunnel --url http://localhost:9001" style="padding: 4px 10px; font-size: 12px;">复制</button>
+          <button class="btn btn-secondary" data-copy="cloudflared tunnel --url http://localhost:9001" style="padding: 4px 10px; font-size: 12px;" data-i18n="insecure.opt1.copy">复制</button>
         </div>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px; line-height: 1.5;">没装先装：<code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg &gt;/dev/null</code></p>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.5;">执行后会得到一个 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">https://xxx.trycloudflare.com</code>，用这个 URL 访问即可。</p>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px; line-height: 1.5;"><span data-i18n="insecure.opt1.install">没装先装：</span><code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg &gt;/dev/null</code></p>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.5;" data-i18n="insecure.opt1.result">执行后会得到一个 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">https://xxx.trycloudflare.com</code>，用这个 URL 访问即可。</p>
       </div>
 
       <div style="background: var(--surface-2); border-radius: 12px; padding: 16px;">
         <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
           <span style="background: var(--text); color: var(--bg); border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">2</span>
-          Mac 本地：localhost
+          <span data-i18n="insecure.opt2.title">Mac 本地：localhost</span>
         </div>
-        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">把文件拷到本机，<code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">cd Dashboard && python3 -m http.server 9001</code>，访问 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">http://localhost:9001</code>。</p>
+        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;" data-i18n="insecure.opt2.desc">把文件拷到本机，<code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">cd Dashboard && python3 -m http.server 9001</code>，访问 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">http://localhost:9001</code>。</p>
       </div>
 
       <div style="background: var(--surface-2); border-radius: 12px; padding: 16px;">
         <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
           <span style="background: var(--text); color: var(--bg); border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">3</span>
-          长期：Tailscale Funnel
+          <span data-i18n="insecure.opt3.title">长期：Tailscale Funnel</span>
         </div>
-        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">装 <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a>，执行 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">tailscale funnel 9001</code>，获得带 HTTPS 的 tailnet 域名。</p>
+        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;" data-i18n="insecure.opt3.desc">装 <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a>，执行 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">tailscale funnel 9001</code>，获得带 HTTPS 的 tailnet 域名。</p>
       </div>
     </div>
 
-    <p style="font-size: 12px; color: var(--text-tertiary); text-align: center;">这是浏览器安全模型限制，HTTP 公网下 Web Crypto API 永远不可用，与本应用无关。</p>
+    <p style="font-size: 12px; color: var(--text-tertiary); text-align: center;" data-i18n="insecure.footer">这是浏览器安全模型限制，HTTP 公网下 Web Crypto API 永远不可用，与本应用无关。</p>
   </div>
 </div>
 
@@ -700,9 +700,9 @@
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="servers-search" class="search-input" type="search" data-i18n-ph="common.search.servers" placeholder="搜索服务器…">
           </div>
-          <button class="btn btn-primary" id="add-server-btn" data-i18n="common.add">
+          <button class="btn btn-primary" id="add-server-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            添加
+            <span data-i18n="common.add">添加</span>
           </button>
         </div>
       </div>
@@ -721,9 +721,9 @@
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="services-search" class="search-input" type="search" data-i18n-ph="common.search.services" placeholder="搜索服务…">
           </div>
-          <button class="btn btn-primary" id="add-service-btn" data-i18n="common.add">
+          <button class="btn btn-primary" id="add-service-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            添加
+            <span data-i18n="common.add">添加</span>
           </button>
         </div>
       </div>
@@ -742,9 +742,9 @@
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="vault-search" class="search-input" type="search" data-i18n-ph="common.search.vault" placeholder="搜索条目…">
           </div>
-          <button class="btn btn-primary" id="add-vault-btn" data-i18n="common.add">
+          <button class="btn btn-primary" id="add-vault-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            添加
+            <span data-i18n="common.add">添加</span>
           </button>
         </div>
       </div>
@@ -756,9 +756,9 @@
     <div data-i18n="footer.local">本地存储 · 零网络请求</div>
     <div class="footer-actions">
       <span id="save-status" style="color: var(--text-tertiary);" data-i18n="footer.synced">已同步</span>
-      <button class="btn btn-ghost" id="save-btn" data-i18n="footer.save">
+      <button class="btn btn-ghost" id="save-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        保存到文件
+        <span data-i18n="footer.save">保存到文件</span>
       </button>
     </div>
   </footer>
@@ -968,13 +968,13 @@
       </div>
       <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
       <div style="display: flex; flex-direction: column; gap: 6px;">
-        <button type="button" class="btn btn-secondary" id="export-config-btn" data-i18n="settings.export">
+        <button type="button" class="btn btn-secondary" id="export-config-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          导出 config.json
+          <span data-i18n="settings.export">导出 config.json</span>
         </button>
-        <button type="button" class="btn btn-secondary" id="import-config-btn" data-i18n="settings.import">
+        <button type="button" class="btn btn-secondary" id="import-config-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          导入 config.json
+          <span data-i18n="settings.import">导入 config.json</span>
         </button>
         <input type="file" id="import-file-input" accept=".json,application/json" style="display:none">
       </div>
@@ -1226,6 +1226,25 @@
       'toast.lock.confirm': 'You have unsaved changes that will be lost (only in memory). Continue?',
       'toast.import.overwrite': 'You have unsaved changes. Importing will overwrite them. Continue?',
 
+      'insecure.desc': 'Your current access method does not support Web Crypto API, so data cannot be encrypted.<br>This is a browser security restriction, <strong style="color: var(--text);">not a Lodge issue</strong>.',
+      'insecure.diag.title': 'Detected environment',
+      'insecure.opt1.title': 'Easiest: Cloudflare Tunnel (5 min, no account)',
+      'insecure.opt1.desc': 'Run in another terminal on your Linux server:',
+      'insecure.opt1.install': 'Not installed? Install first:',
+      'insecure.opt1.result': 'You will get a <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">https://xxx.trycloudflare.com</code> URL — use that to access.',
+      'insecure.opt1.copy': 'Copy',
+      'insecure.opt2.title': 'Mac local: localhost',
+      'insecure.opt2.desc': 'Copy the files to your Mac, run <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">cd Dashboard && python3 -m http.server 9001</code>, then visit <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">http://localhost:9001</code>.',
+      'insecure.opt3.title': 'Long-term: Tailscale Funnel',
+      'insecure.opt3.desc': 'Install <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a>, run <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">tailscale funnel 9001</code>, get an HTTPS tailnet domain.',
+      'insecure.footer': 'This is a browser security model limitation — Web Crypto API is never available on public HTTP, and is not related to this app.',
+
+      'diag.url': 'Current URL',
+      'diag.protocol': 'Protocol',
+      'diag.available': 'available',
+      'diag.unavailable': 'unavailable',
+      'diag.reason': 'Reason',
+
       'footer.local': 'Local storage · Zero network requests',
       'footer.unsaved': 'Unsaved changes',
       'footer.synced': 'Synced',
@@ -1418,6 +1437,25 @@
       'toast.cache.confirm': '确认清除浏览器本地缓存？将关闭此页面并重新加载。',
       'toast.lock.confirm': '有未保存的更改，锁定后将丢失（仅内存中）。继续？',
       'toast.import.overwrite': '当前有未保存的更改，导入新配置会覆盖。继续？',
+
+      'insecure.desc': '当前打开方式不支持 Web Crypto API，无法加密你的数据。<br>这是浏览器安全限制，<strong style="color: var(--text);">与本应用无关</strong>。',
+      'insecure.diag.title': '检测到的环境',
+      'insecure.opt1.title': '最快：Cloudflare 隧道（5 分钟，免账号）',
+      'insecure.opt1.desc': '在 Linux 服务器上另一个终端执行：',
+      'insecure.opt1.install': '没装先装：',
+      'insecure.opt1.result': '执行后会得到一个 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">https://xxx.trycloudflare.com</code>，用这个 URL 访问即可。',
+      'insecure.opt1.copy': '复制',
+      'insecure.opt2.title': 'Mac 本地：localhost',
+      'insecure.opt2.desc': '把文件拷到本机，<code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">cd Dashboard && python3 -m http.server 9001</code>，访问 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">http://localhost:9001</code>。',
+      'insecure.opt3.title': '长期：Tailscale Funnel',
+      'insecure.opt3.desc': '装 <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a>，执行 <code style="font-family: var(--font-mono); background: var(--bg); padding: 1px 6px; border-radius: 4px;">tailscale funnel 9001</code>，获得带 HTTPS 的 tailnet 域名。',
+      'insecure.footer': '这是浏览器安全模型限制，HTTP 公网下 Web Crypto API 永远不可用，与本应用无关。',
+
+      'diag.url': '当前 URL',
+      'diag.protocol': '协议',
+      'diag.available': '可用',
+      'diag.unavailable': '不可用',
+      'diag.reason': '检测原因',
 
       'footer.local': '本地存储 · 零网络请求',
       'footer.unsaved': '有未保存的更改',
@@ -1790,11 +1828,11 @@
     const diag = $('diag-content');
     if (diag) {
       diag.innerHTML = `
-        <div class="diag-row"><span>当前 URL</span><code>${escapeHtml(location.href)}</code></div>
-        <div class="diag-row"><span>协议</span><code>${escapeHtml(location.protocol.replace(':', ''))}</code></div>
+        <div class="diag-row"><span>${escapeHtml(t('diag.url'))}</span><code>${escapeHtml(location.href)}</code></div>
+        <div class="diag-row"><span>${escapeHtml(t('diag.protocol'))}</span><code>${escapeHtml(location.protocol.replace(':', ''))}</code></div>
         <div class="diag-row"><span>isSecureContext</span><code>${window.isSecureContext}</code></div>
-        <div class="diag-row"><span>crypto.subtle</span><code>${!!(window.crypto && window.crypto.subtle) ? '可用' : '不可用'}</code></div>
-        <div class="diag-row"><span>检测原因</span><code>${escapeHtml(reason)}</code></div>
+        <div class="diag-row"><span>crypto.subtle</span><code>${!!(window.crypto && window.crypto.subtle) ? escapeHtml(t('diag.available')) : escapeHtml(t('diag.unavailable'))}</code></div>
+        <div class="diag-row"><span>${escapeHtml(t('diag.reason'))}</span><code>${escapeHtml(reason)}</code></div>
       `;
     }
     console.warn('[Dashboard] Insecure context:', reason, {
@@ -1810,8 +1848,8 @@
     if (!btn) return;
     const text = btn.dataset.copy;
     navigator.clipboard?.writeText(text).then(
-      () => toast('已复制'),
-      () => toast('复制失败', 'error')
+      () => toast(t('toast.copied')),
+      () => toast(t('toast.copy.failed'), 'error')
     );
   });
 
@@ -2162,12 +2200,12 @@
           <div class="vault-meta">${escapeHtml(meta)}</div>
         </div>
         <div class="vault-actions">
-          <button class="btn btn-secondary" data-action="copy-vault" data-id="${escapeHtml(item.id)}" title="复制">
+          <button class="btn btn-secondary" data-action="copy-vault" data-id="${escapeHtml(item.id)}" title="${escapeHtml(t('servers.btn.copy'))}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
           <button class="btn btn-secondary" data-action="edit-vault" data-id="${escapeHtml(item.id)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            编辑
+            ${escapeHtml(t('servers.btn.edit'))}
           </button>
         </div>
       </div>`;
@@ -2206,7 +2244,7 @@
           toast(t('toast.copied.clip').replace('{SEC}', state.settings.clearClipboardSeconds));
           Clipboard.scheduleClear();
         } catch {
-          toast('复制失败', 'error');
+          toast(t('toast.copy.failed'), 'error');
         }
       }
     }
@@ -2298,7 +2336,7 @@
   function openServiceModal(svc) {
     // Populate server dropdown
     const sel = $('service-server');
-    sel.innerHTML = '<option value="">— 无 —</option>' +
+    sel.innerHTML = `<option value="">${escapeHtml(t('service.server.none'))}</option>` +
       state.config.servers.map((s) =>
         `<option value="${escapeHtml(s.id)}">${escapeHtml(s.alias)}</option>`
       ).join('');
