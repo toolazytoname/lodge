@@ -196,6 +196,37 @@
   .diag-row span { color: var(--text-tertiary); min-width: 110px; font-family: var(--font-text); font-size: 12px; }
   .diag-row code { color: var(--text); font-size: 12px; word-break: break-all; }
   .field-hint { font-size: 12px; color: var(--text-tertiary); }
+
+  /* Password field with show/hide toggle */
+  .field-pw { position: relative; }
+  .field-pw .field-input { padding-right: 44px; }
+  .pw-toggle {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; padding: 6px;
+    color: var(--text-tertiary); cursor: pointer;
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  }
+  .pw-toggle:hover { color: var(--text); background: var(--surface-2); }
+
+  /* Unlock diagnostic strip */
+  .unlock-diag {
+    margin-top: 24px; padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .unlock-diag-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 12px; margin-bottom: 6px;
+  }
+  .unlock-diag-row .diag-label { color: var(--text-tertiary); }
+  .unlock-diag-row .diag-value {
+    color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px;
+    text-align: right; word-break: break-all;
+  }
+  .unlock-err-diag {
+    font-size: 11px; color: var(--text-tertiary);
+    margin-top: 6px; font-family: var(--font-mono);
+    line-height: 1.5;
+  }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* ===== Buttons ===== */
@@ -576,11 +607,11 @@
     <form id="setup-form" class="auth-form">
       <div class="field">
         <label class="field-label" for="setup-pw1" data-i18n="setup.pw1">主密码</label>
-        <input id="setup-pw1" class="field-input" type="password" autocomplete="new-password" required minlength="8" data-i18n-ph="setup.pw1.placeholder" placeholder="至少 8 位">
+        <input id="setup-pw1" class="field-input" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" required minlength="8" data-i18n-ph="setup.pw1.placeholder" placeholder="至少 8 位">
       </div>
       <div class="field">
         <label class="field-label" for="setup-pw2" data-i18n="setup.pw2">确认主密码</label>
-        <input id="setup-pw2" class="field-input" type="password" autocomplete="new-password" required minlength="8" data-i18n-ph="setup.pw2.placeholder" placeholder="再次输入">
+        <input id="setup-pw2" class="field-input" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" required minlength="8" data-i18n-ph="setup.pw2.placeholder" placeholder="再次输入">
       </div>
       <div id="setup-error" class="auth-error"></div>
       <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="setup.submit">创建</button>
@@ -649,11 +680,22 @@
     <form id="unlock-form" class="auth-form">
       <div class="field">
         <label class="field-label" for="unlock-pw" data-i18n="setup.pw1">主密码</label>
-        <input id="unlock-pw" class="field-input" type="password" autocomplete="current-password" required autofocus>
+        <input id="unlock-pw" class="field-input" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus>
       </div>
       <div id="unlock-error" class="auth-error"></div>
       <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="unlock.submit">解锁</button>
     </form>
+    <div class="unlock-diag" id="unlock-diag">
+      <div class="unlock-diag-row" id="unlock-diag-source">
+        <span class="diag-label" data-i18n="unlock.diag.source">Source</span>
+        <span class="diag-value" id="unlock-source-val">—</span>
+      </div>
+      <div class="unlock-diag-row" id="unlock-diag-salt" style="display: none;">
+        <span class="diag-label" data-i18n="unlock.diag.salt">Vault salt</span>
+        <span class="diag-value" id="unlock-salt-val">—</span>
+      </div>
+      <button type="button" class="btn btn-ghost btn-block" id="re-pick-btn" style="margin-top: 12px;" data-i18n="unlock.repick">Pick a different config.json</button>
+    </div>
   </div>
 </div>
 
@@ -1005,15 +1047,15 @@
       <div class="modal-body">
         <div class="field">
           <label class="field-label" for="cp-current" data-i18n="changepw.current">当前主密码</label>
-          <input id="cp-current" class="field-input" type="password" required>
+          <input id="cp-current" class="field-input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" required>
         </div>
         <div class="field">
           <label class="field-label" for="cp-new1" data-i18n="changepw.new1">新主密码</label>
-          <input id="cp-new1" class="field-input" type="password" required minlength="8">
+          <input id="cp-new1" class="field-input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" required minlength="8">
         </div>
         <div class="field">
           <label class="field-label" for="cp-new2" data-i18n="changepw.new2">确认新主密码</label>
-          <input id="cp-new2" class="field-input" type="password" required minlength="8">
+          <input id="cp-new2" class="field-input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" required minlength="8">
         </div>
         <div id="cp-error" class="auth-error"></div>
         <p style="font-size: 13px; color: var(--text-tertiary);" data-i18n="changepw.note">更改后所有 vault 条目会重新加密。</p>
@@ -1084,6 +1126,16 @@
       'unlock.submit': 'Unlock',
       'unlock.err': 'Wrong master password',
       'unlock.err.generic': 'Verification failed: ',
+      'unlock.err.novault': 'This config has no master password set. Pick a different file.',
+      'unlock.err.detail': 'Length: {LEN} · First char: {FIRST} · Last char: {LAST}{SPACE}{CAP}',
+      'unlock.err.warn.cap': ' · ⚠️ starts with uppercase (iOS may auto-capitalize)',
+      'unlock.err.warn.space': ' · ⚠️ has leading/trailing whitespace',
+      'unlock.diag.source': 'Source',
+      'unlock.diag.salt': 'Vault salt',
+      'unlock.repick': 'Pick a different config.json',
+      'unlock.cache.label': '(local cache)',
+
+      'toast.config.loaded': 'Loaded: {NAME} · salt {SALT} · {SERVERS} server(s) / {SERVICES} service(s) / {ITEMS} vault item(s)',
 
       'servers.title': 'Servers',
       'servers.count': 'servers',
@@ -1296,6 +1348,16 @@
       'unlock.submit': '解锁',
       'unlock.err': '主密码错误',
       'unlock.err.generic': '验证失败: ',
+      'unlock.err.novault': '当前 config 没有设置主密码。请选择正确文件。',
+      'unlock.err.detail': '长度: {LEN} · 首字符: {FIRST} · 末字符: {LAST}{SPACE}{CAP}',
+      'unlock.err.warn.cap': ' · ⚠️ 首字符大写（iOS 可能自动大写）',
+      'unlock.err.warn.space': ' · ⚠️ 含首尾空白',
+      'unlock.diag.source': '当前文件',
+      'unlock.diag.salt': '盐值',
+      'unlock.repick': '重新选择 config.json',
+      'unlock.cache.label': '(本地缓存)',
+
+      'toast.config.loaded': '已加载: {NAME} · 盐值 {SALT} · {SERVERS} 服务器 / {SERVICES} 服务 / {ITEMS} vault',
 
       'servers.title': '服务器',
       'servers.count': '台',
@@ -1505,6 +1567,8 @@
     settings: { autoLockMinutes: 5, theme: 'auto', clearClipboardSeconds: 30 },
     hasUnsavedChanges: false,
     lastActivity: Date.now(),
+    lastFile: null,        // { name, size, lastModified } of the loaded file
+    source: 'unknown',     // 'fetch' | 'cache' | 'file'
   };
 
   const DEFAULT_CONFIG = {
@@ -1661,6 +1725,30 @@
       });
     },
 
+    fileFingerprint(file) {
+      return {
+        name: file.name || '(unnamed)',
+        size: file.size,
+        sizeHuman: file.size < 1024 ? `${file.size} B` : `${(file.size/1024).toFixed(1)} KB`,
+        lastModified: file.lastModified ? new Date(file.lastModified).toISOString().slice(0, 16).replace('T', ' ') : '',
+      };
+    },
+
+    configFingerprint(cfg) {
+      const vault = cfg.vault || {};
+      const items = (vault.items || []).length;
+      const salt = (vault.salt || '').slice(0, 8);
+      return {
+        salt,
+        hasVault: !!(vault.salt && vault.verifier),
+        servers: (cfg.servers || []).length,
+        services: (cfg.services || []).length,
+        items,
+        lastModified: cfg.meta?.lastModified || '',
+      };
+    },
+    },
+
     downloadConfig() {
       const cfg = state.config;
       cfg.meta.lastModified = new Date().toISOString();
@@ -1788,6 +1876,7 @@
       $('unlock-screen').classList.remove('hidden');
       $('unlock-pw').value = '';
       $('unlock-pw').focus();
+      updateUnlockDiag();
     } else {
       $('setup-screen').classList.remove('hidden');
     }
@@ -1802,6 +1891,29 @@
     $('app').classList.remove('hidden');
     render();
   }
+
+  function updateUnlockDiag() {
+    const srcEl = $('unlock-source-val');
+    const saltRow = $('unlock-diag-salt');
+    const saltEl = $('unlock-salt-val');
+    if (srcEl) {
+      const name = state.lastFile?.name || '(unknown)';
+      const size = state.lastFile?.sizeHuman ? ` · ${state.lastFile.sizeHuman}` : '';
+      srcEl.textContent = `${name}${size}`;
+    }
+    if (state.config?.vault?.salt) {
+      saltRow.style.display = '';
+      saltEl.textContent = state.config.vault.salt.slice(0, 16) + '...';
+    } else {
+      saltRow.style.display = 'none';
+    }
+  }
+
+  $('re-pick-btn')?.addEventListener('click', () => {
+    $('unlock-screen').classList.add('hidden');
+    $('picker-screen').classList.remove('hidden');
+    // The picker button handler is already set up in init()
+  });
 
   // ============================================================
   // Init flow
@@ -1872,6 +1984,7 @@
     // 1. Try fetch config.json (works on http://localhost or HTTPS)
     let cfg = await Storage.tryFetch();
     let source = 'fetch';
+    if (cfg) state.lastFile = { name: 'config.json', size: 0, sizeHuman: '', lastModified: '' };
 
     // 2. Fallback: localStorage cache (works on file:// after first pick)
     if (!cfg) {
@@ -1879,6 +1992,7 @@
       if (cached && cached.config) {
         cfg = cached.config;
         source = 'cache';
+        state.lastFile = { name: t('unlock.cache.label'), size: 0, sizeHuman: '', lastModified: '' };
       }
     }
 
@@ -1891,8 +2005,20 @@
         if (!file) return;
         try {
           cfg = await Storage.readFile(file);
+          state.lastFile = Storage.fileFingerprint(file);
+          state.source = 'file';
           Storage.cacheLocal();  // Cache for next time
-          await proceedWithConfig(cfg, 'cache');
+          // Confirm to user what they picked
+          const fp = Storage.configFingerprint(cfg);
+          const summary = t('toast.config.loaded')
+            .replace('{NAME}', state.lastFile.name)
+            .replace('{SALT}', fp.salt)
+            .replace('{SERVERS}', fp.servers)
+            .replace('{SERVICES}', fp.services)
+            .replace('{ITEMS}', fp.items);
+          toast(summary);
+          state.source = 'file';
+          await proceedWithConfig(cfg, 'file');
         } catch (e) {
           toast(t('toast.parse.fail') + e.message, 'error');
         }
@@ -1902,6 +2028,7 @@
       return;
     }
 
+    state.source = source;
     await proceedWithConfig(cfg, source);
   }
 
@@ -1988,11 +2115,32 @@
     const errEl = $('unlock-error');
     errEl.classList.remove('show');
 
+    // Sanity: refuse if no salt (e.g., user picked the example config)
+    if (!state.config.vault.salt || !state.config.vault.verifier) {
+      errEl.textContent = t('unlock.err.novault');
+      errEl.classList.add('show');
+      return;
+    }
+
     try {
       const key = await Crypto.deriveKey(pw, state.config.vault.salt, state.config.vault.iterations);
       const ok = await Crypto.verifyPassword(key, state.config.vault.verifier, state.config.vault.verifierIv);
       if (!ok) {
-        errEl.textContent = t('unlock.err');
+        // Build a diagnostic showing what was tried, so user can compare across devices
+        const len = pw.length;
+        const firstChar = pw[0] || '';
+        const lastChar = pw[pw.length-1] || '';
+        const hasSpace = /^\s|\s$/.test(pw);
+        const capMismatch = firstChar && firstChar !== firstChar.toLowerCase()
+          ? t('unlock.err.warn.cap')
+          : '';
+        const diag = t('unlock.err.detail')
+          .replace('{LEN}', len)
+          .replace('{FIRST}', firstChar || '∅')
+          .replace('{LAST}', lastChar || '∅')
+          .replace('{SPACE}', hasSpace ? t('unlock.err.warn.space') : '')
+          .replace('{CAP}', capMismatch);
+        errEl.innerHTML = `<div>${escapeHtml(t('unlock.err'))}</div><div class="unlock-err-diag">${diag}</div>`;
         errEl.classList.add('show');
         $('unlock-pw').select();
         return;
@@ -2639,6 +2787,31 @@
 
   // Apply language on load (translates static text)
   applyLang();
+
+  // Add show/hide password toggles to all password inputs
+  ['setup-pw1', 'setup-pw2', 'unlock-pw', 'cp-current', 'cp-new1', 'cp-new2'].forEach((id) => {
+    const input = $(id);
+    if (!input) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'field-pw';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pw-toggle';
+    btn.title = 'Show / hide password';
+    btn.setAttribute('aria-label', 'Show / hide password');
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    btn.addEventListener('click', () => {
+      const isPw = input.type === 'password';
+      input.type = isPw ? 'text' : 'password';
+      btn.innerHTML = isPw
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+      input.focus();
+    });
+    wrap.appendChild(btn);
+  });
 
 })();
 </script>
