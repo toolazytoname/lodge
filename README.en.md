@@ -171,6 +171,55 @@ Each server card has two actions:
 ### Forgot master password
 **No recovery.** This is the cost of zero-knowledge design.
 
+## Cross-device usage (iPhone, iPad, etc.)
+
+Lodge supports **seamless cross-device use** with two modes:
+
+### Mode A: Vercel deploy (recommended for iPhone)
+
+1. **Your real data stays in iCloud Drive.** The repo's `config.json` is excluded from Vercel via `.vercelignore`.
+2. Open `https://lodge-iota.vercel.app/dashboard.html` on any device's browser (Safari/Chrome).
+3. **First time on each device**: file picker shows. Navigate to iCloud Drive → select your real `config.json`.
+4. **After that**: localStorage caches the config. Subsequent opens on the same device load instantly.
+5. After editing, click **Save to file** → replace the iCloud file with the downloaded one → all your devices see the latest data next time they re-pick.
+
+**Why this is safe**:
+- Vercel only serves the HTML/JS code, no real data
+- The real `config.json` lives only in your iCloud Drive
+- Vault items are AES-GCM encrypted with your master password
+- An attacker visiting the Vercel URL sees the app with an empty file picker, nothing else
+
+### Mode B: Tailscale / Cloudflare Tunnel (self-hosted, your server)
+
+If you prefer full control, deploy on your own server and access via:
+
+- **Tailscale Funnel**: `tailscale funnel 9001` → `https://machine-name.tail-net.ts.net`
+- **Cloudflare Tunnel**: zero-config HTTPS, no account needed
+- **Any HTTPS reverse proxy** (Caddy, nginx + Let's Encrypt)
+
+These work the same as Mode A from the user perspective.
+
+### Per-device cache (localStorage)
+
+- First config selection per device: manual file picker
+- All subsequent loads on that device: instant from localStorage cache
+- To switch configs: Settings → Clear local cache → next open shows file picker
+- To sync changes across devices: save → move downloaded file to iCloud → next pick on other device picks up the new version
+
+### file:// mode (advanced, no server)
+
+You can also open `dashboard.html` directly with no server. Two caveats:
+
+1. **Vault is broken** on `file://` (Web Crypto requires secure context)
+2. `fetch('./config.json')` fails → you must use the file picker every time
+
+The localStorage cache works around (2) — pick once, then it auto-loads on every open.
+
+**To open in iPhone Safari from Files app**:
+- Long-press `dashboard.html` → Share → **Open in Safari**
+
+**For full functionality (vault included) on iPhone, use Mode A or B above.**
+
 **Mitigation**:
 - Write down your password physically and store it safely
 - Don't store critical tokens only in Lodge

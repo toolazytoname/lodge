@@ -167,6 +167,52 @@ iPhone 上：
 - 把下载文件移动到 Lodge 目录覆盖原 `config.json`
 - iCloud 自动推送到所有设备
 
+### 跨设备使用（iPhone / iPad 等）
+
+Lodge 支持两种跨设备模式：
+
+**模式 A：部署到 Vercel（iPhone 推荐）**
+
+1. **真实数据放在你 iCloud Drive。** 仓库的 `config.json` 已通过 `.vercelignore` 排除在 Vercel 部署之外。
+2. 在任何设备的浏览器打开 `https://lodge-iota.vercel.app/dashboard.html`
+3. **每台设备首次**：弹出文件选择器 → 进 iCloud Drive → 选你的真实 `config.json`
+4. **之后**：localStorage 缓存，下次直接打开就加载
+5. 改完点"保存到文件" → 把下载的文件替换 iCloud 那个 → 其他设备下次选文件时就看到最新数据
+
+**为什么安全**：
+- Vercel 只 serve HTML/JS 代码，没有真实数据
+- 真实 config.json 只在你 iCloud Drive
+- Vault 条目用主密码 AES-GCM 加密
+- 攻击者访问 Vercel URL 只看到空文件选择器，啥也拿不到
+
+**模式 B：自家服务器（自托管）**
+
+如果你想要完全控制，部署在自己服务器，用以下任一方式暴露 HTTPS：
+
+- **Tailscale Funnel**：`tailscale funnel 9001` → `https://机器名.tail-net.ts.net`
+- **Cloudflare Tunnel**：免账号、5 分钟、临时 `trycloudflare.com` 域名
+- **Caddy + 域名 + DNS**：生产级
+
+用户体验和模式 A 一样。
+
+**localStorage 缓存机制**
+
+- 每台设备**首次**：手动选 config.json
+- **之后**：自动从 localStorage 加载
+- 想换 config：设置 → 清除本地缓存 → 下次打开会再弹选择器
+- 跨设备同步：保存 → 替换 iCloud 文件 → 其他设备下次选文件时拿到新版本
+
+**file:// 直开模式（高级，不需要服务器）**
+
+也可以直接双击 `dashboard.html` 不开任何服务器，但有两个限制：
+1. **保险库在 file:// 下失效**（Web Crypto 需要 secure context）
+2. `fetch('./config.json')` 失败 → 必须用文件选择器（但 localStorage 缓存能解决这问题）
+
+**iPhone 上怎么在 Safari 打开 file:// HTML**：
+- 长按 `dashboard.html` → 共享 → **用 Safari 打开**
+
+**iPhone 上想要完整功能（保险库也能用），用模式 A 或 B。**
+
 ### 更换主密码
 
 设置 → 更改主密码 → 当前密码 + 两次新密码 → 自动用新密码重新加密所有 vault 条目。

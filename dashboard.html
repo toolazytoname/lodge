@@ -1690,6 +1690,10 @@
       } catch { return null; }
     },
 
+    hasCache() {
+      try { return !!localStorage.getItem('dashboard.cache'); } catch { return false; }
+    },
+
     clearCache() { localStorage.removeItem('dashboard.cache'); },
   };
 
@@ -1865,10 +1869,20 @@
 
     AutoLock.init();
 
-    // 1. Try fetch config.json
+    // 1. Try fetch config.json (works on http://localhost or HTTPS)
     let cfg = await Storage.tryFetch();
+    let source = 'fetch';
 
-    // 2. Fallback: file picker
+    // 2. Fallback: localStorage cache (works on file:// after first pick)
+    if (!cfg) {
+      const cached = Storage.loadCache();
+      if (cached && cached.config) {
+        cfg = cached.config;
+        source = 'cache';
+      }
+    }
+
+    // 3. Fallback: file picker (first time on this device)
     if (!cfg) {
       hide($('loading-screen'));
       show($('picker-screen'));
@@ -1877,15 +1891,18 @@
         if (!file) return;
         try {
           cfg = await Storage.readFile(file);
-          await proceedWithConfig(cfg);
+          Storage.cacheLocal();  // Cache for next time
+          await proceedWithConfig(cfg, 'cache');
         } catch (e) {
           toast(t('toast.parse.fail') + e.message, 'error');
         }
       });
+      // If a cache already exists, also offer "use cached" option
+      // (fallback path: cache failed to load for some reason)
       return;
     }
 
-    await proceedWithConfig(cfg);
+    await proceedWithConfig(cfg, source);
   }
 
   async function proceedWithConfig(cfg) {

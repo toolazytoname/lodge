@@ -1,0 +1,6 @@
+# Don't deploy real user data to Vercel
+# The example config.json stays in the repo for local dev
+# but should NOT be served from the public deployment.
+# Users on Vercel will use the file picker to load their own config.
+config.json
+config-*.json
