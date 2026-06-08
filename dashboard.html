@@ -1691,11 +1691,17 @@
   // ============================================================
   const Storage = {
     async tryFetch() {
+      // 3-second hard timeout so we never hang on a slow/blocked network
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
       try {
-        const res = await fetch('config.json', { cache: 'no-store' });
+        const res = await fetch('config.json', { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timer);
         if (!res.ok) return null;
         return await res.json();
-      } catch {
+      } catch (e) {
+        clearTimeout(timer);
+        // AbortError or network error — treat as "no config"
         return null;
       }
     },
@@ -1746,7 +1752,6 @@
         items,
         lastModified: cfg.meta?.lastModified || '',
       };
-    },
     },
 
     downloadConfig() {
