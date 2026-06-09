@@ -1709,12 +1709,13 @@
     pickFile() {
       return new Promise((resolve) => {
         const input = $('file-input');
+        // Clean any previous selection
+        input.value = '';
         const handler = (e) => {
           input.removeEventListener('change', handler);
-          const file = e.target.files[0];
-          resolve(file);
+          resolve(e.target.files[0] || null);
         };
-        input.addEventListener('change', handler);
+        input.addEventListener('change', handler, { once: true });
         input.click();
       });
     },
@@ -1980,11 +1981,19 @@
     // 0. Pre-flight: check Web Crypto availability
     const ctx = checkSecureContext();
     if (!ctx.ok) {
+      hide($('loading-screen'));
+      hide($('picker-screen'));
       showInsecureContextError(ctx.reason);
       return;
     }
 
     AutoLock.init();
+
+    // CRITICAL: hide everything else first so we never show two screens at once
+    hide($('unlock-screen'));
+    hide($('setup-screen'));
+    hide($('app'));
+    show($('loading-screen'));
 
     // 1. Try fetch config.json (works on http://localhost or HTTPS)
     let cfg = await Storage.tryFetch();
@@ -2005,31 +2014,32 @@
     if (!cfg) {
       hide($('loading-screen'));
       show($('picker-screen'));
-      $('picker-btn').addEventListener('click', async () => {
-        const file = await Storage.pickFile();
-        if (!file) return;
-        try {
-          cfg = await Storage.readFile(file);
-          state.lastFile = Storage.fileFingerprint(file);
-          state.source = 'file';
-          Storage.cacheLocal();  // Cache for next time
-          // Confirm to user what they picked
-          const fp = Storage.configFingerprint(cfg);
-          const summary = t('toast.config.loaded')
-            .replace('{NAME}', state.lastFile.name)
-            .replace('{SALT}', fp.salt)
-            .replace('{SERVERS}', fp.servers)
-            .replace('{SERVICES}', fp.services)
-            .replace('{ITEMS}', fp.items);
-          toast(summary);
-          state.source = 'file';
-          await proceedWithConfig(cfg, 'file');
-        } catch (e) {
-          toast(t('toast.parse.fail') + e.message, 'error');
-        }
-      });
-      // If a cache already exists, also offer "use cached" option
-      // (fallback path: cache failed to load for some reason)
+      // Bind once, idempotently
+      const btn = $('picker-btn');
+      if (btn && !btn._bound) {
+        btn._bound = true;
+        btn.addEventListener('click', async () => {
+          try {
+            const file = await Storage.pickFile();
+            if (!file) return;
+            const loaded = await Storage.readFile(file);
+            state.lastFile = Storage.fileFingerprint(file);
+            state.source = 'file';
+            Storage.cacheLocal();
+            const fp = Storage.configFingerprint(loaded);
+            const summary = t('toast.config.loaded')
+              .replace('{NAME}', state.lastFile.name)
+              .replace('{SALT}', fp.salt)
+              .replace('{SERVERS}', fp.servers)
+              .replace('{SERVICES}', fp.services)
+              .replace('{ITEMS}', fp.items);
+            toast(summary);
+            await proceedWithConfig(loaded, 'file');
+          } catch (e) {
+            toast(t('toast.parse.fail') + e.message, 'error');
+          }
+        });
+      }
       return;
     }
 
@@ -2048,10 +2058,13 @@
 
     state.isInitialized = !!(cfg.vault.salt && cfg.vault.verifier);
     applyTheme();
+    updateUnlockDiag();
 
     if (!state.isInitialized) {
+      hide($('unlock-screen'));
       show($('setup-screen'));
     } else {
+      hide($('setup-screen'));
       show($('unlock-screen'));
       $('unlock-pw').focus();
     }
