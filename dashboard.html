@@ -197,6 +197,14 @@
   .diag-row code { color: var(--text); font-size: 12px; word-break: break-all; }
   .field-hint { font-size: 12px; color: var(--text-tertiary); }
 
+  /* Visually-hidden file input (Safari ignores display:none inputs on click) */
+  .visually-hidden-file {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
   /* Password field with show/hide toggle */
   .field-pw { position: relative; }
   .field-pw .field-input { padding-right: 44px; }
@@ -587,14 +595,13 @@
     </div>
     <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 600; margin-bottom: 8px;" data-i18n="picker.title">选择配置文件</h2>
     <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 24px;" data-i18n="picker.desc">请选择与 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">dashboard.html</code> 同目录的 <code style="font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px;">config.json</code> 文件</p>
-    <button id="picker-btn" class="btn btn-primary btn-lg btn-capsule">
+    <label for="file-input" id="picker-btn" class="btn btn-primary btn-lg btn-capsule" style="cursor: pointer; display: inline-flex;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
       <span data-i18n="picker.btn">选择文件</span>
-    </button>
+    </label>
     <p style="margin-top: 16px; font-size: 12px; color: var(--text-tertiary);" data-i18n="picker.note">iPhone 用户: 在"文件"App 中找到 config.json 后长按 → 共享 → 用 Safari 打开</p>
   </div>
-  <input type="file" id="file-input" accept=".json,application/json" style="display:none">
-</div>
+  <input type="file" id="file-input" accept=".json,application/json" class="visually-hidden-file">
 
 <!-- ===== Setup master password (first time) ===== -->
 <div id="setup-screen" class="auth-screen hidden">
@@ -1707,16 +1714,19 @@
     },
 
     pickFile() {
+      // The <label for="file-input"> triggers the file dialog natively
+      // (more reliable than input.click() in Safari).
+      // We just wait for the change event on the input.
       return new Promise((resolve) => {
         const input = $('file-input');
-        // Clean any previous selection
-        input.value = '';
+        input.value = '';  // reset to allow re-selecting same file
         const handler = (e) => {
           input.removeEventListener('change', handler);
           resolve(e.target.files[0] || null);
         };
         input.addEventListener('change', handler, { once: true });
-        input.click();
+        // Note: we don't call input.click() here. The <label for="file-input">
+        // is what the user clicks, which natively opens the file dialog.
       });
     },
 
@@ -2014,14 +2024,15 @@
     if (!cfg) {
       hide($('loading-screen'));
       show($('picker-screen'));
-      // Bind once, idempotently
-      const btn = $('picker-btn');
-      if (btn && !btn._bound) {
-        btn._bound = true;
-        btn.addEventListener('click', async () => {
+      // The picker button is a <label for="file-input"> that natively
+      // opens the file dialog. We just listen for the change event.
+      const input = $('file-input');
+      if (input && !input._bound) {
+        input._bound = true;
+        input.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
           try {
-            const file = await Storage.pickFile();
-            if (!file) return;
             const loaded = await Storage.readFile(file);
             state.lastFile = Storage.fileFingerprint(file);
             state.source = 'file';
