@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "meta": {
+    "created": "2024-01-01T00:00:00.000Z",
+    "lastModified": "2024-01-01T00:00:00.000Z"
+  },
+  "servers": [
+    {
+      "id": "demo-nas",
+      "alias": "示例 NAS",
+      "host": "192.0.2.10",
+      "sshPort": 22,
+      "sshUser": "root",
+      "tags": ["示例"],
+      "notes": "占位数据,无真实服务器"
+    },
+    {
+      "id": "demo-blog",
+      "alias": "示例 Blog",
+      "host": "192.0.2.20",
+      "sshPort": 22,
+      "sshUser": "deploy",
+      "tags": ["示例"],
+      "notes": "占位数据,无真实服务器"
+    }
+  ],
+  "services": [
+    {
+      "id": "demo-nas-1panel",
+      "name": "示例 1Panel",
+      "url": "https://192.0.2.10:8443",
+      "type": "1panel",
+      "icon": "1",
+      "serverId": "demo-nas",
+      "description": "占位"
+    }
+  ],
+  "vault": {
+    "kdf": "PBKDF2-SHA256",
+    "iterations": 600000,
+    "salt": "",
+    "verifier": "",
+    "items": []
+  },
+  "settings": {}
+}

@@ -25,6 +25,7 @@ venv/
 .env
 
 # Real user data — NEVER commit
+config.json
 config.real.json
 config.local.json
 config.backup*.json
@@ -35,6 +36,11 @@ private-config.json
 # Local server logs
 server.log
 *.log
+
+# Test artifacts (Playwright screenshots / cache)
+.playwright-mcp/
+lodge-*.png
+scripts/.last-failure.png
 
 # Temporary downloads (config-TIMESTAMP.json)
 # These are intentionally allowed to be committed

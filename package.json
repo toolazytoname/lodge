@@ -1,0 +1,15 @@
+{
+  "name": "lodge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private home base for servers, services, and secrets — single-file static SPA.",
+  "scripts": {
+    "test": "bash scripts/test.sh",
+    "test:e2e": "node scripts/test-e2e.mjs",
+    "lint:js": "node check-js.sh",
+    "serve": "python3 -m http.server 9001"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
