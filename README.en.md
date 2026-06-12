@@ -23,20 +23,21 @@ A self-hosted personal console. **One HTML file + one JSON file**. Zero servers,
 ```
 dashboard.html   The app (~90KB, single file)
 config.json      Your data (servers / services / encrypted vault)
-index.html       Marketing landing page (deploy to Vercel)
+about.html       Marketing / about page (served at /about.html)
 404.html         Custom 404
-vercel.json      Vercel configuration
+vercel.json      Vercel configuration (root `/` 301 → /dashboard.html)
 ```
 
 ## Quick Start
 
-Lodge is hosted at **<https://lodge.weichao.studio>** — just open it.
+Lodge is hosted at **<https://lodge.weichao.studio>** — just open it. The root URL 301-redirects to the app, so the dashboard is what you see by default.
 
 ### 1. Open the URL
 
-Visit **<https://lodge.weichao.studio/dashboard.html>** in any browser (desktop, phone, tablet).
+- Main app: **<https://lodge.weichao.studio>** (or explicitly `<https://lodge.weichao.studio/dashboard.html>`)
+- About page: <https://lodge.weichao.studio/about.html>
 
-- macOS / Windows / Linux: open in your usual browser
+Works in any browser on macOS / Windows / Linux / iPhone / iPad.
 - iPhone / iPad: open in Safari (or any browser)
 
 ### 2. Pick your `config.json` (first time per device)

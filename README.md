@@ -22,19 +22,20 @@ Lodge = 山间小屋（home base） + 寄托存放（lodge something）。集中
 
 ```
 dashboard.html   应用本体（~90KB 单文件）
+about.html       宣传 / 关于页（部署到 /about.html）
 config.json      数据（服务器/服务/加密 Vault）
 ```
 
 ## 快速开始
 
-Lodge 已经部署在 **<https://lodge.weichao.studio>** —— 直接打开就行。
+Lodge 已经部署在 **<https://lodge.weichao.studio>** —— 直接打开就行。根路径会自动重定向到应用主页。
 
 ### 1. 打开 URL
 
-在任何浏览器（电脑 / 手机 / 平板）访问 **<https://lodge.weichao.studio/dashboard.html>**
+- 主应用：**<https://lodge.weichao.studio>**（或显式 `<https://lodge.weichao.studio/dashboard.html>`）
+- 关于页：<https://lodge.weichao.studio/about.html>
 
-- macOS / Windows / Linux：任意浏览器
-- iPhone / iPad：Safari 或任意浏览器
+适用于 macOS / Windows / Linux / iPhone / iPad 的任意浏览器。
 
 ### 2. 选 `config.json`（每台设备首次）
 

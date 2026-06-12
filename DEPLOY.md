@@ -59,10 +59,11 @@ vercel --prod
 Vercel auto-provisions HTTPS certificates — no extra work.
 
 **Example (this repo's deployed URL):**
-- Marketing: `https://lodge.weichao.studio/`
+- Default entry (root → app, via 301): `https://lodge.weichao.studio/`
 - App: `https://lodge.weichao.studio/dashboard.html`
+- About / marketing: `https://lodge.weichao.studio/about.html`
 
-After setting up a custom domain, update `og:image` URL in `index.html` and any "live demo" links in the README files to use the custom domain (the default `vercel.app` URL still works but is less professional).
+After setting up a custom domain, update `og:image` URL in `about.html` and any "live demo" links in the README files to use the custom domain (the default `vercel.app` URL still works but is less professional).
 
 ## 3. What gets deployed
 
@@ -70,7 +71,8 @@ Vercel serves these files at the corresponding paths:
 
 | File | URL |
 |------|-----|
-| `index.html` | `/` (marketing landing page) |
+| `/` (redirect) | `/dashboard.html` (the app) |
+| `about.html` | `/about.html` (marketing / about page) |
 | `dashboard.html` | `/dashboard.html` (the app) |
 | `config.json` | `/config.json` (example data only) |
 | `404.html` | any unknown path (custom 404) |
@@ -163,7 +165,7 @@ Visit `https://vercel.com/dashboard` to see deployment history.
 ### Vercel build fails
 - Lodge is pure static — no build step
 - Check the deployment logs in Vercel dashboard
-- Ensure `index.html` exists at the repo root
+- Ensure `dashboard.html` and `about.html` exist at the repo root
 
 ### Web Crypto not working on Vercel URL
 - Vercel auto-provisions HTTPS — should work
