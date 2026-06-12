@@ -30,27 +30,52 @@ vercel.json      Vercel configuration (root `/` 301 → /dashboard.html)
 
 ## Quick Start
 
-Lodge is hosted at **<https://lodge.weichao.studio>** — just open it. The root URL 301-redirects to the app, so the dashboard is what you see by default.
+Three ways to run it — pick whatever fits:
 
-### 1. Open the URL
+### A. Use the hosted version (no setup, recommended)
+
+Lodge is hosted at **<https://lodge.weichao.studio>** — just open it. The root URL 301-redirects to the app, so the dashboard is what you see by default.
 
 - Main app: **<https://lodge.weichao.studio>** (or explicitly `<https://lodge.weichao.studio/dashboard.html>`)
 - About page: <https://lodge.weichao.studio/about.html>
 
 Works in any browser on macOS / Windows / Linux / iPhone / iPad.
-- iPhone / iPad: open in Safari (or any browser)
 
-### 2. Pick your `config.json` (first time per device)
+### B. Run from a local clone — just open the HTML
 
-The first time you open it on a device, a file picker appears. Choose your `config.json` from anywhere on your device — typically in iCloud Drive.
+Lodge is two static files. No build, no install, no server.
 
-> Your real `config.json` is read directly by your browser. **It is never uploaded anywhere.** The deployed app at `lodge.weichao.studio` only contains the HTML skeleton, no real data.
+```bash
+git clone https://github.com/toolazytoname/lodge.git
+cd lodge
+open dashboard.html        # macOS
+xdg-open dashboard.html    # Linux
+start dashboard.html       # Windows
+```
 
-### 3. Done
+Or double-click `dashboard.html` in Finder / Explorer.
 
-The config is cached in your browser. Next time you open the URL, it loads instantly. To update from a newer `config.json` (e.g., after editing on another device), go to **Settings → Import config.json** in the app.
+The browser will open the file directly. Lodge detects `file://` and automatically uses the file picker + localStorage cache. Web Crypto API works on `file://` in all current major browsers, so the vault (encrypted token storage) is fully functional.
 
-### 4. SSH connections
+> Your real `config.json` is read directly by your browser. **It is never uploaded anywhere.**
+
+### C. Run via a local server (optional)
+
+Only needed if you want a real `https://localhost` URL (e.g. to test on a phone via your computer's IP):
+
+```bash
+cd lodge
+python3 -m http.server 9001
+# then open http://localhost:9001/dashboard.html
+```
+
+Or with Node: `npx serve .` then open the URL it prints.
+
+---
+
+After opening (A, B, or C) the first time on a device, a file picker appears. Choose your `config.json` from anywhere on your device — typically in iCloud Drive. The config is cached in your browser afterwards; next time it loads instantly. To switch configs, go to **Settings → Import config.json** in the app.
+
+### SSH connections
 
 Each server card has two actions:
 

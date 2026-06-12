@@ -83,19 +83,27 @@ Vercel serves these files at the corresponding paths:
 
 ### For local-only use (recommended)
 
-Don't put real data on Vercel. Run Lodge locally or on your own server:
+Don't put real data on Vercel. Lodge is just two static files — you can open `dashboard.html` directly from Finder/Explorer, no server needed:
 
 ```bash
-# Clone (or copy) the two files
+# Clone (or copy) the two files anywhere on your machine
 cp dashboard.html ~/Documents/Lodge/
 cp config.json ~/Documents/Lodge/
 
 # Edit config.json with your real data
-# Then serve
-cd ~/Documents/Lodge && python3 -m http.server 9001
+
+# Just double-click dashboard.html — that's it.
+# Or from terminal: open ~/Documents/Lodge/dashboard.html
 ```
 
-Access via `http://localhost:9001/dashboard.html`.
+If you specifically want a `https://localhost` URL (e.g. to test from a phone via your computer's IP), only then run a server:
+
+```bash
+cd ~/Documents/Lodge && python3 -m http.server 9001
+# then open http://localhost:9001/dashboard.html
+```
+
+Either way, Lodge detects the source and uses the file picker + localStorage cache as appropriate. Web Crypto (the vault) works on both `file://` and `https://localhost`.
 
 ### For cross-device access (your real data on your own server)
 

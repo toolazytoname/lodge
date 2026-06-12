@@ -28,26 +28,50 @@ config.json      数据（服务器/服务/加密 Vault）
 
 ## 快速开始
 
-Lodge 已经部署在 **<https://lodge.weichao.studio>** —— 直接打开就行。根路径会自动重定向到应用主页。
+三种方式任选一个 —— Lodge 就是两个静态文件，无需 build / 安装 / 服务。
 
-### 1. 打开 URL
+### A. 用线上版（零配置，推荐）
+
+Lodge 已经部署在 **<https://lodge.weichao.studio>** —— 直接打开就行。根路径会自动重定向到应用主页。
 
 - 主应用：**<https://lodge.weichao.studio>**（或显式 `<https://lodge.weichao.studio/dashboard.html>`）
 - 关于页：<https://lodge.weichao.studio/about.html>
 
 适用于 macOS / Windows / Linux / iPhone / iPad 的任意浏览器。
 
-### 2. 选 `config.json`（每台设备首次）
+### B. 本地 clone 后直接打开（不需要服务）
 
-每台设备第一次打开会弹出文件选择器。从设备任意位置（通常在 iCloud Drive）选你的 `config.json`。
+```bash
+git clone https://github.com/toolazytoname/lodge.git
+cd lodge
+open dashboard.html        # macOS
+xdg-open dashboard.html    # Linux
+start dashboard.html       # Windows
+```
 
-> 真实 `config.json` 由浏览器直接读取，**不会上传到任何地方**。`lodge.weichao.studio` 上只 serve HTML 骨架，不含真实数据。
+或者在 Finder / 资源管理器里**双击** `dashboard.html`。
 
-### 3. 完事
+浏览器直接打开本地文件就行。Lodge 自动识别 `file://` 协议,走 file picker + localStorage cache 路径。Web Crypto API 在所有现代浏览器的 `file://` 下都正常工作,加密 vault 全功能。
 
-配置缓存在浏览器里，下次打开 URL 直接加载。想换成另一个 `config.json`（比如另一台设备编辑过），进 app 的 **设置 → 导入 config.json** 即可。
+> 真实 `config.json` 由浏览器直接读取，**不会上传到任何地方**。
 
-### 4. SSH 连接
+### C. 用本地服务（可选）
+
+只有想用 `https://localhost` 真 URL 测试时（比如在 iPhone 通过电脑 IP 访问）才需要：
+
+```bash
+cd lodge
+python3 -m http.server 9001
+# 然后打开 http://localhost:9001/dashboard.html
+```
+
+或用 Node：`npx serve .` 然后打开它打印的 URL。
+
+---
+
+不管用 A / B / C 哪种，每台设备第一次打开都会弹文件选择器。从设备任意位置（通常在 iCloud Drive）选你的 `config.json`。配置缓存在浏览器里，下次直接加载。想换 config，进 app 的 **设置 → 导入 config.json**。
+
+### SSH 连接
 
 服务器卡片提供两种方式：
 

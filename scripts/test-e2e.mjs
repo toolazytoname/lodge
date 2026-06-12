@@ -367,6 +367,57 @@ async function run() {
       }
     }
 
+    // 12. regression: Lodge works opened directly from a file:// URL.
+    //     Modern browsers treat file:// as a secure context, so
+    //     window.isSecureContext === true and crypto.subtle is
+    //     available — the vault (Web Crypto) is fully functional
+    //     without a local http server. We verify the page loads, the
+    //     secure-context checks pass, and we land on the file picker
+    //     (since fetch('config.json') over file:// is restricted).
+    log('regression: Lodge works opened directly from file://');
+    {
+      const fs = await import('fs');
+      // Move config.json aside so fetch() over file:// doesn't accidentally
+      // return data and skip the picker.
+      const realConfig = resolve(projectRoot, 'config.json');
+      const realConfigBak = realConfig + '.bak-e2e-file';
+      const hadConfig = fs.existsSync(realConfig);
+      if (hadConfig) fs.renameSync(realConfig, realConfigBak);
+      try {
+        const ctxF = await browser.newContext();
+        const pageF = await ctxF.newPage();
+        pageF.on('dialog', async (d) => { await d.accept(); });
+        const fileURL = 'file://' + resolve(projectRoot, 'dashboard.html');
+        await pageF.goto(fileURL, { waitUntil: 'domcontentloaded' });
+        await pageF.waitForTimeout(600);
+        const fileDiag = await pageF.evaluate(() => ({
+          protocol: window.location.protocol,
+          isSecureContext: window.isSecureContext,
+          hasSubtle: !!(window.crypto && window.crypto.subtle),
+          insecure: !document.getElementById('insecure-screen').classList.contains('hidden'),
+          picker: !document.getElementById('picker-screen').classList.contains('hidden'),
+          setup: !document.getElementById('setup-screen').classList.contains('hidden'),
+        }));
+        if (fileDiag.insecure) {
+          throw new Error('file:// mode wrongly shows insecure screen — Web Crypto should work');
+        }
+        if (!fileDiag.isSecureContext || !fileDiag.hasSubtle) {
+          throw new Error(
+            `file:// not a secure context for this Playwright build: ` +
+            `protocol=${fileDiag.protocol} isSecureContext=${fileDiag.isSecureContext} ` +
+            `hasSubtle=${fileDiag.hasSubtle} — would break the vault`
+          );
+        }
+        if (!fileDiag.picker && !fileDiag.setup) {
+          throw new Error('file:// mode did not reach picker or setup screen');
+        }
+        log('  ✓ file:// → picker, isSecureContext=true, crypto.subtle available');
+        await ctxF.close();
+      } finally {
+        if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
+      }
+    }
+
     log('PASS');
   } catch (e) {
     err('FAIL:', e.message);
