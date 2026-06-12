@@ -2200,6 +2200,13 @@
         iterations: c.vault?.iterations || 600000,
         salt: c.vault?.salt || '',
         verifier: c.vault?.verifier || '',
+        // CRITICAL: preserve verifierIv — without it Crypto.verifyPassword
+        // feeds an empty IV to AES-GCM, which throws auth-tag-mismatch on
+        // EVERY password (even the right one). Earlier rev of normalize
+        // dropped this field, so any user who reached the unlock screen
+        // through the file picker (re-pick / first run / new device)
+        // was permanently locked out.
+        verifierIv: c.vault?.verifierIv || '',
         items: Array.isArray(c.vault?.items) ? c.vault.items : [],
       },
       settings: c.settings || state.settings,

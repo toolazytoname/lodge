@@ -238,6 +238,73 @@ async function run() {
     if (real.length) throw new Error('console errors: ' + real.join('; '));
     log('✓ no console / page errors');
 
+    // 10. regression: full cross-device flow. Setup on a fresh page,
+    //     export config, then load on a NEW context (simulating a
+    //     different device) and try to unlock with the same password.
+    //     Catches bugs like normalizeConfig dropping vault.verifierIv
+    //     (which made every picker-path unlock fail silently).
+    log('regression: cross-device setup → save → reload → unlock');
+    {
+      const fs = await import('fs');
+      const exportPath = resolve(projectRoot, '.tmp-e2e-export.json');
+      // Phase A: clean export
+      const ctxA = await browser.newContext({ acceptDownloads: true });
+      const pageA = await ctxA.newPage();
+      pageA.on('dialog', async (d) => { await d.accept(); });
+      // Force the test server to 404 on config.json by moving it aside.
+      const realConfig = resolve(projectRoot, 'config.json');
+      const realConfigBak = realConfig + '.bak-e2e-flow';
+      const hadConfig = fs.existsSync(realConfig);
+      if (hadConfig) fs.renameSync(realConfig, realConfigBak);
+      try {
+        await pageA.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageA.waitForTimeout(400);
+        if (await pageA.$('#picker-screen:not(.hidden)')) {
+          await (await pageA.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+          await pageA.waitForTimeout(800);
+        }
+        if (await pageA.$('#setup-screen:not(.hidden)')) {
+          await pageA.fill('#setup-pw1', 'flow-test-pw');
+          await pageA.fill('#setup-pw2', 'flow-test-pw');
+          await pageA.click('#setup-form button[type="submit"]');
+          await pageA.waitForSelector('#app:not(.hidden)', { timeout: 10000 });
+        }
+        // Open settings, export
+        await pageA.click('#settings-btn');
+        await pageA.waitForSelector('#settings-modal:not(.hidden)');
+        const [dl] = await Promise.all([
+          pageA.waitForEvent('download'),
+          pageA.click('#export-config-btn'),
+        ]);
+        await dl.saveAs(exportPath);
+        await ctxA.close();
+
+        // Phase B: fresh context, no cache, pick the exported file
+        const ctxB = await browser.newContext();
+        const pageB = await ctxB.newPage();
+        pageB.on('dialog', async (d) => { await d.accept(); });
+        await pageB.addInitScript(() => { try { localStorage.clear(); } catch {} });
+        await pageB.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageB.waitForSelector('#picker-screen:not(.hidden)', { timeout: 8000 });
+        await (await pageB.$('#file-input')).setInputFiles(exportPath);
+        await pageB.waitForSelector('#unlock-screen:not(.hidden)', { timeout: 5000 });
+
+        // Wrong password → fail
+        await pageB.fill('#unlock-pw', 'definitely-wrong-pw');
+        await pageB.click('#unlock-form button[type="submit"]');
+        await pageB.waitForSelector('#unlock-error.show', { timeout: 5000 });
+        // Right password → unlock
+        await pageB.fill('#unlock-pw', 'flow-test-pw');
+        await pageB.click('#unlock-form button[type="submit"]');
+        await pageB.waitForSelector('#app:not(.hidden)', { timeout: 10000 });
+        log('  ✓ cross-device flow: file picker → unlock with original password works');
+        await ctxB.close();
+      } finally {
+        if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
+        if (fs.existsSync(exportPath)) fs.unlinkSync(exportPath);
+      }
+    }
+
     log('PASS');
   } catch (e) {
     err('FAIL:', e.message);
