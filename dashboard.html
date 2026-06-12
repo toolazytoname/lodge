@@ -704,6 +704,10 @@
       <div id="unlock-error" class="auth-error"></div>
       <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="unlock.submit">解锁</button>
     </form>
+    <div class="unlock-actions" style="display: flex; flex-direction: column; gap: 4px; margin-top: 16px;">
+      <button type="button" class="btn btn-ghost btn-block" id="re-pick-btn" data-i18n="unlock.repick">Pick a different config.json</button>
+      <button type="button" class="btn btn-ghost btn-block" id="forgot-pw-btn" style="color: var(--danger);" data-i18n="unlock.forgot">Forgot master password — reset vault</button>
+    </div>
     <div class="unlock-diag" id="unlock-diag">
       <div class="unlock-diag-row" id="unlock-diag-source">
         <span class="diag-label" data-i18n="unlock.diag.source">Source</span>
@@ -713,8 +717,6 @@
         <span class="diag-label" data-i18n="unlock.diag.salt">Vault salt</span>
         <span class="diag-value" id="unlock-salt-val">—</span>
       </div>
-      <button type="button" class="btn btn-ghost btn-block" id="re-pick-btn" style="margin-top: 12px;" data-i18n="unlock.repick">Pick a different config.json</button>
-      <button type="button" class="btn btn-ghost btn-block" id="forgot-pw-btn" style="margin-top: 8px; color: var(--text-tertiary); font-size: 13px;" data-i18n="unlock.forgot">Forgot master password — reset vault</button>
     </div>
   </div>
 </div>
