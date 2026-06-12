@@ -89,6 +89,9 @@ async function run() {
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
   });
+  // Auto-accept all native confirm() dialogs (lock warning, vault reset,
+  // etc.) so the test never hangs on a modal.
+  page.on('dialog', async (d) => { await d.accept(); });
 
   try {
     log('navigating to', URL);
@@ -149,10 +152,9 @@ async function run() {
     //    handler fires by clicking re-pick, uploading the same config
     //    again, and confirming the picker screen actually disappears.
     log('regression: re-pick after wrong password');
-    // Auto-accept the lock confirm() if the test has unsaved changes.
-    const dialogPromise = page.waitForEvent('dialog', { timeout: 1000 }).then(d => d.accept()).catch(() => {});
+    // (dialog handler is registered globally at run() top — accepts all
+    // confirm()s including the lock warning below.)
     await page.click('#lock-btn');
-    await dialogPromise;
     await page.waitForSelector('#unlock-screen:not(.hidden)', { timeout: 5000 });
     await page.fill('#unlock-pw', 'definitely-wrong-password');
     await page.click('#unlock-form button[type="submit"]');
@@ -170,6 +172,64 @@ async function run() {
       { timeout: 8000 }
     );
     log('✓ re-pick upload advanced past picker (regression guard)');
+
+    // 8b. regression: "Forgot master password" button on the unlock
+    //     screen. Must clear the vault and land on the setup screen so
+    //     a forgotten-password user can recover without manually
+    //     editing config.json.
+    log('regression: forgot-password button on unlock screen');
+    if (await page.$('#setup-screen:not(.hidden)')) {
+      await page.fill('#setup-pw1', 'gate-test-pw');
+      await page.fill('#setup-pw2', 'gate-test-pw');
+      await page.click('#setup-form button[type="submit"]');
+      await page.waitForSelector('#app:not(.hidden)', { timeout: 10000 });
+    }
+    if (await page.$('#app:not(.hidden)')) {
+      await page.click('#lock-btn');
+      await page.waitForSelector('#unlock-screen:not(.hidden)', { timeout: 5000 });
+    }
+    // The forgot-pw button pops a confirm() that the global dialog
+    // handler accepts automatically. We just click and assert setup.
+    await page.click('#forgot-pw-btn');
+    await page.waitForSelector('#setup-screen:not(.hidden)', { timeout: 5000 });
+    log('✓ forgot-pw lands on setup (regression guard)');
+
+    // 8c. regression: "Use demo data" button on the picker screen.
+    //     Open a fresh context (no localStorage cache) to reach picker.
+    log('regression: Use demo data button on picker screen');
+    const ctx2 = await browser.newContext();
+    const page2 = await ctx2.newPage();
+    page2.on('dialog', async (d) => { await d.accept(); });
+    // The devbox server only serves lodge; a fresh context → fetch 404 →
+    // cache miss → picker. Force it by stripping storage on every load.
+    await page2.addInitScript(() => {
+      try { localStorage.clear(); } catch {}
+    });
+    // We also have to bypass the test server serving config.json; point
+    // page2 at a port that has no config.json. The simplest is to point
+    // at a path that always 404s, but init() only ever fetches
+    // 'config.json' (relative). Workaround: stop the test server,
+    // navigate, then restart. To avoid disrupting the main flow, we
+    // just rely on localStorage being empty in a fresh context AND
+    // delete config.json from the working dir briefly.
+    const fs = await import('fs');
+    const cfgPath = resolve(projectRoot, 'config.json');
+    const hadConfig = fs.existsSync(cfgPath);
+    if (hadConfig) fs.renameSync(cfgPath, cfgPath + '.bak-test');
+    try {
+      await page2.goto(URL, { waitUntil: 'domcontentloaded' });
+      await page2.waitForSelector('#picker-screen:not(.hidden)', { timeout: 5000 });
+      await page2.click('#demo-data-btn');
+      await page2.waitForSelector('#setup-screen:not(.hidden)', { timeout: 5000 });
+      log('✓ demo-data lands on setup (regression guard)');
+    } finally {
+      if (fs.existsSync(cfgPath + '.bak-test')) {
+        fs.renameSync(cfgPath + '.bak-test', cfgPath);
+      } else if (hadConfig) {
+        // restore was lost; nothing to do (test errored before this)
+      }
+      await ctx2.close();
+    }
 
     // 9. no console / page errors
     if (pageErrors.length) throw new Error('page errors: ' + pageErrors.join('; '));

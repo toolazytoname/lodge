@@ -607,6 +607,10 @@
       <span data-i18n="picker.btn">选择文件</span>
     </label>
     <p style="margin-top: 16px; font-size: 12px; color: var(--text-tertiary);" data-i18n="picker.note">iPhone 用户: 在"文件"App 中找到 config.json 后长按 → 共享 → 用 Safari 打开</p>
+    <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 8px; align-items: center;">
+      <button type="button" class="btn btn-secondary btn-capsule" id="demo-data-btn" data-i18n="picker.demo">Use demo data</button>
+      <button type="button" class="btn btn-ghost" id="start-fresh-btn" style="font-size: 12px; color: var(--text-tertiary);" data-i18n="picker.fresh">Start fresh (reset vault)</button>
+    </div>
   </div>
   <input type="file" id="file-input" accept=".json,application/json" class="visually-hidden-file">
 </div>
@@ -710,6 +714,7 @@
         <span class="diag-value" id="unlock-salt-val">—</span>
       </div>
       <button type="button" class="btn btn-ghost btn-block" id="re-pick-btn" style="margin-top: 12px;" data-i18n="unlock.repick">Pick a different config.json</button>
+      <button type="button" class="btn btn-ghost btn-block" id="forgot-pw-btn" style="margin-top: 8px; color: var(--text-tertiary); font-size: 13px;" data-i18n="unlock.forgot">Forgot master password — reset vault</button>
     </div>
   </div>
 </div>
@@ -1151,7 +1156,13 @@
       'unlock.diag.source': 'Source',
       'unlock.diag.salt': 'Vault salt',
       'unlock.repick': 'Pick a different config.json',
+      'unlock.forgot': 'Forgot master password — reset vault',
       'unlock.cache.label': '(local cache)',
+
+      'picker.demo': 'Use demo data',
+      'picker.fresh': 'Start fresh (reset vault)',
+      'reset.confirm': 'This will erase ALL encrypted vault items (tokens, notes, passwords, SSH keys). Your servers and services will be preserved. The reset saves to your browser only — use "Save to file" afterward to persist it. Continue?',
+      'reset.done': 'Vault reset. Set a new master password, then Save to file.',
 
       'toast.config.loaded': 'Loaded: {NAME} · salt {SALT} · {SERVERS} server(s) / {SERVICES} service(s) / {ITEMS} vault item(s)',
 
@@ -1373,7 +1384,13 @@
       'unlock.diag.source': '当前文件',
       'unlock.diag.salt': '盐值',
       'unlock.repick': '重新选择 config.json',
+      'unlock.forgot': '忘记主密码 — 重置 Vault',
       'unlock.cache.label': '(本地缓存)',
+
+      'picker.demo': '使用示例数据',
+      'picker.fresh': '全新开始（重置 Vault）',
+      'reset.confirm': '将清除 Vault 中所有加密条目（token、笔记、密码、SSH key）。服务器和服务目录会保留。重置只保存到浏览器，之后请用"保存到文件"持久化。是否继续？',
+      'reset.done': 'Vault 已重置。请设新主密码，然后用"保存到文件"持久化。',
 
       'toast.config.loaded': '已加载: {NAME} · 盐值 {SALT} · {SERVERS} 服务器 / {SERVICES} 服务 / {ITEMS} vault',
 
@@ -1949,6 +1966,70 @@
       input.value = '';
     }
   });
+
+  // "Forgot master password" — clear the vault and drop the user on the
+  // setup screen so they can set a fresh password. Servers / services are
+  // preserved (those live outside the encrypted vault). The user must
+  // Save to file to persist the reset to disk.
+  $('forgot-pw-btn')?.addEventListener('click', () => {
+    if (!confirm(t('reset.confirm'))) return;
+    resetVault();
+    toast(t('reset.done'));
+  });
+
+  // "Start fresh" on the picker screen — same effect as forgot-pw, but
+  // reachable on first-run (no vault yet) too.
+  $('start-fresh-btn')?.addEventListener('click', () => {
+    if (!confirm(t('reset.confirm'))) return;
+    resetVault();
+  });
+
+  // "Use demo data" on the picker screen — bootstrap a blank config in
+  // memory and proceed. Useful on iPhone where creating a config.json by
+  // hand is awkward (Files app can't easily make JSON).
+  $('demo-data-btn')?.addEventListener('click', () => {
+    const demo = {
+      version: 1,
+      meta: { created: new Date().toISOString(), lastModified: new Date().toISOString() },
+      servers: [],
+      services: [],
+      vault: { kdf: 'PBKDF2-SHA256', iterations: 600000, salt: '', verifier: '', verifierIv: '', items: [] },
+      settings: {},
+    };
+    state.lastFile = { name: 'demo (in-memory)', size: 0, sizeHuman: '', lastModified: '' };
+    state.source = 'demo';
+    Storage.cacheLocal();
+    proceedWithConfig(demo, 'demo');
+  });
+
+  // Reset the vault in-place. Wipes encrypted items + verifier, leaves
+  // servers/services alone, and lands the user on the setup screen.
+  function resetVault() {
+    if (state.config) {
+      state.config.vault = {
+        kdf: 'PBKDF2-SHA256',
+        iterations: state.config.vault?.iterations || 600000,
+        salt: '',
+        verifier: '',
+        verifierIv: '',
+        items: [],
+      };
+    }
+    state.masterKey = null;
+    state.isInitialized = false;
+    state.isUnlocked = false;
+    state.hasUnsavedChanges = true;
+    hide($('app'));
+    hide($('unlock-screen'));
+    hide($('picker-screen'));
+    hide($('loading-screen'));
+    show($('setup-screen'));
+    $('setup-pw1').value = '';
+    $('setup-pw2').value = '';
+    $('setup-pw1').focus();
+    Storage.cacheLocal();
+    updateUnlockDiag();
+  }
 
   // Bind the file-input change handler. Idempotent: a no-op if already
   // bound (init() calls this for the first-pick path; re-pick calls it
