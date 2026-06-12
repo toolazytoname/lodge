@@ -124,8 +124,33 @@
   }
   .nav-cta:hover { opacity: 0.85; text-decoration: none; }
   @media (max-width: 640px) {
+    .nav-inner { padding: 0 16px; gap: 16px; }
     .nav-links { gap: 16px; }
     .nav-links a:not(.nav-cta):not(.lang-switch) { display: none; }
+
+    /* Hero: shrink the title, tighten padding, scale the URL bar. */
+    .hero { padding: 80px 16px 40px; }
+    .hero-title { font-size: 40px; }
+    .hero-cta { flex-direction: column; align-items: stretch; gap: 12px; }
+    .hero-cta .btn { justify-content: center; }
+    .hero-terminal { font-size: 12px; padding: 14px 16px; }
+
+    /* Sections */
+    .section { padding: 60px 16px; }
+    .section-title { font-size: 32px; }
+    .section-subtitle { font-size: 16px; }
+
+    /* URL bar: stack the actions below the URL */
+    .url-bar { flex-direction: column; align-items: stretch; }
+    .url-bar-text { text-align: left; padding: 4px 0; }
+    .url-bar .btn { width: 100%; justify-content: center; }
+
+    /* Steps list — full-width cards */
+    .start-step { padding: 16px 18px; }
+
+    /* Decorative blobs — keep but reduce on mobile so they don't
+       push content off-screen. */
+    .hero::before, .hero::after { width: 600px; height: 600px; opacity: 0.5; }
   }
 
   /* Language switcher */
@@ -507,7 +532,10 @@
   }
   .url-bar .btn { flex-shrink: 0; }
   .url-bar .btn-primary {
-    background: var(--text-on-dark); color: var(--text);
+    /* Fixed dark text on near-white pill — readable in BOTH light and
+       dark mode (var(--text) flips in dark mode, which used to make
+       this white-on-white). */
+    background: #f5f5f7; color: #1d1d1f;
   }
   .url-bar .btn-primary:hover { background: #fff; }
 
@@ -629,7 +657,7 @@
 <!-- ===== Nav ===== -->
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/dashboard.html" class="nav-brand">
+    <a href="/" class="nav-brand">
       <img src="assets/logo-mark.svg" alt="Lodge" width="28" height="28" style="display:block; margin-right: 10px;">
       <span>Lodge</span>
     </a>
@@ -657,13 +685,12 @@
       One HTML file. Zero servers. End-to-end encrypted.
     </p>
     <div class="hero-cta reveal">
-      <a href="https://lodge.weichao.studio/dashboard.html" class="btn btn-primary" data-i18n="hero.cta.start">Try Lodge →</a>
+      <a href="https://lodge.weichao.studio/" class="btn btn-primary" data-i18n="hero.cta.start">Open Lodge →</a>
       <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener" data-i18n="hero.cta.github">View on GitHub</a>
     </div>
     <div class="hero-terminal reveal">
       <div><span class="prompt">$</span> <span class="cmd">git clone https://github.com/toolazytoname/lodge.git</span></div>
-      <div><span class="prompt">$</span> <span class="cmd">cd lodge && python3 -m http.server 9001</span></div>
-      <div><span class="prompt">$</span> <span class="cmd">open http://localhost:9001<span class="cursor"></span></span></div>
+      <div><span class="prompt">$</span> <span class="cmd">cd lodge && open dashboard.html<span class="cursor"></span></span></div>
     </div>
   </div>
 </section>
@@ -734,7 +761,7 @@
         <span class="preview-dot"></span>
         <span class="preview-dot"></span>
         <span class="preview-dot"></span>
-        <div class="preview-url">http://localhost:9001/dashboard.html</div>
+        <div class="preview-url">lodge.weichao.studio</div>
       </div>
       <div class="preview-body">
         <!-- Servers column -->
@@ -896,9 +923,9 @@
     </p>
 
     <div class="url-bar reveal">
-      <code class="url-bar-text">https://lodge.weichao.studio/dashboard.html</code>
-      <a href="https://lodge.weichao.studio/dashboard.html" target="_blank" rel="noopener" class="btn btn-primary" data-i18n="start.open">Open</a>
-      <button class="btn btn-secondary" data-copy="https://lodge.weichao.studio/dashboard.html" data-i18n="start.copy">Copy</button>
+      <code class="url-bar-text">https://lodge.weichao.studio</code>
+      <a href="https://lodge.weichao.studio/" target="_blank" rel="noopener" class="btn btn-primary" data-i18n="start.open">Open</a>
+      <button class="btn btn-secondary" data-copy="https://lodge.weichao.studio" data-i18n="start.copy">Copy</button>
     </div>
 
     <ol class="start-steps reveal">
@@ -929,7 +956,7 @@
     <div data-i18n="footer.copy">© Lodge · MIT License</div>
     <div class="footer-links">
       <a href="https://github.com/toolazytoname/lodge" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
-      <a href="/dashboard.html" data-i18n="footer.app">App</a>
+      <a href="/" data-i18n="footer.app">App</a>
       <a href="#features" data-i18n="nav.features">Features</a>
       <a href="#security" data-i18n="nav.security">Security</a>
     </div>
@@ -953,7 +980,7 @@
       'hero.badge': 'v1.0 · Open Source · MIT',
       'hero.title': 'Lodge.',
       'hero.subtitle': 'Your private home base for servers, services, and secrets.<br>One HTML file. Zero servers. End-to-end encrypted.',
-      'hero.cta.start': 'Try Lodge →',
+      'hero.cta.start': 'Open Lodge →',
       'hero.cta.github': 'View on GitHub',
       'hero.terminal.copy': 'Copy',
 
@@ -1022,7 +1049,7 @@
       'hero.badge': 'v1.0 · 开源 · MIT',
       'hero.title': 'Lodge.',
       'hero.subtitle': '你的服务器、服务、密钥的私人归宿。<br>一个 HTML 文件，零服务器，端到端加密。',
-      'hero.cta.start': '试用 Lodge →',
+      'hero.cta.start': '打开 Lodge →',
       'hero.cta.github': '在 GitHub 查看',
       'hero.terminal.copy': '复制',
 

@@ -279,6 +279,24 @@
   }
   .btn-ghost:hover { background: var(--surface-2); }
 
+  /* "Forgot master password" link on the unlock screen. Visually
+     subordinate to the primary Unlock CTA so it doesn't alarm users
+     who just mistyped — but reddens on hover so the action is still
+     clearly destructive. The actual safety guard is the confirm()
+     dialog in the click handler. */
+  .forgot-pw-link {
+    display: block; width: 100%;
+    margin-top: 20px; padding: 8px 0;
+    background: none; border: none;
+    font: inherit; text-align: center;
+    color: var(--text-tertiary);
+    font-size: 13px; cursor: pointer;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .forgot-pw-link:hover { color: var(--danger); }
+  .forgot-pw-link:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; border-radius: 4px; }
+
   .btn-danger {
     background: transparent; color: var(--danger);
     border: 1px solid var(--border);
@@ -567,20 +585,54 @@
   }
   .section-title:first-child { margin-top: 0; }
 
-  /* ===== Mobile ===== */
+  /* ===== Mobile (≤640px) =====
+     Two-row topnav: brand + actions on top, tabs on the second row
+     (order:3 + flex: 100% forces a wrap). Touch targets bump to
+     44pt per Apple HIG. Modals become bottom sheets. Card grids are
+     already 1-column below 640px. */
   @media (max-width: 640px) {
-    .topnav-inner { padding: 0 16px; gap: 12px; height: 48px; }
-    .brand { font-size: 17px; }
-    .tabs { padding: 2px; }
-    .tab { padding: 5px 10px; font-size: 12px; }
-    .main { padding: 32px 16px 64px; }
-    .tab-title { font-size: 32px; }
-    .tab-panel-header { flex-direction: column; align-items: stretch; }
-    .service-grid { grid-template-columns: 1fr; }
-    .modal { max-height: 95vh; }
-    .auth-card { padding: 32px 24px; }
+    /* Topnav: drop fixed height so the tabs row can wrap below */
+    .topnav-inner {
+      height: auto; min-height: 52px;
+      padding: 6px 12px;
+      flex-wrap: wrap; gap: 6px 8px;
+    }
+    .topnav-spacer { display: none; }
+    .topnav-actions { margin-left: auto; gap: 2px; }
+    .tabs {
+      order: 3; flex: 0 0 100%;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { padding: 7px 12px; font-size: 13px; }
+    .icon-btn { width: 36px; height: 36px; }
+    .lang-switch { padding: 4px 8px; font-size: 11px; margin: 0; }
+
+    /* Main: less padding, smaller titles */
+    .main { padding: 20px 16px 64px; }
+    .tab-title { font-size: 28px; }
+    .tab-subtitle { font-size: 15px; }
+    .tab-panel-header { margin-bottom: 20px; gap: 12px; }
+
+    /* Touch targets inside forms */
+    .btn { padding: 11px 18px; }
+
+    /* Auth card: full width, less rounded */
+    .auth-card { max-width: 100%; padding: 32px 24px; }
     .auth-title { font-size: 24px; }
-    .footer { flex-direction: column; align-items: flex-start; }
+    .auth-subtitle { font-size: 14px; }
+
+    /* Picker screen */
+    #picker-screen h2 { font-size: 20px; }
+
+    /* Modals become bottom sheets */
+    .modal {
+      max-width: 100%;
+      max-height: 90vh;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+    .modal-backdrop { align-items: flex-end; padding: 0; }
+    .modal-footer .btn { flex: 1; justify-content: center; }
   }
 
   /* Focus ring (a11y) */
@@ -706,7 +758,6 @@
     </form>
     <div class="unlock-actions" style="display: flex; flex-direction: column; gap: 4px; margin-top: 16px;">
       <button type="button" class="btn btn-ghost btn-block" id="re-pick-btn" data-i18n="unlock.repick">Pick a different config.json</button>
-      <button type="button" class="btn btn-ghost btn-block" id="forgot-pw-btn" style="color: var(--danger);" data-i18n="unlock.forgot">Forgot master password — reset vault</button>
     </div>
     <div class="unlock-diag" id="unlock-diag">
       <div class="unlock-diag-row" id="unlock-diag-source">
@@ -718,6 +769,10 @@
         <span class="diag-value" id="unlock-salt-val">—</span>
       </div>
     </div>
+    <!-- Forgot master password — small text link at the very bottom.
+         Subtle by default; only turns red on hover/active. The confirm
+         dialog (in the JS handler) is the actual safety guard. -->
+    <button type="button" id="forgot-pw-btn" class="forgot-pw-link" data-i18n="unlock.forgot">Forgot master password?</button>
   </div>
 </div>
 
@@ -1168,7 +1223,7 @@
       'unlock.diag.source': 'Source',
       'unlock.diag.salt': 'Vault salt',
       'unlock.repick': 'Pick a different config.json',
-      'unlock.forgot': 'Forgot master password — reset vault',
+      'unlock.forgot': 'Forgot master password?',
       'unlock.cache.label': '(local cache)',
 
       'picker.demo': 'Use demo data',
@@ -1400,7 +1455,7 @@
       'unlock.diag.source': '当前文件',
       'unlock.diag.salt': '盐值',
       'unlock.repick': '重新选择 config.json',
-      'unlock.forgot': '忘记主密码 — 重置 Vault',
+      'unlock.forgot': '忘记主密码？',
       'unlock.cache.label': '(本地缓存)',
 
       'picker.demo': '使用示例数据',
@@ -1731,7 +1786,8 @@
       try {
         const pt = await this.decrypt(verifierCipher, verifierIv, key);
         return pt === 'VAULT_OK';
-      } catch {
+      } catch (err) {
+        console.warn('[lodge-debug] verifyPassword decrypt threw: ' + err.name + ': ' + err.message);
         return false;
       }
     },
@@ -1824,6 +1880,12 @@
 
     cacheLocal() {
       try {
+        const v = state.config?.vault || {};
+        console.log('[lodge-debug] cacheLocal write; vault keys=' +
+          Object.keys(v).join(',') +
+          ', salt=' + !!v.salt +
+          ', verifier=' + !!v.verifier +
+          ', verifierIv=' + !!v.verifierIv);
         localStorage.setItem('dashboard.cache', JSON.stringify({
           config: state.config,
           lastSaved: Date.now(),
@@ -2162,10 +2224,12 @@
 
   async function init() {
     applyTheme();
+    console.log('[lodge-debug] init() start; secureCtx=' + window.isSecureContext);
 
     // 0. Pre-flight: check Web Crypto availability
     const ctx = checkSecureContext();
     if (!ctx.ok) {
+      console.log('[lodge-debug] insecure context: ' + ctx.reason);
       hide($('loading-screen'));
       hide($('picker-screen'));
       showInsecureContextError(ctx.reason);
@@ -2184,6 +2248,7 @@
     let cfg = await Storage.tryFetch();
     let source = 'fetch';
     if (cfg) state.lastFile = { name: 'config.json', size: 0, sizeHuman: '', lastModified: '' };
+    console.log('[lodge-debug] tryFetch → ' + (cfg ? 'hit' : 'miss') + ', source=' + source);
 
     // 2. Fallback: localStorage cache (works on file:// after first pick)
     if (!cfg) {
@@ -2192,6 +2257,10 @@
         cfg = cached.config;
         source = 'cache';
         state.lastFile = { name: t('unlock.cache.label'), size: 0, sizeHuman: '', lastModified: '' };
+        console.log('[lodge-debug] cache hit; cached vault keys=' +
+          Object.keys(cached.config.vault || {}).join(','));
+      } else {
+        console.log('[lodge-debug] cache miss');
       }
     }
 
@@ -2211,9 +2280,21 @@
 
   async function proceedWithConfig(cfg) {
     // Validate / normalize
+    const before = {
+      salt: cfg?.vault?.salt?.slice(0, 8),
+      verifier: !!cfg?.vault?.verifier,
+      verifierIv: !!cfg?.vault?.verifierIv,
+    };
     cfg = normalizeConfig(cfg);
     state.config = cfg;
     state.settings = { ...state.settings, ...cfg.settings };
+    console.log('[lodge-debug] proceedWithConfig; vault in=' +
+      JSON.stringify(before) + ', vault out=' +
+      JSON.stringify({
+        salt: cfg.vault.salt?.slice(0, 8),
+        verifier: !!cfg.vault.verifier,
+        verifierIv: !!cfg.vault.verifierIv,
+      }));
 
     hide($('loading-screen'));
     hide($('picker-screen'));
@@ -2312,6 +2393,13 @@
     try {
       const key = await Crypto.deriveKey(pw, state.config.vault.salt, state.config.vault.iterations);
       const ok = await Crypto.verifyPassword(key, state.config.vault.verifier, state.config.vault.verifierIv);
+      console.log('[lodge-debug] unlock attempt: salt=' +
+        (state.config.vault.salt || '').slice(0, 8) +
+        ', verifier=' + !!state.config.vault.verifier +
+        ', verifierIv=' + !!state.config.vault.verifierIv +
+        ', iterations=' + state.config.vault.iterations +
+        ', pw.length=' + pw.length +
+        ', ok=' + ok);
       if (!ok) {
         // Build a diagnostic showing what was tried, so user can compare across devices
         const len = pw.length;

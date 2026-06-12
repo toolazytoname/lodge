@@ -367,7 +367,80 @@ async function run() {
       }
     }
 
-    // 12. regression: Lodge works opened directly from a file:// URL.
+    // 12. regression: mobile viewport (390x844, iPhone 12) doesn't
+    //     introduce horizontal scroll and all key UI is reachable.
+    //     Catches layout regressions where a fixed-width element
+    //     (topnav, button, etc.) overflows the small screen.
+    log('regression: mobile viewport (390x844) has no horizontal scroll');
+    {
+      const ctxM = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 2, isMobile: true, hasTouch: true,
+      });
+      const pageM = await ctxM.newPage();
+      pageM.on('dialog', async (d) => { await d.accept(); });
+      await pageM.goto(URL, { waitUntil: 'domcontentloaded' });
+      await pageM.waitForTimeout(500);
+      if (await pageM.$('#picker-screen:not(.hidden)')) {
+        await (await pageM.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+        await pageM.waitForTimeout(1000);
+      }
+      if (await pageM.$('#setup-screen:not(.hidden)')) {
+        await pageM.fill('#setup-pw1', 'mobile-test-pw');
+        await pageM.fill('#setup-pw2', 'mobile-test-pw');
+        await pageM.click('#setup-form button[type="submit"]');
+        await pageM.waitForSelector('#app:not(.hidden)', { timeout: 15000 });
+        await pageM.waitForTimeout(500);
+      }
+      // Check for horizontal scroll on the unlocked dashboard
+      const dims = await pageM.evaluate(() => {
+        const inner = document.querySelector('.topnav-inner');
+        const cs = inner ? getComputedStyle(inner) : null;
+        return {
+          scrollW: document.documentElement.scrollWidth,
+          clientW: document.documentElement.clientWidth,
+          bodyW: document.body.scrollWidth,
+          viewportW: window.innerWidth,
+          topnavH: inner?.getBoundingClientRect().height,
+          topnavHeight: cs?.height,
+          topnavMinHeight: cs?.minHeight,
+          matchesMobile: window.matchMedia('(max-width: 640px)').matches,
+        };
+      });
+      if (dims.scrollW > dims.viewportW + 1) {
+        throw new Error(
+          `horizontal scroll on mobile: scrollW=${dims.scrollW} viewportW=${dims.viewportW} ` +
+          `(${dims.scrollW - dims.viewportW}px overflow)`
+        );
+      }
+      // Topnav should wrap to 2 rows (brand+actions / tabs)
+      if (dims.topnavH < 60) {
+        // Dump matched rules for diagnosis
+        const matched = await pageM.evaluate(() => {
+          const inner = document.querySelector('.topnav-inner');
+          if (!inner) return null;
+          // Walk inline and embedded stylesheets to find rules that mention .topnav-inner
+          const out = [];
+          for (const sheet of document.styleSheets) {
+            try {
+              for (const rule of sheet.cssRules) {
+                if (rule.cssText && rule.cssText.includes('topnav-inner')) {
+                  out.push(rule.cssText.slice(0, 200));
+                }
+              }
+            } catch (e) { out.push('CORS: ' + e.message); }
+          }
+          return out;
+        });
+        log('  matched rules for .topnav-inner:');
+        for (const r of matched) log('    ' + r);
+        throw new Error(`topnav unexpectedly short on mobile: ${dims.topnavH}px (expected ≥60)`);
+      }
+      log(`  ✓ mobile layout: scrollW=${dims.scrollW} ≤ viewportW=${dims.viewportW}, topnav=${dims.topnavH}px`);
+      await ctxM.close();
+    }
+
+    // 13. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
     //     available — the vault (Web Crypto) is fully functional
