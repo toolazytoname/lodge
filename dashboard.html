@@ -739,6 +739,9 @@
         <a class="icon-btn" id="about-link" href="/about.html" data-i18n-title="common.about" title="关于 Lodge" aria-label="关于 Lodge">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         </a>
+        <a class="icon-btn" id="share-link" href="#" role="button" data-i18n-title="common.share" title="分享 Lodge" aria-label="分享 Lodge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </a>
         <button class="icon-btn" id="lock-btn" data-i18n-title="common.unlock" title="锁定" aria-label="锁定">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </button>
@@ -1129,6 +1132,9 @@
       'common.unlock': 'Unlock',
       'common.locked': 'Locked',
       'common.about': 'About Lodge',
+      'common.share': 'Share Lodge',
+      'toast.share.copied': 'Link copied to clipboard',
+      'toast.share.failed': 'Could not share or copy the link',
 
       'loading': 'Loading configuration…',
       'picker.title': 'Select config file',
@@ -1358,6 +1364,9 @@
       'common.unlock': '解锁',
       'common.locked': '已锁定',
       'common.about': '关于 Lodge',
+      'common.share': '分享 Lodge',
+      'toast.share.copied': '链接已复制到剪贴板',
+      'toast.share.failed': '分享或复制失败',
 
       'loading': '正在加载配置…',
       'picker.title': '选择配置文件',
@@ -1971,6 +1980,35 @@
     if (input) {
       if (!input._bound) bindFileInputHandler();
       input.value = '';
+    }
+  });
+
+  // Share Lodge — use the Web Share API on mobile (opens the native
+  // share sheet) and fall back to copying the origin URL to the
+  // clipboard on desktop. Both branches toast a confirmation.
+  $('share-link')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const url = window.location.origin;
+    const data = {
+      title: 'Lodge — Private home base for servers, services, and secrets',
+      text: 'A privacy-first dashboard for managing your personal infrastructure.',
+      url,
+    };
+    if (navigator.share) {
+      try { await navigator.share(data); return; }
+      catch (err) {
+        console.log('[share] navigator.share threw', err.name, err.message);
+        if (err.name === 'AbortError') return;
+      }
+    } else {
+      console.log('[share] navigator.share not available, using clipboard fallback');
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast(t('toast.share.copied'));
+    } catch (err) {
+      console.log('[share] clipboard write failed', err.name, err.message);
+      toast(t('toast.share.failed'), 'error');
     }
   });
 

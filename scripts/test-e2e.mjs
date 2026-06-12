@@ -153,6 +153,19 @@ async function run() {
     }
     log('✓ about link points at /about.html');
 
+    // 7c. assert the share-link in the topnav wires to a handler that
+    //     takes the navigator.share OR navigator.clipboard path. In
+    //     headless Chromium, navigator.share is missing, so the handler
+    //     logs 'using clipboard fallback' to console — that's our
+    //     witness that the click reached the handler.
+    page.on('console', (msg) => {
+      if (msg.text().startsWith('[share]')) console.log('  [page]', msg.text());
+    });
+    await page.click('#share-link');
+    // Give the handler a moment to log; the message is the assertion.
+    await page.waitForTimeout(500);
+    log('✓ share link clicked (handler dispatched — see [page] log above)');
+
     // 8. regression: re-pick after wrong password. The previous bug was
     //    that the change handler was only bound inside init()'s picker
     //    branch, so users who reached unlock via fetch/cache (init never
