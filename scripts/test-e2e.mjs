@@ -7,31 +7,12 @@ import { chromium } from 'playwright';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
 const PORT = Number(process.env.LODGE_TEST_PORT || 9123);
 const URL = `http://127.0.0.1:${PORT}/dashboard.html`;
-
-// Bootstrap config.json for the test. We never commit config.json (it may
-// hold real server IPs). Precedence:
-//   1. config.json         — already in working dir, use it
-//   2. config.local.json   — user's real data (gitignored), copy to config.json
-//   3. config.example.json — public demo, copy to config.json
-//                            (this is what a fresh clone gets)
-function ensureConfigJson() {
-  const target = resolve(projectRoot, 'config.json');
-  if (existsSync(target)) return 'existing';
-  for (const src of ['config.local.json', 'config.example.json']) {
-    const from = resolve(projectRoot, src);
-    if (existsSync(from)) {
-      copyFileSync(from, target);
-      return `bootstrapped from ${src}`;
-    }
-  }
-  throw new Error('no config.json and no config.example.json to bootstrap from');
-}
 
 const log = (...a) => console.log('[e2e]', ...a);
 const err = (...a) => console.error('[e2e]', ...a);
@@ -76,7 +57,17 @@ function stopServer() {
 }
 
 async function run() {
-  log('config:', ensureConfigJson());
+  // Always start from a known config.json — either the example (no
+  // verifier → setup screen) or whatever the test phases want. Prior
+  // runs can leave a populated config.json with a real verifier behind,
+  // which would skip the setup screen and break the happy-path
+  // assertion. Force-replace with the example so we always begin the
+  // happy path on the setup screen.
+  {
+    const fs = await import('fs');
+    fs.copyFileSync(resolve(projectRoot, 'config.example.json'), resolve(projectRoot, 'config.json'));
+  }
+  log('config: reset to example for clean E2E start');
   workingConfig = resolve(projectRoot, 'config.json');
   log('starting static server on 127.0.0.1:' + PORT);
   await startServer();
@@ -324,6 +315,55 @@ async function run() {
       } finally {
         if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
         if (fs.existsSync(exportPath)) fs.unlinkSync(exportPath);
+      }
+    }
+
+    // 11. regression: cache path (close + reopen) keeps the user
+    //     logged in. The classic failure mode was normalizeConfig
+    //     dropping vault.verifierIv on the cache load, so reopen
+    //     could never verify the password until the user re-picked
+    //     the file.
+    log('regression: cache unlock after close + reopen');
+    {
+      const ctxC = await browser.newContext();
+      const pageC = await ctxC.newPage();
+      pageC.on('dialog', async (d) => { await d.accept(); });
+      const fs = await import('fs');
+      const realConfig = resolve(projectRoot, 'config.json');
+      const realConfigBak = realConfig + '.bak-e2e-cache';
+      const hadConfig = fs.existsSync(realConfig);
+      if (hadConfig) fs.renameSync(realConfig, realConfigBak);
+      try {
+        await pageC.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageC.waitForTimeout(400);
+        if (await pageC.$('#picker-screen:not(.hidden)')) {
+          await (await pageC.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+          await pageC.waitForTimeout(800);
+        }
+        if (await pageC.$('#setup-screen:not(.hidden)')) {
+          await pageC.fill('#setup-pw1', 'cache-test-pw');
+          await pageC.fill('#setup-pw2', 'cache-test-pw');
+          await pageC.click('#setup-form button[type="submit"]');
+          await pageC.waitForSelector('#app:not(.hidden)', { timeout: 10000 });
+        }
+        // Close + reopen in same context (localStorage persists).
+        await pageC.close();
+        const pageR = await ctxC.newPage();
+        pageR.on('dialog', async (d) => { await d.accept(); });
+        await pageR.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageR.waitForSelector('#unlock-screen:not(.hidden)', { timeout: 5000 });
+        // Source label should say "(local cache)".
+        const source = await pageR.$eval('#unlock-source-val', (el) => el.textContent.trim()).catch(() => '');
+        if (!/local cache|本地缓存/.test(source)) {
+          throw new Error(`expected cache source label, got: ${JSON.stringify(source)}`);
+        }
+        await pageR.fill('#unlock-pw', 'cache-test-pw');
+        await pageR.click('#unlock-form button[type="submit"]');
+        await pageR.waitForSelector('#app:not(.hidden)', { timeout: 10000 });
+        log('  ✓ cache unlock after close+reopen works');
+        await ctxC.close();
+      } finally {
+        if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
       }
     }
 

@@ -29,6 +29,8 @@ config.json
 config.real.json
 config.local.json
 config.backup*.json
+config.json.bak-*
+config.json.*.bak
 *.bak
 my-config.json
 private-config.json
