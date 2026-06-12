@@ -40,6 +40,10 @@ let server = null;
 let exitCode = 0;
 const consoleErrors = [];
 const pageErrors = [];
+// workingConfig is the path to the (potentially bootstrapped) config.json
+// the test is using. Computed by ensureConfigJson(); consumed by the
+// re-pick regression test.
+let workingConfig = null;
 
 function startServer() {
   return new Promise((resolve, reject) => {
@@ -73,6 +77,7 @@ function stopServer() {
 
 async function run() {
   log('config:', ensureConfigJson());
+  workingConfig = resolve(projectRoot, 'config.json');
   log('starting static server on 127.0.0.1:' + PORT);
   await startServer();
 
@@ -136,7 +141,37 @@ async function run() {
     if (!locked) throw new Error('vault tab missing lock button');
     log('✓ vault tab shows lock button');
 
-    // 8. no console / page errors
+    // 8. regression: re-pick after wrong password. The previous bug was
+    //    that the change handler was only bound inside init()'s picker
+    //    branch, so users who reached unlock via fetch/cache (init never
+    //    entered the picker branch) had no handler when they re-picked
+    //    and the file selection silently did nothing. We assert the
+    //    handler fires by clicking re-pick, uploading the same config
+    //    again, and confirming the picker screen actually disappears.
+    log('regression: re-pick after wrong password');
+    // Auto-accept the lock confirm() if the test has unsaved changes.
+    const dialogPromise = page.waitForEvent('dialog', { timeout: 1000 }).then(d => d.accept()).catch(() => {});
+    await page.click('#lock-btn');
+    await dialogPromise;
+    await page.waitForSelector('#unlock-screen:not(.hidden)', { timeout: 5000 });
+    await page.fill('#unlock-pw', 'definitely-wrong-password');
+    await page.click('#unlock-form button[type="submit"]');
+    await page.waitForSelector('#unlock-error.show', { timeout: 5000 });
+    await page.click('#re-pick-btn');
+    await page.waitForSelector('#picker-screen:not(.hidden)', { timeout: 5000 });
+    await (await page.$('#file-input')).setInputFiles(workingConfig);
+    // Picker should disappear; the page should advance (to setup for an
+    // uninitialized config, or to unlock for an initialized one).
+    await page.waitForFunction(
+      () => {
+        const p = document.getElementById('picker-screen');
+        return p && p.classList.contains('hidden');
+      },
+      { timeout: 8000 }
+    );
+    log('✓ re-pick upload advanced past picker (regression guard)');
+
+    // 9. no console / page errors
     if (pageErrors.length) throw new Error('page errors: ' + pageErrors.join('; '));
     // Filter out known noisy 3rd-party warnings (MetaMask etc).
     const real = consoleErrors.filter((m) => !/chrome-extension:/.test(m));

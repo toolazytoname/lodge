@@ -1939,8 +1939,46 @@
   $('re-pick-btn')?.addEventListener('click', () => {
     $('unlock-screen').classList.add('hidden');
     $('picker-screen').classList.remove('hidden');
-    // The picker button handler is already set up in init()
+    // The change handler is bound once in init()'s picker branch. If the
+    // user reached unlock via fetch/cache (init never entered the picker
+    // branch), the handler was never bound — bind it now. Also reset the
+    // input so re-picking the same file still fires `change`.
+    const input = $('file-input');
+    if (input) {
+      if (!input._bound) bindFileInputHandler();
+      input.value = '';
+    }
   });
+
+  // Bind the file-input change handler. Idempotent: a no-op if already
+  // bound (init() calls this for the first-pick path; re-pick calls it
+  // for the post-unlock-fail path).
+  function bindFileInputHandler() {
+    const input = $('file-input');
+    if (!input || input._bound) return;
+    input._bound = true;
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const loaded = await Storage.readFile(file);
+        state.lastFile = Storage.fileFingerprint(file);
+        state.source = 'file';
+        Storage.cacheLocal();
+        const fp = Storage.configFingerprint(loaded);
+        const summary = t('toast.config.loaded')
+          .replace('{NAME}', state.lastFile.name)
+          .replace('{SALT}', fp.salt)
+          .replace('{SERVERS}', fp.servers)
+          .replace('{SERVICES}', fp.services)
+          .replace('{ITEMS}', fp.items);
+        toast(summary);
+        await proceedWithConfig(loaded, 'file');
+      } catch (err) {
+        toast(t('toast.parse.fail') + err.message, 'error');
+      }
+    });
+  }
 
   // ============================================================
   // Init flow
@@ -2037,31 +2075,7 @@
       show($('picker-screen'));
       // The picker button is a <label for="file-input"> that natively
       // opens the file dialog. We just listen for the change event.
-      const input = $('file-input');
-      if (input && !input._bound) {
-        input._bound = true;
-        input.addEventListener('change', async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          try {
-            const loaded = await Storage.readFile(file);
-            state.lastFile = Storage.fileFingerprint(file);
-            state.source = 'file';
-            Storage.cacheLocal();
-            const fp = Storage.configFingerprint(loaded);
-            const summary = t('toast.config.loaded')
-              .replace('{NAME}', state.lastFile.name)
-              .replace('{SALT}', fp.salt)
-              .replace('{SERVERS}', fp.servers)
-              .replace('{SERVICES}', fp.services)
-              .replace('{ITEMS}', fp.items);
-            toast(summary);
-            await proceedWithConfig(loaded, 'file');
-          } catch (e) {
-            toast(t('toast.parse.fail') + e.message, 'error');
-          }
-        });
-      }
+      bindFileInputHandler();
       return;
     }
 
