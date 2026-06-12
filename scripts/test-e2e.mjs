@@ -144,6 +144,15 @@ async function run() {
     if (!locked) throw new Error('vault tab missing lock button');
     log('✓ vault tab shows lock button');
 
+    // 7b. assert the about-page link in the topnav is wired to the
+    //     /about.html route (added on user request to make the marketing
+    //     page reachable from the main app).
+    const aboutHref = await page.$eval('#about-link', (el) => el.getAttribute('href'));
+    if (aboutHref !== '/about.html') {
+      throw new Error(`#about-link href expected "/about.html" but got "${aboutHref}"`);
+    }
+    log('✓ about link points at /about.html');
+
     // 8. regression: re-pick after wrong password. The previous bug was
     //    that the change handler was only bound inside init()'s picker
     //    branch, so users who reached unlock via fetch/cache (init never
