@@ -693,6 +693,64 @@ async function run() {
       log('  ✓ about.html og:image is a real PNG (' + ogBuf.byteLength + ' bytes)');
     }
 
+    // 15d. regression: service card has an Edit button that opens
+    //      the service modal pre-filled with the existing data
+    //      (so a typo can be fixed without delete + re-add).
+    log('regression: service card Edit button opens pre-filled modal');
+    {
+      const ctxSE = await browser.newContext();
+      const pageSE = await ctxSE.newPage();
+      pageSE.on('dialog', async (d) => { await d.accept(); });
+      const fs = await import('fs');
+      const realConfig = resolve(projectRoot, 'config.json');
+      const realConfigBak = realConfig + '.bak-e2e-svc-edit';
+      const hadConfig = fs.existsSync(realConfig);
+      if (hadConfig) fs.renameSync(realConfig, realConfigBak);
+      try {
+        await pageSE.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageSE.waitForTimeout(400);
+        if (await pageSE.$('#picker-screen:not(.hidden)')) {
+          await (await pageSE.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+          await pageSE.waitForTimeout(800);
+        }
+        if (await pageSE.$('#setup-screen:not(.hidden)')) {
+          await pageSE.fill('#setup-pw1', 'svc-edit-test-pw');
+          await pageSE.fill('#setup-pw2', 'svc-edit-test-pw');
+          await pageSE.click('#setup-form button[type="submit"]');
+          await pageSE.waitForSelector('#app:not(.hidden)', { timeout: 15000 });
+        }
+        await pageSE.click('button.tab[data-tab="services"]');
+        await pageSE.waitForTimeout(300);
+        const editBtn = await pageSE.$('button[data-action="edit-service"]');
+        if (!editBtn) throw new Error('no service-card Edit button found');
+        const cardLink = await pageSE.$eval('a.service-card', (el) => el.getAttribute('href'));
+        await editBtn.click();
+        await pageSE.waitForSelector('#service-modal:not(.hidden)', { timeout: 3000 });
+        const modalState = await pageSE.evaluate(() => ({
+          title: document.getElementById('service-modal-title')?.textContent,
+          name: document.getElementById('service-name')?.value,
+          url: document.getElementById('service-url')?.value,
+          location: window.location.pathname,
+        }));
+        if (!/edit|编辑/i.test(modalState.title || '')) {
+          throw new Error('modal title not "edit": ' + JSON.stringify(modalState));
+        }
+        if (!modalState.name) {
+          throw new Error('service name not pre-filled: ' + JSON.stringify(modalState));
+        }
+        if (modalState.url !== cardLink) {
+          throw new Error('service url not pre-filled: expected ' + cardLink + ' got ' + modalState.url);
+        }
+        if (modalState.location !== '/dashboard.html') {
+          throw new Error('Edit click navigated away from dashboard: ' + modalState.location);
+        }
+        log('  ✓ service Edit opens pre-filled modal, no nav away');
+      } finally {
+        if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
+        await ctxSE.close();
+      }
+    }
+
     // 16. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
