@@ -493,7 +493,73 @@ async function run() {
       await ctxA.close();
     }
 
-    // 13. regression: Lodge works opened directly from a file:// URL.
+    // 13. regression: cache survives reload AND the read uses
+    //     IndexedDB (the new primary path — iOS WebKit clears
+    //     localStorage under memory pressure, but IDB has a
+    //     different eviction policy and is the one we trust for
+    //     real iOS users).
+    log('regression: cache survives reload via IndexedDB');
+    {
+      const ctxIDB = await browser.newContext({ ...(await import('playwright')).devices['iPhone 13'] });
+      const pageIDB = await ctxIDB.newPage();
+      pageIDB.on('dialog', async (d) => { await d.accept(); });
+      // Vercel-like: no on-disk config.json, so tryFetch 404s and
+      // init() must use the cache path.
+      const fs = await import('fs');
+      const realConfig = resolve(projectRoot, 'config.json');
+      const realConfigBak = realConfig + '.bak-e2e-idb';
+      const hadConfig = fs.existsSync(realConfig);
+      if (hadConfig) fs.renameSync(realConfig, realConfigBak);
+      try {
+        await pageIDB.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageIDB.waitForTimeout(500);
+        if (await pageIDB.$('#picker-screen:not(.hidden)')) {
+          await (await pageIDB.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+          await pageIDB.waitForTimeout(1000);
+        }
+        if (await pageIDB.$('#setup-screen:not(.hidden)')) {
+          await pageIDB.fill('#setup-pw1', 'idb-cache-test-pw');
+          await pageIDB.fill('#setup-pw2', 'idb-cache-test-pw');
+          await pageIDB.click('#setup-form button[type="submit"]');
+          await pageIDB.waitForSelector('#app:not(.hidden)', { timeout: 15000 });
+          await pageIDB.waitForTimeout(800);
+        }
+        // Confirm cache was written to IDB.
+        const written = await pageIDB.evaluate(async () => {
+          return new Promise((resolve) => {
+            const req = indexedDB.open('lodge', 1);
+            req.onsuccess = () => {
+              const db = req.result;
+              const tx = db.transaction('cache', 'readonly');
+              const r = tx.objectStore('cache').get('dashboard.cache');
+              r.onsuccess = () => resolve({ idb: !!r.result, ls: !!localStorage.getItem('dashboard.cache') });
+            };
+            req.onerror = () => resolve({ idb: false, ls: false });
+          });
+        });
+        if (!written.idb) {
+          throw new Error('cache write did not land in IndexedDB');
+        }
+        // Reload and assert the read came from IDB and reached unlock.
+        const logs = [];
+        pageIDB.on('console', (m) => { if (m.text().includes('[lodge-debug]')) logs.push(m.text()); });
+        await pageIDB.reload({ waitUntil: 'domcontentloaded' });
+        await pageIDB.waitForTimeout(2000);
+        if (!(await pageIDB.$('#unlock-screen:not(.hidden)'))) {
+          throw new Error('after reload + IDB, page is not on unlock screen');
+        }
+        const idbSource = logs.find((l) => l.includes('loadCache: source=idb'));
+        if (!idbSource) {
+          throw new Error('reload did not read from IndexedDB (cache log: ' + logs.join(' | ') + ')');
+        }
+        log(`  ✓ IDB cache unlock works (idb=${written.idb}, ls=${written.ls})`);
+        await ctxIDB.close();
+      } finally {
+        if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
+      }
+    }
+
+    // 14. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
     //     available — the vault (Web Crypto) is fully functional

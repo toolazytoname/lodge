@@ -1878,33 +1878,133 @@
       URL.revokeObjectURL(url);
     },
 
+    // Cache storage — IndexedDB primary, localStorage fallback.
+    //
+    // Why IndexedDB: iOS WebKit (which iOS Chrome is built on) is much
+    // more aggressive about evicting localStorage than IndexedDB under
+    // memory pressure, private-mode constraints, and ITP policies.
+    // Users reported that on iOS Chrome the picker screen reappears
+    // after a refresh because the localStorage cache was silently
+    // wiped. IndexedDB has larger quotas (up to 60% of disk) and
+    // different eviction rules. We still write to localStorage as a
+    // belt-and-suspenders fallback for browsers that lack IDB, and
+    // for back-compat with users who already have data there.
     cacheLocal() {
+      const v = state.config?.vault || {};
+      console.log('[lodge-debug] cacheLocal write; vault keys=' +
+        Object.keys(v).join(',') +
+        ', salt=' + !!v.salt +
+        ', verifier=' + !!v.verifier +
+        ', verifierIv=' + !!v.verifierIv);
+      const payload = { config: state.config, lastSaved: Date.now() };
+      // Fire-and-forget IDB write (async), plus best-effort localStorage.
+      Storage._idbPut('dashboard.cache', payload).catch((e) => {
+        console.warn('[lodge-debug] cacheLocal IDB failed: ' + e.name);
+      });
       try {
-        const v = state.config?.vault || {};
-        console.log('[lodge-debug] cacheLocal write; vault keys=' +
-          Object.keys(v).join(',') +
-          ', salt=' + !!v.salt +
-          ', verifier=' + !!v.verifier +
-          ', verifierIv=' + !!v.verifierIv);
-        localStorage.setItem('dashboard.cache', JSON.stringify({
-          config: state.config,
-          lastSaved: Date.now(),
-        }));
-      } catch {}
+        localStorage.setItem('dashboard.cache', JSON.stringify(payload));
+      } catch (e) {
+        console.warn('[lodge-debug] cacheLocal LS failed: ' + e.name);
+      }
     },
 
-    loadCache() {
+    async loadCache() {
+      // Try IDB first; fall back to localStorage (legacy data, also
+      // auto-migrated to IDB on first hit so next read is fast).
+      let payload = null;
+      let source = null;
       try {
-        const raw = localStorage.getItem('dashboard.cache');
-        return raw ? JSON.parse(raw) : null;
-      } catch { return null; }
+        payload = await Storage._idbGet('dashboard.cache');
+        if (payload) source = 'idb';
+      } catch (e) {
+        console.warn('[lodge-debug] loadCache IDB failed: ' + e.name);
+      }
+      if (!payload) {
+        try {
+          const raw = localStorage.getItem('dashboard.cache');
+          payload = raw ? JSON.parse(raw) : null;
+          if (payload) {
+            source = 'localStorage';
+            // Migrate legacy data to IDB so next load is faster and
+            // benefits from IndexedDB's larger quota.
+            Storage._idbPut('dashboard.cache', payload).catch(() => {});
+          }
+        } catch { payload = null; }
+      }
+      console.log('[lodge-debug] loadCache: source=' + source +
+        (payload ? ' hasConfig=true' : ' hasConfig=false'));
+      return payload;
     },
 
     hasCache() {
+      // Sync best-effort check; the real check is async via loadCache.
       try { return !!localStorage.getItem('dashboard.cache'); } catch { return false; }
     },
 
-    clearCache() { localStorage.removeItem('dashboard.cache'); },
+    clearCache() {
+      try { localStorage.removeItem('dashboard.cache'); } catch {}
+      Storage._idbDelete('dashboard.cache').catch(() => {});
+    },
+
+    // ===== IndexedDB helpers (idb wrapper, no dependencies) =====
+    _idbName: 'lodge',
+    _idbStore: 'cache',
+    _idbVersion: 1,
+    _idbPromise: null,
+    _idb() {
+      if (!Storage._idbPromise) {
+        Storage._idbPromise = new Promise((resolve, reject) => {
+          if (typeof indexedDB === 'undefined') {
+            reject(new Error('IndexedDB unavailable'));
+            return;
+          }
+          const req = indexedDB.open(Storage._idbName, Storage._idbVersion);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(Storage._idbStore)) {
+              db.createObjectStore(Storage._idbStore);
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error || new Error('idb open failed'));
+          req.onblocked = () => reject(new Error('idb upgrade blocked'));
+        }).catch((e) => {
+          // Reset so a future call can retry (e.g. after the user
+          // closes a blocking tab).
+          Storage._idbPromise = null;
+          throw e;
+        });
+      }
+      return Storage._idbPromise;
+    },
+    async _idbPut(key, value) {
+      const db = await Storage._idb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(Storage._idbStore, 'readwrite');
+        const req = tx.objectStore(Storage._idbStore).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('idb put failed'));
+        tx.onabort = () => reject(tx.error || new Error('idb put aborted'));
+      });
+    },
+    async _idbGet(key) {
+      const db = await Storage._idb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(Storage._idbStore, 'readonly');
+        const req = tx.objectStore(Storage._idbStore).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error || new Error('idb get failed'));
+      });
+    },
+    async _idbDelete(key) {
+      const db = await Storage._idb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(Storage._idbStore, 'readwrite');
+        const req = tx.objectStore(Storage._idbStore).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('idb delete failed'));
+      });
+    },
   };
 
   // ============================================================
@@ -2250,9 +2350,12 @@
     if (cfg) state.lastFile = { name: 'config.json', size: 0, sizeHuman: '', lastModified: '' };
     console.log('[lodge-debug] tryFetch → ' + (cfg ? 'hit' : 'miss') + ', source=' + source);
 
-    // 2. Fallback: localStorage cache (works on file:// after first pick)
+    // 2. Fallback: cache (IndexedDB primary, localStorage fallback).
+    //    loadCache is async; init() awaits it. On iOS WebKit the IDB
+    //    cache is more reliable than localStorage (larger quota,
+    //    different eviction policy).
     if (!cfg) {
-      const cached = Storage.loadCache();
+      const cached = await Storage.loadCache();
       if (cached && cached.config) {
         cfg = cached.config;
         source = 'cache';
