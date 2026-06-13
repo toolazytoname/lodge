@@ -1977,7 +1977,16 @@
     // belt-and-suspenders fallback for browsers that lack IDB, and
     // for back-compat with users who already have data there.
     cacheLocal() {
-      const v = state.config?.vault || {};
+      // Defensive guard: a few call sites historically fired this
+      // BEFORE state.config was set (e.g. demo-data-btn and the file
+      // pick handler), which poisoned the cache with config:null and
+      // then made every refresh fall through to the picker. Skip the
+      // write entirely if there's no config to cache.
+      if (!state.config) {
+        console.log('[lodge-debug] cacheLocal SKIPPED (state.config is null/undefined)');
+        return;
+      }
+      const v = state.config.vault || {};
       console.log('[lodge-debug] cacheLocal write; vault keys=' +
         Object.keys(v).join(',') +
         ', salt=' + !!v.salt +
@@ -2043,12 +2052,26 @@
         } catch { payload = null; }
       }
       if (payload) {
-        const ageMs = Date.now() - (payload.lastSaved || 0);
-        const ageMin = Math.round(ageMs / 60000);
-        const vaultKeys = Object.keys(payload.config?.vault || {}).join(',');
-        console.log('[lodge-debug] loadCache HIT source=' + source +
-          ' age=' + ageMin + 'min' +
-          ' vaultKeys=[' + vaultKeys + ']');
+        // Migration: an earlier version of the code occasionally wrote
+        // a payload with config:null when cacheLocal() fired before
+        // state.config was set. Such a payload is useless and would
+        // make every refresh fall through to the picker. Detect and
+        // discard it, so the user is prompted to re-pick the file
+        // exactly once instead of forever.
+        if (!payload.config) {
+          console.log('[lodge-debug] loadCache found poisoned payload (config:null), clearing');
+          Storage._idbDelete('dashboard.cache').catch(() => {});
+          try { localStorage.removeItem('dashboard.cache'); } catch {}
+          payload = null;
+          source = null;
+        } else {
+          const ageMs = Date.now() - (payload.lastSaved || 0);
+          const ageMin = Math.round(ageMs / 60000);
+          const vaultKeys = Object.keys(payload.config.vault || {}).join(',');
+          console.log('[lodge-debug] loadCache HIT source=' + source +
+            ' age=' + ageMin + 'min' +
+            ' vaultKeys=[' + vaultKeys + ']');
+        }
       } else {
         const lsRaw = (() => { try { return localStorage.getItem('dashboard.cache'); } catch { return null; } })();
         console.log('[lodge-debug] loadCache MISS idbErr=' + (idbErr?.name || 'none') +
@@ -2371,8 +2394,8 @@
     };
     state.lastFile = { name: 'demo (in-memory)', size: 0, sizeHuman: '', lastModified: '' };
     state.source = 'demo';
-    Storage.cacheLocal();
     proceedWithConfig(demo, 'demo');
+    Storage.cacheLocal();
   });
 
   // "Copy diagnostic info" on the picker screen — gathers a snapshot of
@@ -2471,7 +2494,6 @@
         const loaded = await Storage.readFile(file);
         state.lastFile = Storage.fileFingerprint(file);
         state.source = 'file';
-        Storage.cacheLocal();
         const fp = Storage.configFingerprint(loaded);
         const summary = t('toast.config.loaded')
           .replace('{NAME}', state.lastFile.name)
@@ -2481,6 +2503,7 @@
           .replace('{ITEMS}', fp.items);
         toast(summary);
         await proceedWithConfig(loaded, 'file');
+        Storage.cacheLocal();
       } catch (err) {
         toast(t('toast.parse.fail') + err.message, 'error');
       }
