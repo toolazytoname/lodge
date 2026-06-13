@@ -573,10 +573,6 @@
     text-align: left;
     max-width: 420px;
   }
-  .ssh-cmd-toast-label {
-    font-size: 13px; color: var(--text-secondary);
-    margin-bottom: 6px;
-  }
   .ssh-cmd-toast-cmd {
     display: block;
     font-family: var(--font-mono);
@@ -1398,7 +1394,6 @@
       'changepw.err.mismatch': 'The two entries do not match',
 
       'toast.ssh.copied': 'SSH command copied',
-      'toast.ssh.openLabel': "If your terminal didn't open, copy this:",
       'toast.ssh.copy': 'Copy',
       'toast.copy.fail': 'Copy failed, please copy manually: ',
       'toast.auto.locked': 'Auto-locked',
@@ -1631,7 +1626,6 @@
       'changepw.err.mismatch': '两次输入不一致',
 
       'toast.ssh.copied': 'SSH 命令已复制',
-      'toast.ssh.openLabel': '如果终端没自动打开,复制这条命令:',
       'toast.ssh.copy': '复制',
       'toast.copy.fail': '复制失败，请手动复制: ',
       'toast.auto.locked': '已自动锁定',
@@ -2120,9 +2114,11 @@
 
     async showCommandWithCopy(server) {
       const cmd = this.command(server);
+      // Toast is just the command + action buttons. No label —
+      // the user clicked SSH, the toast itself is the obvious
+      // follow-up; they don't need a paragraph explaining it.
       const html =
         '<div class="ssh-cmd-toast">' +
-          '<div class="ssh-cmd-toast-label" data-i18n="toast.ssh.openLabel">If your terminal didn\'t open, copy this:</div>' +
           '<code class="ssh-cmd-toast-cmd">' + escapeHtml(cmd) + '</code>' +
           '<div class="ssh-cmd-toast-actions">' +
             '<button type="button" class="btn btn-primary" data-action="copy" data-i18n="toast.ssh.copy">Copy</button>' +
@@ -2132,7 +2128,7 @@
       actionToast({
         html,
         type: 'info',
-        autoDismiss: 0,  // keep until Copy / Dismiss
+        autoDismiss: 0,
         actions: [
           { id: 'copy', onClick: async (toastEl) => {
             try {
@@ -2145,8 +2141,6 @@
               Clipboard.scheduleClear();
               setTimeout(() => toastEl.remove(), 700);
             } catch {
-              // Even the click-driven write failed — show plain
-              // text the user can long-press to select.
               toast(t('toast.copy.fail') + cmd, 'error');
             }
           } },
