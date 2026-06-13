@@ -712,6 +712,7 @@
     <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 8px; align-items: center;">
       <button type="button" class="btn btn-secondary btn-capsule" id="demo-data-btn" data-i18n="picker.demo">Use demo data</button>
       <button type="button" class="btn btn-ghost" id="start-fresh-btn" style="font-size: 12px; color: var(--text-tertiary);" data-i18n="picker.fresh">Start fresh (reset vault)</button>
+      <button type="button" class="btn btn-ghost" id="picker-copy-diag-btn" style="font-size: 11px; color: var(--text-tertiary); margin-top: 8px; padding: 4px 8px; min-height: 0;" data-i18n="picker.copyDiag">📋 Copy diagnostic info</button>
     </div>
   </div>
   <input type="file" id="file-input" accept=".json,application/json" class="visually-hidden-file">
@@ -1281,6 +1282,7 @@
 
       'picker.demo': 'Use demo data',
       'picker.fresh': 'Start fresh (reset vault)',
+      'picker.copyDiag': '📋 Copy diagnostic info',
       'reset.confirm': 'This will erase ALL encrypted vault items (tokens, notes, passwords, SSH keys). Your servers and services will be preserved. The reset saves to your browser only — use "Save to file" afterward to persist it. Continue?',
       'reset.done': 'Vault reset. Set a new master password, then Save to file.',
 
@@ -1484,6 +1486,7 @@
       'picker.desc': '从设备任意位置选你的 <code>config.json</code> 文件。',
       'picker.btn': '选择文件',
       'picker.note': 'iOS 用户：在"文件"App → iCloud Drive 中选 config.json',
+      'picker.copyDiag': '📋 复制诊断信息',
 
       'insecure.title': '需要安全上下文',
       'insecure.desc': '当前打开方式不支持 Web Crypto API，无法加密你的数据。<br>这是浏览器安全限制，<strong style="color: var(--text);">与本应用无关</strong>。',
@@ -1981,14 +1984,36 @@
         ', verifier=' + !!v.verifier +
         ', verifierIv=' + !!v.verifierIv);
       const payload = { config: state.config, lastSaved: Date.now() };
+      const sizeBytes = new Blob([JSON.stringify(payload)]).size;
+      console.log('[lodge-debug] cacheLocal payload size=' + sizeBytes + 'B');
       // Fire-and-forget IDB write (async), plus best-effort localStorage.
-      Storage._idbPut('dashboard.cache', payload).catch((e) => {
-        console.warn('[lodge-debug] cacheLocal IDB failed: ' + e.name);
+      Storage._idbPut('dashboard.cache', payload).then(() => {
+        console.log('[lodge-debug] cacheLocal IDB put OK');
+        // Best-effort: ask the browser to make our storage persistent so
+        // iOS WebKit does not evict the cache under disk pressure. This
+        // must be called from a user gesture on some browsers, so we try
+        // it on every successful write and silently ignore rejections.
+        if (navigator.storage && navigator.storage.persist) {
+          navigator.storage.persist().then((granted) => {
+            console.log('[lodge-debug] storage.persist granted=' + granted);
+          }).catch((e) => {
+            console.log('[lodge-debug] storage.persist threw: ' + e.name);
+          });
+        }
+        if (navigator.storage && navigator.storage.estimate) {
+          navigator.storage.estimate().then((est) => {
+            console.log('[lodge-debug] storage.estimate quota=' + est.quota +
+              'B usage=' + est.usage + 'B');
+          }).catch(() => {});
+        }
+      }).catch((e) => {
+        console.warn('[lodge-debug] cacheLocal IDB failed: ' + e.name + ': ' + e.message);
       });
       try {
         localStorage.setItem('dashboard.cache', JSON.stringify(payload));
+        console.log('[lodge-debug] cacheLocal LS put OK (' + sizeBytes + 'B)');
       } catch (e) {
-        console.warn('[lodge-debug] cacheLocal LS failed: ' + e.name);
+        console.warn('[lodge-debug] cacheLocal LS failed: ' + e.name + ': ' + e.message);
       }
     },
 
@@ -1997,11 +2022,13 @@
       // auto-migrated to IDB on first hit so next read is fast).
       let payload = null;
       let source = null;
+      let idbErr = null;
       try {
         payload = await Storage._idbGet('dashboard.cache');
         if (payload) source = 'idb';
       } catch (e) {
-        console.warn('[lodge-debug] loadCache IDB failed: ' + e.name);
+        idbErr = e;
+        console.warn('[lodge-debug] loadCache IDB failed: ' + e.name + ': ' + e.message);
       }
       if (!payload) {
         try {
@@ -2015,8 +2042,19 @@
           }
         } catch { payload = null; }
       }
-      console.log('[lodge-debug] loadCache: source=' + source +
-        (payload ? ' hasConfig=true' : ' hasConfig=false'));
+      if (payload) {
+        const ageMs = Date.now() - (payload.lastSaved || 0);
+        const ageMin = Math.round(ageMs / 60000);
+        const vaultKeys = Object.keys(payload.config?.vault || {}).join(',');
+        console.log('[lodge-debug] loadCache HIT source=' + source +
+          ' age=' + ageMin + 'min' +
+          ' vaultKeys=[' + vaultKeys + ']');
+      } else {
+        const lsRaw = (() => { try { return localStorage.getItem('dashboard.cache'); } catch { return null; } })();
+        console.log('[lodge-debug] loadCache MISS idbErr=' + (idbErr?.name || 'none') +
+          ' localStorageHasKey=' + !!lsRaw +
+          ' (this means cache is gone — most likely: iOS Private mode, disk pressure eviction, or storage was cleared)');
+      }
       return payload;
     },
 
@@ -2337,6 +2375,59 @@
     proceedWithConfig(demo, 'demo');
   });
 
+  // "Copy diagnostic info" on the picker screen — gathers a snapshot of
+  // the storage + browser state and writes it to the clipboard. Helps
+  // diagnose why cache (and therefore the unlock state) is not
+  // surviving a refresh on iOS.
+  $('picker-copy-diag-btn')?.addEventListener('click', async () => {
+    const lines = [];
+    lines.push('=== Lodge diagnostic snapshot ===');
+    lines.push('time: ' + new Date().toISOString());
+    lines.push('url: ' + location.href);
+    lines.push('ua: ' + navigator.userAgent);
+    lines.push('isSecureContext: ' + window.isSecureContext);
+    lines.push('platform: ' + (navigator.userAgentData?.platform || navigator.platform || 'unknown'));
+    try {
+      lines.push('persisted: ' + (navigator.storage?.persisted ? await navigator.storage.persisted() : 'n/a'));
+    } catch (e) { lines.push('persisted: error ' + e.name); }
+    try {
+      const est = await navigator.storage?.estimate?.();
+      lines.push('storage.estimate: quota=' + est?.quota + 'B usage=' + (est?.usage || 0) + 'B');
+    } catch (e) { lines.push('storage.estimate: error ' + e.name); }
+    let idbInfo = 'unknown';
+    try {
+      if (indexedDB.databases) {
+        const dbs = await indexedDB.databases();
+        idbInfo = JSON.stringify(dbs.map(d => ({ name: d.name, version: d.version })));
+      } else {
+        idbInfo = 'indexedDB.databases() not supported on this browser';
+      }
+    } catch (e) { idbInfo = 'error ' + e.name; }
+    lines.push('idb.databases: ' + idbInfo);
+    let lsInfo = '{}';
+    try {
+      const dump = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        const v = localStorage.getItem(k);
+        dump[k] = v.length > 200 ? v.slice(0, 200) + '...(' + v.length + 'B)' : v;
+      }
+      lsInfo = JSON.stringify(dump);
+    } catch (e) { lsInfo = 'error ' + e.name; }
+    lines.push('localStorage: ' + lsInfo);
+    lines.push('state.isInitialized: ' + !!state?.isInitialized);
+    lines.push('state.source: ' + (state?.source || 'null'));
+    lines.push('state.lastFile: ' + JSON.stringify(state?.lastFile || null));
+    const text = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(t('toast.copied'));
+    } catch (e) {
+      // Fallback: show in an alert so the user can long-press and copy
+      alert(text);
+    }
+  });
+
   // Reset the vault in-place. Wipes encrypted items + verifier, leaves
   // servers/services alone, and lands the user on the setup screen.
   function resetVault() {
@@ -2452,6 +2543,43 @@
 
   async function init() {
     applyTheme();
+    // ===== iOS / mobile diagnostic banner =====
+    // Logs the most common reasons a refresh would force re-pick on iOS.
+    // If something is wrong, this is the first place to look.
+    {
+      const ua = navigator.userAgent;
+      const isiOS = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
+      const isPrivate = await (async () => {
+        // Standard incognito-detection probe: in private mode, IDB open
+        // succeeds but its result vanishes on tab close. We can't detect
+        // that directly, but a failed open in a non-private session means
+        // a real bug. We surface a "guess" instead.
+        try {
+          localStorage.setItem('__lodge_probe__', '1');
+          localStorage.removeItem('__lodge_probe__');
+          return false;
+        } catch { return true; }
+      })();
+      let persistState = 'unsupported';
+      try {
+        if (navigator.storage && navigator.storage.persisted) {
+          persistState = String(await navigator.storage.persisted());
+        }
+      } catch {}
+      let estStr = 'n/a';
+      try {
+        if (navigator.storage && navigator.storage.estimate) {
+          const est = await navigator.storage.estimate();
+          estStr = `quota=${est.quota}B usage=${(est.usage||0)}B`;
+        }
+      } catch {}
+      console.log('[lodge-debug] === env === ' +
+        'iOS=' + isiOS +
+        ' privateGuess=' + isPrivate +
+        ' persisted=' + persistState +
+        ' ' + estStr +
+        ' ua="' + ua.slice(0, 80) + '..."');
+    }
     console.log('[lodge-debug] init() start; secureCtx=' + window.isSecureContext);
 
     // Platform-specific hints. Mac shows a tip about preferring
