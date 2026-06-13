@@ -531,13 +531,15 @@
     padding: 8px 4px;
   }
   .url-bar .btn { flex-shrink: 0; }
-  .url-bar .btn-primary {
-    /* Fixed dark text on near-white pill — readable in BOTH light and
-       dark mode (var(--text) flips in dark mode, which used to make
-       this white-on-white). */
-    background: #f5f5f7; color: #1d1d1f;
+  /* The URL bar sits in a dark "Get Started" section. Override the
+     primary button to a light pill with dark text. Needs !important
+     because the base .btn-primary rule uses !important itself
+     (color: #fff) to stay readable in dark sections elsewhere. */
+  .url-bar .btn.btn-primary {
+    background: #f5f5f7 !important;
+    color: #1d1d1f !important;
   }
-  .url-bar .btn-primary:hover { background: #fff; }
+  .url-bar .btn.btn-primary:hover { background: #fff !important; }
 
   .start-steps {
     list-style: none; counter-reset: step;

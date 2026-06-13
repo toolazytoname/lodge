@@ -440,6 +440,59 @@ async function run() {
       await ctxM.close();
     }
 
+    // 12b. regression: about.html "Get Started" URL bar button is
+    //      readable in dark mode. Earlier rev used var(--text) +
+    //      var(--text-on-dark) which both flipped to light in dark
+    //      mode, producing invisible white-on-white. The current
+    //      override is fixed colors with !important; this test
+    //      enforces WCAG AA contrast (≥ 4.5) so the bug can't
+    //      regress.
+    log('regression: about.html dark-mode URL bar contrast');
+    {
+      const ctxA = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+        colorScheme: 'dark',
+      });
+      const pageA = await ctxA.newPage();
+      await pageA.goto(URL.replace(/\/dashboard\.html$/, '/about.html'),
+        { waitUntil: 'domcontentloaded' });
+      await pageA.waitForTimeout(500);
+      const styles = await pageA.$eval('.url-bar .btn-primary', (el) => {
+        const cs = getComputedStyle(el);
+        return { bg: cs.backgroundColor, color: cs.color };
+      });
+      const parseRgb = (s) => {
+        const m = s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        return m ? [+m[1], +m[2], +m[3]] : null;
+      };
+      const luminance = ([r, g, b]) => {
+        const lin = [r, g, b].map(c => {
+          const v = c / 255;
+          return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+      };
+      const contrast = (a, b) => {
+        const la = luminance(a), lb = luminance(b);
+        const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+        return (hi + 0.05) / (lo + 0.05);
+      };
+      const bg = parseRgb(styles.bg);
+      const fg = parseRgb(styles.color);
+      if (!bg || !fg) {
+        throw new Error(`could not parse .url-bar .btn-primary colors: ${JSON.stringify(styles)}`);
+      }
+      const ratio = contrast(bg, fg);
+      if (ratio < 4.5) {
+        throw new Error(
+          `about.html dark-mode URL bar contrast too low: ${ratio.toFixed(2)} (need ≥4.5). ` +
+          `bg=${styles.bg} color=${styles.color}`
+        );
+      }
+      log(`  ✓ url-bar btn-primary dark contrast = ${ratio.toFixed(2)} (≥4.5)`);
+      await ctxA.close();
+    }
+
     // 13. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
