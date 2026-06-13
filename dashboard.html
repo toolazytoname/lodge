@@ -561,6 +561,40 @@
   .toast.success { background: rgba(0,128,9,0.95); }
   .toast.error { background: rgba(215,0,21,0.95); }
 
+  /* Action toast — used by SSH "command + Copy" so the user has a
+     working fallback when the auto-clipboard write fails. */
+  .toast.toast-action {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    padding: 14px 16px;
+    text-align: left;
+    max-width: 420px;
+  }
+  .ssh-cmd-toast-label {
+    font-size: 13px; color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .ssh-cmd-toast-cmd {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface-2);
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    user-select: all;  /* so the user can long-press to select */
+  }
+  .ssh-cmd-toast-actions {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  .ssh-cmd-toast-actions .btn {
+    padding: 7px 14px; font-size: 13px;
+  }
+
   /* ===== Footer ===== */
   .footer {
     max-width: 1200px; margin: 0 auto; padding: 32px 24px;
@@ -1191,6 +1225,7 @@
       'common.search.vault': 'Search vault…',
       'common.add': 'Add',
       'common.cancel': 'Cancel',
+      'common.dismiss': 'Dismiss',
       'common.save': 'Save',
       'common.delete': 'Delete',
       'common.done': 'Done',
@@ -1363,6 +1398,8 @@
       'changepw.err.mismatch': 'The two entries do not match',
 
       'toast.ssh.copied': 'SSH command copied',
+      'toast.ssh.openLabel': "If your terminal didn't open, copy this:",
+      'toast.ssh.copy': 'Copy',
       'toast.copy.fail': 'Copy failed, please copy manually: ',
       'toast.auto.locked': 'Auto-locked',
       'toast.copied': 'Copied',
@@ -1421,6 +1458,7 @@
       'common.search.vault': '搜索条目…',
       'common.add': '添加',
       'common.cancel': '取消',
+      'common.dismiss': '关闭',
       'common.save': '保存',
       'common.delete': '删除',
       'common.done': '完成',
@@ -1593,6 +1631,8 @@
       'changepw.err.mismatch': '两次输入不一致',
 
       'toast.ssh.copied': 'SSH 命令已复制',
+      'toast.ssh.openLabel': '如果终端没自动打开,复制这条命令:',
+      'toast.ssh.copy': '复制',
       'toast.copy.fail': '复制失败，请手动复制: ',
       'toast.auto.locked': '已自动锁定',
       'toast.copied': '已复制',
@@ -1745,6 +1785,35 @@
       el.style.opacity = '0';
       setTimeout(() => el.remove(), 220);
     }, type === 'error' ? 4000 : 2400);
+  }
+
+  // Action toast — a richer toast with HTML content, used when we
+  // want the user to be able to read AND click. The 'auto-dismiss'
+  // default is longer than the plain toast (8s) so the user has
+  // time to read and click. Pass autoDismiss: 0 to keep it open
+  // until the user clicks dismiss.
+  function actionToast(opts) {
+    const { html, type = 'error', actions = [], autoDismiss = 8000 } = opts;
+    const el = document.createElement('div');
+    el.className = 'toast toast-action' + (type ? ' ' + type : '');
+    el.innerHTML = html;
+    // Wire up any action buttons by their data-action attribute.
+    for (const a of actions) {
+      const btn = el.querySelector(`[data-action="${a.id}"]`);
+      if (btn) btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        a.onClick(el);
+      });
+    }
+    $('toast-container').appendChild(el);
+    if (autoDismiss > 0) {
+      setTimeout(() => {
+        el.style.transition = 'opacity 0.2s';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 220);
+      }, autoDismiss);
+    }
+    return el;
   }
 
   // ============================================================
@@ -2031,15 +2100,59 @@
     },
     async open(server) {
       const link = this.deepLink(server);
-      // Try opening deep link, fallback to copy command
+      // Try to open the system default ssh:// handler. We do NOT
+      // auto-copy to the clipboard here — programmatic writeText
+      // (outside a user-gesture context) is silently blocked on
+      // iOS Safari/Chrome and in some desktop browsers, so the
+      // fallback was actually unreliable. Instead, we show the
+      // command in a toast with a Copy button — a click on Copy
+      // IS a user gesture and reliably writes to the clipboard.
       const a = document.createElement('a');
       a.href = link;
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => a.remove(), 100);
-      // Also copy command to clipboard as fallback
-      setTimeout(() => this.copyCommand(server, false), 100);
+      // Defer the toast slightly so the deep link has a chance to
+      // hand off to the OS before the user sees a UI element.
+      setTimeout(() => this.showCommandWithCopy(server), 250);
+    },
+
+    async showCommandWithCopy(server) {
+      const cmd = this.command(server);
+      const html =
+        '<div class="ssh-cmd-toast">' +
+          '<div class="ssh-cmd-toast-label" data-i18n="toast.ssh.openLabel">If your terminal didn\'t open, copy this:</div>' +
+          '<code class="ssh-cmd-toast-cmd">' + escapeHtml(cmd) + '</code>' +
+          '<div class="ssh-cmd-toast-actions">' +
+            '<button type="button" class="btn btn-primary" data-action="copy" data-i18n="toast.ssh.copy">Copy</button>' +
+            '<button type="button" class="btn btn-ghost" data-action="dismiss" data-i18n="common.dismiss">Dismiss</button>' +
+          '</div>' +
+        '</div>';
+      actionToast({
+        html,
+        type: 'info',
+        autoDismiss: 0,  // keep until Copy / Dismiss
+        actions: [
+          { id: 'copy', onClick: async (toastEl) => {
+            try {
+              await navigator.clipboard.writeText(cmd);
+              const btn = toastEl.querySelector('[data-action="copy"]');
+              if (btn) {
+                btn.textContent = t('toast.ssh.copied');
+                btn.disabled = true;
+              }
+              Clipboard.scheduleClear();
+              setTimeout(() => toastEl.remove(), 700);
+            } catch {
+              // Even the click-driven write failed — show plain
+              // text the user can long-press to select.
+              toast(t('toast.copy.fail') + cmd, 'error');
+            }
+          } },
+          { id: 'dismiss', onClick: (el) => el.remove() },
+        ],
+      });
     },
     async copyCommand(server, showToast = true) {
       const cmd = this.command(server);

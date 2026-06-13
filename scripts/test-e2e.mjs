@@ -599,7 +599,76 @@ async function run() {
       await ctxLin.close();
     }
 
-    // 15. regression: Lodge works opened directly from a file:// URL.
+    // 15b. regression: SSH button shows a 'command + Copy' toast
+    //      instead of a silent programmatic clipboard write. The
+    //      deep link still fires, but the Copy button on the toast
+    //      is the reliable way to get the command into the
+    //      clipboard (the click is a real user gesture; the
+    //      programmatic writeText after the deep link was silently
+    //      blocked on iOS).
+    log('regression: SSH button shows a Copy-button toast');
+    {
+      const ctxS = await browser.newContext();
+      const pageS = await ctxS.newPage();
+      pageS.on('dialog', async (d) => { await d.accept(); });
+      const fs = await import('fs');
+      const realConfig = resolve(projectRoot, 'config.json');
+      const realConfigBak = realConfig + '.bak-e2e-ssh-toast';
+      const hadConfig = fs.existsSync(realConfig);
+      if (hadConfig) fs.renameSync(realConfig, realConfigBak);
+      try {
+        await pageS.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageS.waitForTimeout(400);
+        if (await pageS.$('#picker-screen:not(.hidden)')) {
+          await (await pageS.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+          await pageS.waitForTimeout(800);
+        }
+        if (await pageS.$('#setup-screen:not(.hidden)')) {
+          await pageS.fill('#setup-pw1', 'ssh-toast-test-pw');
+          await pageS.fill('#setup-pw2', 'ssh-toast-test-pw');
+          await pageS.click('#setup-form button[type="submit"]');
+          await pageS.waitForSelector('#app:not(.hidden)', { timeout: 15000 });
+          await pageS.waitForTimeout(500);
+        }
+        // Click the SSH button on the first server card.
+        const sshBtn = await pageS.$('button[data-action="ssh"]');
+        if (!sshBtn) throw new Error('no SSH button on first server card');
+        await sshBtn.click();
+        // Wait for the action toast to appear.
+        await pageS.waitForSelector('.toast.toast-action .ssh-cmd-toast-cmd', { timeout: 3000 });
+        const toastInfo = await pageS.$eval('.toast.toast-action', (el) => ({
+          cmd: el.querySelector('.ssh-cmd-toast-cmd')?.textContent.trim() || '',
+          hasCopyBtn: !!el.querySelector('[data-action="copy"]'),
+          hasDismissBtn: !!el.querySelector('[data-action="dismiss"]'),
+        }));
+        if (!toastInfo.cmd.startsWith('ssh ')) {
+          throw new Error('toast command not an SSH command: ' + JSON.stringify(toastInfo));
+        }
+        if (!toastInfo.hasCopyBtn || !toastInfo.hasDismissBtn) {
+          throw new Error('toast missing copy/dismiss buttons: ' + JSON.stringify(toastInfo));
+        }
+        // Click Copy — it should succeed (user-gesture) and the
+        // button text should switch to the 'copied' state.
+        // First grant clipboard permission for the test context.
+        await ctxS.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: URL });
+        await pageS.click('.toast.toast-action [data-action="copy"]');
+        await pageS.waitForTimeout(500);
+        const afterCopy = await pageS.$eval('.toast.toast-action', (el) => ({
+          html: el.innerHTML.slice(0, 400),
+          btnText: el.querySelector('[data-action="copy"]')?.textContent.trim() || '',
+          btnDisabled: el.querySelector('[data-action="copy"]')?.disabled || false,
+        }));
+        if (afterCopy.btnDisabled !== true) {
+          throw new Error('Copy button should disable after click: ' + JSON.stringify(afterCopy));
+        }
+        log('  ✓ SSH toast shows command + Copy button (Copy worked, button disabled)');
+      } finally {
+        if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
+        await ctxS.close();
+      }
+    }
+
+    // 16. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
     //     available — the vault (Web Crypto) is fully functional
