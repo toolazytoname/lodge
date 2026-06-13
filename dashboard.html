@@ -247,11 +247,6 @@
     color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px;
     text-align: right; word-break: break-all;
   }
-  .unlock-err-diag {
-    font-size: 11px; color: var(--text-tertiary);
-    margin-top: 6px; font-family: var(--font-mono);
-    line-height: 1.5;
-  }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* ===== Buttons ===== */
@@ -296,7 +291,11 @@
      dialog in the click handler. */
   .forgot-pw-link {
     display: block; width: 100%;
-    margin-top: 20px; padding: 8px 0;
+    /* Lifted from the card's bottom to live right under the error
+       message, so it's the first thing the user notices after a
+       wrong-password attempt. The confirm() dialog in the click
+       handler is the actual safety guard against accidental clicks. */
+    margin: 4px 0 16px; padding: 4px 0;
     background: none; border: none;
     font: inherit; text-align: center;
     color: var(--text-tertiary);
@@ -764,6 +763,11 @@
         <input id="unlock-pw" class="field-input" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus>
       </div>
       <div id="unlock-error" class="auth-error"></div>
+      <!-- "Forgot master password?" — small text link right under the
+           error message, so the user discovers it the moment they
+           realise they don't know the password. The confirm() dialog
+           in the click handler is the actual safety guard. -->
+      <button type="button" id="forgot-pw-btn" class="forgot-pw-link" data-i18n="unlock.forgot">Forgot master password?</button>
       <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="unlock.submit">解锁</button>
     </form>
     <div class="unlock-actions" style="display: flex; flex-direction: column; gap: 4px; margin-top: 16px;">
@@ -779,10 +783,6 @@
         <span class="diag-value" id="unlock-salt-val">—</span>
       </div>
     </div>
-    <!-- Forgot master password — small text link at the very bottom.
-         Subtle by default; only turns red on hover/active. The confirm
-         dialog (in the JS handler) is the actual safety guard. -->
-    <button type="button" id="forgot-pw-btn" class="forgot-pw-link" data-i18n="unlock.forgot">Forgot master password?</button>
   </div>
 </div>
 
@@ -1231,9 +1231,6 @@
       'unlock.err': 'Wrong master password',
       'unlock.err.generic': 'Verification failed: ',
       'unlock.err.novault': 'This config has no master password set. Pick a different file.',
-      'unlock.err.detail': 'Length: {LEN} · First char: {FIRST} · Last char: {LAST}{SPACE}{CAP}',
-      'unlock.err.warn.cap': ' · ⚠️ starts with uppercase (iOS may auto-capitalize)',
-      'unlock.err.warn.space': ' · ⚠️ has leading/trailing whitespace',
       'unlock.diag.source': 'Source',
       'unlock.diag.salt': 'Vault salt',
       'unlock.repick': 'Pick a different config.json',
@@ -1464,9 +1461,6 @@
       'unlock.err': '主密码错误',
       'unlock.err.generic': '验证失败: ',
       'unlock.err.novault': '当前 config 没有设置主密码。请选择正确文件。',
-      'unlock.err.detail': '长度: {LEN} · 首字符: {FIRST} · 末字符: {LAST}{SPACE}{CAP}',
-      'unlock.err.warn.cap': ' · ⚠️ 首字符大写（iOS 可能自动大写）',
-      'unlock.err.warn.space': ' · ⚠️ 含首尾空白',
       'unlock.diag.source': '当前文件',
       'unlock.diag.salt': '盐值',
       'unlock.repick': '重新选择 config.json',
@@ -2529,21 +2523,12 @@
         ', pw.length=' + pw.length +
         ', ok=' + ok);
       if (!ok) {
-        // Build a diagnostic showing what was tried, so user can compare across devices
-        const len = pw.length;
-        const firstChar = pw[0] || '';
-        const lastChar = pw[pw.length-1] || '';
-        const hasSpace = /^\s|\s$/.test(pw);
-        const capMismatch = firstChar && firstChar !== firstChar.toLowerCase()
-          ? t('unlock.err.warn.cap')
-          : '';
-        const diag = t('unlock.err.detail')
-          .replace('{LEN}', len)
-          .replace('{FIRST}', firstChar || '∅')
-          .replace('{LAST}', lastChar || '∅')
-          .replace('{SPACE}', hasSpace ? t('unlock.err.warn.space') : '')
-          .replace('{CAP}', capMismatch);
-        errEl.innerHTML = `<div>${escapeHtml(t('unlock.err'))}</div><div class="unlock-err-diag">${diag}</div>`;
+        // Keep the error message terse — no length / first / last
+        // char diagnostic. Those leaked a small amount of information
+        // about how close the guess was, and the user found the
+        // strip visually noisy when the real answer is just
+        // "the password is wrong; reset if you forgot".
+        errEl.textContent = t('unlock.err');
         errEl.classList.add('show');
         $('unlock-pw').select();
         return;
