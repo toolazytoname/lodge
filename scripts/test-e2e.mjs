@@ -559,7 +559,47 @@ async function run() {
       }
     }
 
-    // 14. regression: Lodge works opened directly from a file:// URL.
+    // 14. regression: the Mac SSH tip (iTerm hint) is shown on
+    //     Mac and hidden elsewhere. The tip is unhidden by init()
+    //     based on navigator.platform / userAgentData.platform.
+    log('regression: Mac SSH tip shows on Mac, hidden elsewhere');
+    {
+      const { devices } = await import('playwright');
+      // Mac — tip should be visible
+      const ctxMac = await browser.newContext({
+        ...devices['Desktop Chrome'],
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      });
+      const pageMac = await ctxMac.newPage();
+      await pageMac.goto(URL, { waitUntil: 'domcontentloaded' });
+      await pageMac.waitForTimeout(500);
+      const macVisible = await pageMac.evaluate(() => {
+        const el = document.getElementById('mac-ssh-tip');
+        return !!el && !el.hidden;
+      });
+      if (!macVisible) {
+        throw new Error('mac-ssh-tip should be visible on Mac, but is hidden or missing');
+      }
+      log('  ✓ mac-ssh-tip visible on Mac');
+      await ctxMac.close();
+
+      // Non-Mac (Linux) — tip should be hidden
+      const ctxLin = await browser.newContext({ ...devices['Desktop Chrome'] });
+      const pageLin = await ctxLin.newPage();
+      await pageLin.goto(URL, { waitUntil: 'domcontentloaded' });
+      await pageLin.waitForTimeout(500);
+      const linHidden = await pageLin.evaluate(() => {
+        const el = document.getElementById('mac-ssh-tip');
+        return !!el && el.hidden;
+      });
+      if (!linHidden) {
+        throw new Error('mac-ssh-tip should be hidden on Linux, but is visible');
+      }
+      log('  ✓ mac-ssh-tip hidden on non-Mac');
+      await ctxLin.close();
+    }
+
+    // 15. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
     //     available — the vault (Web Crypto) is fully functional

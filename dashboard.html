@@ -228,6 +228,16 @@
     margin-top: 24px; padding-top: 16px;
     border-top: 1px solid var(--border);
   }
+
+  /* Platform-specific hint, only shown when JS unhides it. */
+  .platform-hint {
+    display: flex; align-items: center; gap: 8px;
+    margin: 8px 0 0; padding: 10px 14px;
+    background: var(--surface-2); color: var(--text-secondary);
+    border-radius: var(--radius);
+    font-size: 12px; line-height: 1.4;
+  }
+  .platform-hint svg { flex-shrink: 0; color: var(--text-tertiary); }
   .unlock-diag-row {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     font-size: 12px; margin-bottom: 6px;
@@ -833,6 +843,10 @@
         </div>
       </div>
       <div id="servers-grid" class="card-grid"></div>
+      <p class="platform-hint" id="mac-ssh-tip" hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span data-i18n="servers.mac.sshTip">Mac: prefer iTerm as your SSH client? Set it as default in iTerm → Settings → Profiles.</span>
+      </p>
     </section>
 
     <!-- Services tab -->
@@ -1242,6 +1256,7 @@
       'servers.empty.btn': '+ Add server',
       'servers.card.address': 'Address',
       'servers.btn.ssh': 'SSH',
+      'servers.mac.sshTip': 'Mac: prefer iTerm as your SSH client? Set it as default in iTerm → Settings → Profiles.',
       'servers.btn.copy': 'Copy',
       'servers.btn.edit': 'Edit',
 
@@ -1474,6 +1489,7 @@
       'servers.empty.btn': '+ 添加服务器',
       'servers.card.address': '地址',
       'servers.btn.ssh': 'SSH',
+      'servers.mac.sshTip': 'Mac: 想优先用 iTerm 作为 SSH 客户端？去 iTerm → Settings → Profiles 里把它设为默认。',
       'servers.btn.copy': '复制',
       'servers.btn.edit': '编辑',
 
@@ -2325,6 +2341,15 @@
   async function init() {
     applyTheme();
     console.log('[lodge-debug] init() start; secureCtx=' + window.isSecureContext);
+
+    // Platform-specific hints. Mac shows a tip about preferring
+    // iTerm as the SSH client (since browsers can't force a
+    // specific app to open ssh:// links — the user has to make
+    // iTerm the default ssh:// handler in iTerm → Settings).
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '') ||
+      (navigator.userAgentData && navigator.userAgentData.platform === 'macOS');
+    const macTip = $('mac-ssh-tip');
+    if (macTip) macTip.hidden = !isMac;
 
     // 0. Pre-flight: check Web Crypto availability
     const ctx = checkSecureContext();
