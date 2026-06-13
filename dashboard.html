@@ -2269,9 +2269,9 @@
     e.preventDefault();
     const url = window.location.origin;
     const data = {
-      title: 'Lodge — Private home base for servers, services, and secrets',
-      text: 'A privacy-first dashboard for managing your personal infrastructure.',
-      url,
+      title: 'Lodge — Your private home base',
+      text: 'Lodge: a privacy-first personal console for managing servers, services, and secrets. One HTML file, zero servers, end-to-end encrypted. Open source.',
+      url: url + '/about.html',
     };
     if (navigator.share) {
       try { await navigator.share(data); return; }
@@ -2283,7 +2283,7 @@
       console.log('[share] navigator.share not available, using clipboard fallback');
     }
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(data.url);
       toast(t('toast.share.copied'));
     } catch (err) {
       console.log('[share] clipboard write failed', err.name, err.message);

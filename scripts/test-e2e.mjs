@@ -668,6 +668,31 @@ async function run() {
       }
     }
 
+    // 15c. regression: about.html has a real PNG og:image so
+    //      social platforms (Twitter, WeChat, iMessage, etc.)
+    //      can render a logo card. SVG is not enough — most
+    //      scrapers fall back to no image.
+    log('regression: about.html og:image is a real PNG');
+    {
+      const aboutURL = URL.replace(/\/dashboard\.html$/, '/about.html');
+      const aboutHTML = await (await fetch(aboutURL)).text();
+      const ogImage = aboutHTML.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
+      if (!ogImage) throw new Error('about.html has no og:image meta');
+      if (!/\.png(\b|$)/i.test(ogImage[1])) {
+        throw new Error('about.html og:image should be PNG (got ' + ogImage[1] + ')');
+      }
+      const ogURL = ogImage[1].replace(/^https?:\/\/[^/]+/, URL.replace(/\/dashboard\.html$/, ''));
+      const ogResp = await fetch(ogURL);
+      if (!ogResp.ok) {
+        throw new Error('og.png referenced in meta but not served (' + ogResp.status + ')');
+      }
+      const ogBuf = await ogResp.arrayBuffer();
+      if (ogBuf.byteLength < 1000) {
+        throw new Error('og.png suspiciously small: ' + ogBuf.byteLength + ' bytes');
+      }
+      log('  ✓ about.html og:image is a real PNG (' + ogBuf.byteLength + ' bytes)');
+    }
+
     // 16. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
