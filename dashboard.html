@@ -317,6 +317,39 @@
     padding: 10px 22px;
   }
 
+  /* Segmented control — three text buttons inside a single rounded
+     surface-2 pill. Used for the Services tab "Group by" toggle.
+     .seg-btn-active styles the currently-selected option. Mirrors
+     the visual rhythm of the tabs row at the top of the page. */
+  .seg-group {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: var(--surface-2);
+    border-radius: var(--radius-md);
+    padding: 3px;
+  }
+  .seg-btn {
+    padding: 6px 12px; border-radius: 9px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); background: transparent;
+    border: 0; cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .seg-btn:hover { color: var(--text); }
+  .seg-btn-active {
+    background: var(--surface); color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+  .seg-btn:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+
+  /* Service-types editor — one input + delete button per row inside
+     a scrollable list. Uses the same flex rhythm as .vault-row so
+     the modal feels consistent. */
+  .types-list { display: flex; flex-direction: column; gap: 8px; }
+  .types-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .types-row .field-input { flex: 1; }
+
   .btn-block { width: 100%; }
   .btn-lg { padding: 12px 22px; font-size: 15px; }
 
@@ -484,6 +517,18 @@
   .service-card-name { font-size: 15px; font-weight: 600; color: var(--text); }
   .service-card-url { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); word-break: break-all; }
   .service-card-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+  /* Type chip — small pill below the URL line indicating the service's
+     category. Uses muted background + secondary text so it reads as a
+     label, not a button. Sits on its own line so long type names
+     truncate cleanly without stretching the card. */
+  .service-type-chip {
+    display: inline-block; align-self: flex-start;
+    padding: 2px 8px; border-radius: var(--radius-capsule);
+    background: var(--surface-2); color: var(--text-secondary);
+    font-size: 11px; line-height: 1.5; font-weight: 500;
+    letter-spacing: 0.2px; text-transform: lowercase;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 
   /* ===== Vault items ===== */
   .vault-list { display: flex; flex-direction: column; gap: 10px; }
@@ -899,6 +944,11 @@
           <p class="tab-subtitle" id="services-count">—</p>
         </div>
         <div class="tab-actions">
+          <div class="seg-group" role="group" aria-label="Group by" data-i18n-aria="services.groupBy.label">
+            <button type="button" class="seg-btn" data-action="group-by" data-value="server" data-i18n="services.groupBy.server">服务器</button>
+            <button type="button" class="seg-btn" data-action="group-by" data-value="type" data-i18n="services.groupBy.type">类型</button>
+            <button type="button" class="seg-btn" data-action="group-by" data-value="none" data-i18n="services.groupBy.none">无</button>
+          </div>
           <div class="search-wrap">
             <label for="services-search" class="sr-only" data-i18n="common.search.services">搜索服务…</label>
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -1020,15 +1070,7 @@
         <div class="field-row">
           <div class="field">
             <label class="field-label" for="service-type" data-i18n="service.type">类型</label>
-            <select id="service-type" class="field-select">
-              <option value="web" data-i18n="service.type.web">Web</option>
-              <option value="media" data-i18n="service.type.media">媒体</option>
-              <option value="file" data-i18n="service.type.file">文件</option>
-              <option value="db" data-i18n="service.type.db">数据库</option>
-              <option value="admin" data-i18n="service.type.admin">管理</option>
-              <option value="proxy" data-i18n="service.type.proxy">代理</option>
-              <option value="other" data-i18n="service.type.other">其他</option>
-            </select>
+            <select id="service-type" class="field-select"><!-- options built dynamically by buildServiceTypeOptions() --></select>
           </div>
           <div class="field">
             <label class="field-label" for="service-server" data-i18n="service.server">归属服务器</label>
@@ -1164,6 +1206,12 @@
       </div>
       <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
       <div class="field">
+        <label class="field-label" data-i18n="settings.types.manage">管理服务类型</label>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px;" data-i18n="settings.cache.desc">在服务卡片和分组下拉里出现的类型列表。新建类型只影响显示，不改已有服务。</p>
+        <button type="button" class="btn btn-secondary" id="manage-types-btn" style="align-self: flex-start;" data-i18n="settings.types.manage">管理服务类型</button>
+      </div>
+      <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
+      <div class="field">
         <label class="field-label" data-i18n="settings.cache.title">本地缓存</label>
         <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px;" data-i18n="settings.cache.desc">浏览器 localStorage 中存有当前配置的缓存（不含 vault 密钥）。切换设备前可清除。</p>
         <button type="button" class="btn btn-danger" id="clear-cache-btn" style="align-self: flex-start;" data-i18n="settings.cache.btn">清除本地缓存</button>
@@ -1172,6 +1220,27 @@
     <div class="modal-footer">
       <div style="flex: 1;"></div>
       <button type="button" class="btn btn-primary" data-close data-i18n="common.done">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Service-types editor modal ===== -->
+<div id="types-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="types-modal-title">
+    <div class="modal-header">
+      <h2 id="types-modal-title" class="modal-title" data-i18n="settings.types.title">服务类型</h2>
+      <button class="icon-btn" data-close>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="types-list" class="types-list"></div>
+      <button type="button" class="btn btn-secondary" id="types-add-btn" style="align-self: flex-start; margin-top: 8px;" data-i18n="settings.types.add">+ 添加类型</button>
+    </div>
+    <div class="modal-footer">
+      <div style="flex: 1;"></div>
+      <button type="button" class="btn btn-secondary" data-close data-i18n="common.cancel">取消</button>
+      <button type="button" class="btn btn-primary" id="types-save-btn" data-i18n="common.save">保存</button>
     </div>
   </div>
 </div>
@@ -1309,6 +1378,11 @@
       'services.empty.search.desc': 'Try a different search term',
       'services.empty.btn': '+ Add service',
       'services.group.other': 'Other',
+      'services.groupBy.label': 'Group by',
+      'services.groupBy.server': 'Server',
+      'services.groupBy.type': 'Type',
+      'services.groupBy.none': 'None',
+      'services.group.untyped': 'Untyped',
 
       'vault.title': 'Vault',
       'vault.count': 'items',
@@ -1392,6 +1466,14 @@
       'settings.changepw.btn': 'Change master password',
       'settings.export': 'Export config.json',
       'settings.import': 'Import config.json',
+      'settings.types.manage': 'Manage service types',
+      'settings.types.title': 'Service types',
+      'settings.types.add': '+ Add type',
+      'settings.types.delete': 'Delete type',
+      'settings.types.empty': 'Type name',
+      'settings.types.confirmDelete': 'Delete "{NAME}"? {N} service(s) still use this type — they will keep the value but it will not appear in the picker.',
+      'settings.types.duplicate': 'Type "{NAME}" already exists',
+      'settings.types.emptyForbid': 'Type names cannot be empty',
       'settings.cache.title': 'Local cache',
       'settings.cache.desc': 'Browser localStorage contains a cache of the current config (without vault key). Clear before switching devices.',
       'settings.cache.btn': 'Clear local cache',
@@ -1542,6 +1624,11 @@
       'services.empty.search.desc': '尝试调整搜索关键词',
       'services.empty.btn': '+ 添加服务',
       'services.group.other': '其他',
+      'services.groupBy.label': '分组方式',
+      'services.groupBy.server': '服务器',
+      'services.groupBy.type': '类型',
+      'services.groupBy.none': '无',
+      'services.group.untyped': '未分类',
 
       'vault.title': '保险库',
       'vault.count': '条',
@@ -1625,6 +1712,14 @@
       'settings.changepw.btn': '更改主密码',
       'settings.export': '导出 config.json',
       'settings.import': '导入 config.json',
+      'settings.types.manage': '管理服务类型',
+      'settings.types.title': '服务类型',
+      'settings.types.add': '+ 添加类型',
+      'settings.types.delete': '删除类型',
+      'settings.types.empty': '类型名称',
+      'settings.types.confirmDelete': '确定删除「{NAME}」？还有 {N} 个服务在使用该类型，它们会保留该值但下拉里不再出现。',
+      'settings.types.duplicate': '类型「{NAME}」已存在',
+      'settings.types.emptyForbid': '类型名称不能为空',
       'settings.cache.title': '本地缓存',
       'settings.cache.desc': '浏览器 localStorage 中存有当前配置的缓存（不含 vault 密钥）。切换设备前可清除。',
       'settings.cache.btn': '清除本地缓存',
@@ -1728,18 +1823,25 @@
     isUnlocked: false,
     currentTab: 'servers',
     search: { servers: '', services: '', vault: '' },
-    settings: { autoLockMinutes: 5, theme: 'auto', clearClipboardSeconds: 30 },
+    settings: { autoLockMinutes: 5, theme: 'auto', clearClipboardSeconds: 30, servicesGroupBy: 'server' },
+    servicesGroupBy: 'server', // mirror of state.settings.servicesGroupBy; kept in sync via markDirty + load. Hot-path cache for renderServices().
     hasUnsavedChanges: false,
     lastActivity: Date.now(),
     lastFile: null,        // { name, size, lastModified } of the loaded file
     source: 'unknown',     // 'fetch' | 'cache' | 'file'
   };
 
+  // Built-in service types seeded into new configs and used as the
+  // fallback when an older config.json is loaded. The list is now
+  // user-editable in Settings; these seven are just the starting set.
+  const DEFAULT_SERVICE_TYPES = ['web', 'media', 'file', 'db', 'admin', 'proxy', 'other'];
+
   const DEFAULT_CONFIG = {
     version: 1,
     meta: { created: new Date().toISOString(), lastModified: new Date().toISOString() },
     servers: [],
     services: [],
+    serviceTypes: DEFAULT_SERVICE_TYPES.slice(),  // top-level structural config; NOT inside settings
     vault: { kdf: 'PBKDF2-SHA256', iterations: 600000, salt: '', verifier: '', items: [] },
     settings: state.settings,
   };
@@ -1793,6 +1895,49 @@
   // like U+200B (ZWSP) and U+FEFF (BOM) which are not whitespace.
   function trimWhitespace(s) {
     return String(s ?? '').replace(/^[\s\p{Zs}]+|[\s\p{Zs}]+$/gu, '');
+  }
+
+  // Resolve a service-type string to its display label. The 7 built-in
+  // types have i18n entries (service.type.web etc); custom (user-
+  // added) types do not, so we fall back to the raw string. We can't
+  // just use `t(key) || type` because t()'s final fallback is the
+  // key itself, which is a non-empty string and would never trigger
+  // the `|| type` branch — the chip would render "service.type.1panel"
+  // instead of "1panel". Look up explicitly and fall back only on miss.
+  function typeLabel(type) {
+    if (!type) return '';
+    const key = 'service.type.' + type;
+    const cur = (I18N[currentLang] && I18N[currentLang][key]) || '';
+    const en  = (I18N.en && I18N.en[key]) || '';
+    return cur || en || type;
+  }
+
+  // Build the <option>s for #service-type from state.config.serviceTypes.
+  // i18n: built-in types (matching DEFAULT_SERVICE_TYPES) get a
+  // translated label via t('service.type.' + type). Custom types fall
+  // back to the raw string (escapeHtml at output so user-typed
+  // content is safe). If a service's saved `s.type` is not in the
+  // current list (orphan from a type the user deleted), include it
+  // anyway at the top so the picker reflects the actual value and
+  // the user isn't silently downgraded on save.
+  function buildServiceTypeOptions(selectEl) {
+    const known = Array.isArray(state.config.serviceTypes) ? state.config.serviceTypes : [];
+    const seen = new Set();
+    const opts = [];
+    // Preserve any value the caller pre-set (e.g. the service's saved
+    // type) even if it's not in serviceTypes anymore.
+    const currentVal = selectEl.value;
+    if (currentVal && !known.includes(currentVal)) {
+      seen.add(currentVal);
+      opts.push(`<option value="${escapeHtml(currentVal)}">${escapeHtml(currentVal)}</option>`);
+    }
+    for (const type of known) {
+      if (!type || seen.has(type)) continue;
+      seen.add(type);
+      const label = typeLabel(type);
+      opts.push(`<option value="${escapeHtml(type)}">${escapeHtml(label)}</option>`);
+    }
+    selectEl.innerHTML = opts.join('');
   }
 
   function toast(msg, type = '') {
@@ -2691,6 +2836,7 @@
     cfg = normalizeConfig(cfg);
     state.config = cfg;
     state.settings = { ...state.settings, ...cfg.settings };
+    state.servicesGroupBy = state.settings.servicesGroupBy || 'server';
     console.log('[lodge-debug] proceedWithConfig; vault in=' +
       JSON.stringify(before) + ', vault out=' +
       JSON.stringify({
@@ -2717,6 +2863,22 @@
   }
 
   function normalizeConfig(c) {
+    // Backward compat: configs written before the user-editable types
+    // feature land in `serviceTypes: undefined`. Fall back to the
+    // built-in defaults. Defensively filter to non-empty strings and
+    // dedupe (case-sensitive) so a hand-edited config.json can't
+    // produce two visually-identical options in the dropdown.
+    const rawTypes = Array.isArray(c.serviceTypes) ? c.serviceTypes : DEFAULT_SERVICE_TYPES;
+    const serviceTypes = [...new Set(
+      rawTypes.map((t) => String(t || '').trim()).filter(Boolean)
+    )];
+    // Backward compat for the groupBy setting too: unknown values
+    // fall back to 'server', which was the only behavior before this
+    // feature shipped.
+    const settings = c.settings || state.settings;
+    const groupBy = ['server', 'type', 'none'].includes(settings.servicesGroupBy)
+      ? settings.servicesGroupBy
+      : 'server';
     return {
       version: 1,
       meta: c.meta || { created: new Date().toISOString(), lastModified: new Date().toISOString() },
@@ -2731,6 +2893,7 @@
         ...s,
         url: trimWhitespace(s?.url),
       })),
+      serviceTypes,
       vault: {
         kdf: 'PBKDF2-SHA256',
         iterations: c.vault?.iterations || 600000,
@@ -2745,7 +2908,7 @@
         verifierIv: c.vault?.verifierIv || '',
         items: Array.isArray(c.vault?.items) ? c.vault.items : [],
       },
-      settings: c.settings || state.settings,
+      settings: { ...settings, servicesGroupBy: groupBy },
     };
   }
 
@@ -2844,6 +3007,23 @@
     $$('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.id !== `tab-${name}`));
     render();
   }
+
+  // ----- GroupBy segmented control -----
+  // Lives at the top of the Services tab. Mirror the click to
+  // state.config.settings so the choice survives save-to-file + reload.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="group-by"]');
+    if (!btn) return;
+    const v = btn.dataset.value;
+    if (!['server', 'type', 'none'].includes(v)) return;
+    if (state.servicesGroupBy === v) return;  // no-op if already active
+    state.servicesGroupBy = v;
+    state.settings.servicesGroupBy = v;
+    state.config.settings = state.config.settings || {};
+    state.config.settings.servicesGroupBy = v;
+    markDirty();
+    render();
+  });
 
   // ============================================================
   // Search
@@ -2953,7 +3133,55 @@
       return;
     }
 
-    // Group by server
+    // Mirror the current groupBy value into the segmented control so
+    // a language switch / cache restore reflects the saved choice.
+    const groupBy = state.servicesGroupBy || 'server';
+    $$('#tab-services .seg-btn').forEach((b) => {
+      b.classList.toggle('seg-btn-active', b.dataset.value === groupBy);
+    });
+
+    const sections = groupServices(filtered, groupBy);
+    $('services-container').innerHTML = sections
+      .map((sec) => {
+        const heading = sec.title
+          ? `<h2 class="section-title">${escapeHtml(sec.title)} <span style="color: var(--text-tertiary); font-size: 14px; font-weight: 400; font-family: var(--font-text);">· ${sec.count}</span></h2>`
+          : '';
+        return `${heading}<div class="service-grid">${sec.svcs.map(serviceCardHTML).join('')}</div>`;
+      })
+      .join('');
+  }
+
+  // groupServices — pure helper returning [{title, count, svcs}]
+  // for the chosen grouping. 'none' produces a single section with
+  // empty title (the heading row is omitted at render time).
+  function groupServices(filtered, by) {
+    if (by === 'none') {
+      return [{ title: '', count: filtered.length, svcs: filtered }];
+    }
+    if (by === 'type') {
+      const map = new Map();
+      // Seed with the configured serviceTypes order so the groups
+      // appear in a stable sequence even when no services exist
+      // for a given type. Empty-type services (s.type === '' or
+      // undefined) are collected under a single 'untyped' bucket.
+      for (const t of (state.config.serviceTypes || [])) map.set(t, []);
+      map.set('__untyped__', []);
+      for (const svc of filtered) {
+        const k = (svc.type || '').trim() || '__untyped__';
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(svc);
+      }
+      const out = [];
+      for (const [k, svcs] of map) {
+        if (svcs.length === 0) continue;
+        const title = k === '__untyped__'
+          ? t('services.group.untyped')
+          : typeLabel(k);
+        out.push({ title, count: svcs.length, svcs });
+      }
+      return out;
+    }
+    // 'server' — original behavior
     const byServer = new Map();
     byServer.set('', []);
     for (const s of state.config.servers) byServer.set(s.id, []);
@@ -2962,23 +3190,30 @@
       if (!byServer.has(k)) byServer.set(k, []);
       byServer.get(k).push(svc);
     }
-
-    const sections = [];
+    const out = [];
     for (const [sid, svcs] of byServer) {
       if (svcs.length === 0) continue;
       const server = state.config.servers.find((s) => s.id === sid);
-      const title = server ? server.alias : t('services.group.other');
-      sections.push(`
-        <h2 class="section-title">${escapeHtml(title)} <span style="color: var(--text-tertiary); font-size: 14px; font-weight: 400; font-family: var(--font-text);">· ${svcs.length}</span></h2>
-        <div class="service-grid">${svcs.map(serviceCardHTML).join('')}</div>
-      `);
+      out.push({
+        title: server ? server.alias : t('services.group.other'),
+        count: svcs.length,
+        svcs,
+      });
     }
-
-    $('services-container').innerHTML = sections.join('');
+    return out;
   }
 
   function serviceCardHTML(s) {
     const initial = (s.icon || s.name[0] || '?').toUpperCase().slice(0, 1);
+    // Type chip — only render when the service has a type set.
+    // Label comes from i18n for the 7 built-in types; custom
+    // (user-added) types fall back to the raw string. escapeHtml at
+    // output so a malicious / accidentally-rendered type can't
+    // break the DOM.
+    const typeRaw = (s.type || '').trim();
+    const chip = typeRaw
+      ? `<span class="service-type-chip">${escapeHtml(typeLabel(typeRaw))}</span>`
+      : '';
     return `
       <a class="service-card" href="${escapeHtml(trimWhitespace(s.url))}" target="_blank" rel="noopener" data-action="service" data-id="${escapeHtml(s.id)}">
         <div class="service-card-head">
@@ -2991,6 +3226,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
         </div>
+        ${chip}
         ${s.description ? `<div class="service-card-desc">${escapeHtml(s.description)}</div>` : ''}
       </a>`;
   }
@@ -3194,6 +3430,13 @@
       state.config.servers.map((s) =>
         `<option value="${escapeHtml(s.id)}">${escapeHtml(s.alias)}</option>`
       ).join('');
+
+    // Populate type dropdown from the (now editable) serviceTypes
+    // list. Set .value to the service's saved type BEFORE calling the
+    // builder so it can promote orphan values to the top.
+    const typeSel = $('service-type');
+    typeSel.value = svc?.type || 'web';
+    buildServiceTypeOptions(typeSel);
 
     $('service-modal-title').textContent = svc ? t('service.modal.edit') : t('service.modal.add');
     $('service-id').value = svc?.id || '';
@@ -3413,6 +3656,7 @@
       const cfg = await Storage.readFile(file);
       state.config = normalizeConfig(cfg);
       state.settings = { ...state.settings, ...state.config.settings };
+      state.servicesGroupBy = state.settings.servicesGroupBy || 'server';
       markDirty();
       closeModal('settings-modal');
       lock();
@@ -3432,6 +3676,7 @@
       const cfg = await Storage.readFile(file);
       state.config = normalizeConfig(cfg);
       state.settings = { ...state.settings, ...state.config.settings };
+      state.servicesGroupBy = state.settings.servicesGroupBy || 'server';
       markDirty();
       closeModal('settings-modal');
       lock();
@@ -3449,6 +3694,97 @@
     if (!confirm(t('toast.cache.confirm'))) return;
     Storage.clearCache();
     location.reload();
+  });
+
+  // ----- Service-types editor -----
+  // The modal is a pure UI for editing state.config.serviceTypes.
+  // Render rows from the in-memory array; the user adds / edits /
+  // removes rows; on Save we validate (trim, dedupe, non-empty),
+  // confirm deletes that are still in use, and write back. Cancel
+  // discards in-modal edits by closing (rows are re-rendered on
+  // next open from the live array).
+  let typesEditorRows = [];
+
+  function renderTypesEditor() {
+    const container = $('types-list');
+    container.innerHTML = typesEditorRows.map((val, i) => `
+      <div class="types-row" data-idx="${i}">
+        <input type="text" class="field-input types-row-input" value="${escapeHtml(val)}" data-i18n-ph="settings.types.empty" placeholder="Type name">
+        <button type="button" class="icon-btn types-row-del" data-action="types-row-del" data-idx="${i}" aria-label="${escapeHtml(t('settings.types.delete'))}" title="${escapeHtml(t('settings.types.delete'))}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    `).join('');
+  }
+
+  $('manage-types-btn').addEventListener('click', () => {
+    typesEditorRows = (state.config.serviceTypes || []).map((s) => String(s).trim());
+    renderTypesEditor();
+    openModal('types-modal');
+  });
+
+  $('types-add-btn').addEventListener('click', () => {
+    typesEditorRows.push('');
+    renderTypesEditor();
+    // Focus the newly-added empty input for fast typing.
+    const inputs = $('types-list').querySelectorAll('.types-row-input');
+    inputs[inputs.length - 1]?.focus();
+  });
+
+  // Delete handler — inline (not the global click delegation)
+  // because we want a confirm-if-in-use prompt with a templated
+  // message. The global delegate at line 3063 also won't match
+  // [data-action="types-row-del"] because it's not in the action
+  // router's known list — and that's fine.
+  document.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-action="types-row-del"]');
+    if (!del) return;
+    const idx = Number(del.dataset.idx);
+    if (Number.isNaN(idx) || idx < 0 || idx >= typesEditorRows.length) return;
+    const removed = typesEditorRows[idx].trim();
+    const inUse = removed && state.config.services.some((s) => s.type === removed);
+    if (inUse) {
+      const n = state.config.services.filter((s) => s.type === removed).length;
+      if (!confirm(t('settings.types.confirmDelete')
+            .replace('{NAME}', removed)
+            .replace('{N}', String(n)))) return;
+    }
+    typesEditorRows.splice(idx, 1);
+    renderTypesEditor();
+  });
+
+  // Mirror row-input typing into typesEditorRows. Listening on the
+  // container keeps the array authoritative and avoids juggling
+  // indices when the user deletes a row in the middle.
+  $('types-list').addEventListener('input', (e) => {
+    if (!e.target.classList.contains('types-row-input')) return;
+    const rows = $('types-list').querySelectorAll('.types-row');
+    typesEditorRows = Array.from(rows).map((r) => r.querySelector('.types-row-input').value);
+  });
+
+  $('types-save-btn').addEventListener('click', () => {
+    // Re-read in case the user clicked Save without an input event.
+    const rows = $('types-list').querySelectorAll('.types-row');
+    typesEditorRows = Array.from(rows).map((r) => r.querySelector('.types-row-input').value);
+
+    const cleaned = [];
+    for (const raw of typesEditorRows) {
+      const v = String(raw || '').trim();
+      if (!v) continue;  // empty rows silently dropped (most natural for a trailing empty Add row)
+      if (cleaned.includes(v)) {
+        toast(t('settings.types.duplicate').replace('{NAME}', v), 'error');
+        return;
+      }
+      cleaned.push(v);
+    }
+    // Allow zero — means "all types removed". Services keep their
+    // values; nothing is in the picker. Don't toast-error; valid
+    // (if unusual) state.
+    state.config.serviceTypes = cleaned;
+    markDirty();
+    render();
+    closeModal('types-modal');
+    toast(t('toast.saved'));
   });
 
   // ============================================================

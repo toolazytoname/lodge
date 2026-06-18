@@ -821,6 +821,133 @@ async function run() {
       }
     }
 
+    // 15f. regression: service-type chip + editable types + GroupBy.
+    //     Exercises the three layered features in one go:
+    //       - card shows a chip with i18n label for built-in types
+    //         and raw label for custom types
+    //       - settings → manage types modal adds a custom type
+    //       - GroupBy segmented control switches the rendered sections
+    log('regression: type chip + GroupBy toggle + editable types');
+    {
+      const ctxT = await browser.newContext();
+      const pageT = await ctxT.newPage();
+      pageT.on('dialog', async (d) => { await d.accept(); });
+      const fs = await import('fs');
+      const realConfig = resolve(projectRoot, 'config.json');
+      const realConfigBak = realConfig + '.bak-e2e-types';
+      const hadConfig = fs.existsSync(realConfig);
+      if (hadConfig) fs.renameSync(realConfig, realConfigBak);
+      try {
+        await pageT.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageT.waitForTimeout(400);
+        if (await pageT.$('#picker-screen:not(.hidden)')) {
+          await (await pageT.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+          await pageT.waitForTimeout(800);
+        }
+        if (await pageT.$('#setup-screen:not(.hidden)')) {
+          await pageT.fill('#setup-pw1', 'types-test-pw');
+          await pageT.fill('#setup-pw2', 'types-test-pw');
+          await pageT.click('#setup-form button[type="submit"]');
+          await pageT.waitForSelector('#app:not(.hidden)', { timeout: 15000 });
+        }
+        await pageT.click('button.tab[data-tab="services"]');
+        await pageT.waitForTimeout(300);
+
+        // (a) chip on the existing demo service (type='1panel' in
+        //     config.example.json — a custom type, should show raw).
+        const chipTexts = await pageT.$$eval('a.service-card .service-type-chip', (els) =>
+          els.map((e) => e.textContent.trim())
+        );
+        if (!chipTexts.includes('1panel')) {
+          throw new Error('expected chip text "1panel" on demo card, got: ' + JSON.stringify(chipTexts));
+        }
+
+        // (b) Add a known type ('web') through the service modal and
+        //     confirm the chip text matches the i18n label.
+        await pageT.click('#add-service-btn');
+        await pageT.waitForSelector('#service-modal:not(.hidden)', { timeout: 3000 });
+        await pageT.fill('#service-name', 'Jellyfin');
+        await pageT.evaluate(() => {
+          document.getElementById('service-form').noValidate = true;
+        });
+        await pageT.fill('#service-url', 'http://192.0.2.99:8096');
+        await pageT.selectOption('#service-type', 'web');
+        await pageT.click('#service-form button[type="submit"]');
+        await pageT.waitForFunction(
+          () => document.getElementById('service-modal').classList.contains('hidden'),
+          { timeout: 3000 }
+        );
+        const allChips = await pageT.$$eval('a.service-card .service-type-chip', (els) =>
+          els.map((e) => e.textContent.trim())
+        );
+        if (!allChips.includes('Web')) {
+          throw new Error('expected a chip with text "Web" after adding, got: ' + JSON.stringify(allChips));
+        }
+
+        // (c) GroupBy: switch to 'type' and confirm a section heading
+        //     appears with the 1panel type label.
+        const segByType = await pageT.$('[data-action="group-by"][data-value="type"]');
+        if (!segByType) throw new Error('no group-by segmented control button found');
+        await segByType.click();
+        await pageT.waitForTimeout(150);
+        const headingsByType = await pageT.$$eval('#services-container .section-title', (els) =>
+          els.map((e) => e.textContent.replace(/\s*·\s*\d+\s*$/, '').trim())
+        );
+        if (headingsByType.length === 0) {
+          throw new Error('groupBy=type produced no section headings');
+        }
+        if (!headingsByType.includes('1panel')) {
+          throw new Error('groupBy=type missing "1panel" heading, got: ' + JSON.stringify(headingsByType));
+        }
+
+        // Switch back to 'server' to confirm toggle is reversible.
+        await pageT.click('[data-action="group-by"][data-value="server"]');
+        await pageT.waitForTimeout(150);
+        const headingsByServer = await pageT.$$eval('#services-container .section-title', (els) =>
+          els.map((e) => e.textContent.replace(/\s*·\s*\d+\s*$/, '').trim())
+        );
+        if (headingsByServer.length === 0) {
+          throw new Error('groupBy=server produced no section headings');
+        }
+
+        // (d) Manage-types modal: open, add a type, save, confirm it
+        //     shows up in the service-type dropdown.
+        await pageT.click('#settings-btn');
+        await pageT.waitForSelector('#settings-modal:not(.hidden)', { timeout: 3000 });
+        await pageT.click('#manage-types-btn');
+        await pageT.waitForSelector('#types-modal:not(.hidden)', { timeout: 3000 });
+        // Click "Add type" — last input becomes empty and focused.
+        await pageT.click('#types-add-btn');
+        const inputs = await pageT.$$('#types-list .types-row-input');
+        await inputs[inputs.length - 1].fill('monitoring');
+        await pageT.click('#types-save-btn');
+        await pageT.waitForFunction(
+          () => document.getElementById('types-modal').classList.contains('hidden'),
+          { timeout: 3000 }
+        );
+        // Reopen the service modal and check the dropdown.
+        await pageT.click('#add-service-btn');
+        await pageT.waitForSelector('#service-modal:not(.hidden)', { timeout: 3000 });
+        const typeOptions = await pageT.$$eval('#service-type option', (els) =>
+          els.map((o) => o.value)
+        );
+        if (!typeOptions.includes('monitoring')) {
+          throw new Error('custom type "monitoring" not in dropdown: ' + JSON.stringify(typeOptions));
+        }
+        // Close without saving.
+        await pageT.click('#service-modal [data-close]');
+        await pageT.waitForFunction(
+          () => document.getElementById('service-modal').classList.contains('hidden'),
+          { timeout: 3000 }
+        );
+
+        log('  ✓ type chip, GroupBy toggle, and custom types all work');
+      } finally {
+        if (fs.existsSync(realConfigBak)) fs.renameSync(realConfigBak, realConfig);
+        await ctxT.close();
+      }
+    }
+
     // 16. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
