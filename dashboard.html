@@ -1783,6 +1783,18 @@
     }[c]));
   }
 
+  // Strip leading/trailing whitespace that String.prototype.trim()
+  // misses. Pasting URLs from chat apps, terminals, or rich-text editors
+  // commonly inserts U+00A0 (NBSP) or other Unicode whitespace BEFORE the
+  // scheme, which survives .trim() and produces broken hrefs like
+  // " https://...". Cover ASCII whitespace (via \s) plus every Unicode
+  // Space_Separator (Zs): NBSP, narrow NBSP, en/em/figure/thin/hair
+  // spaces, ideographic space, etc. Excludes zero-width format chars
+  // like U+200B (ZWSP) and U+FEFF (BOM) which are not whitespace.
+  function trimWhitespace(s) {
+    return String(s ?? '').replace(/^[\s\p{Zs}]+|[\s\p{Zs}]+$/gu, '');
+  }
+
   function toast(msg, type = '') {
     const el = document.createElement('div');
     el.className = 'toast' + (type ? ' ' + type : '');
@@ -2709,7 +2721,16 @@
       version: 1,
       meta: c.meta || { created: new Date().toISOString(), lastModified: new Date().toISOString() },
       servers: Array.isArray(c.servers) ? c.servers : [],
-      services: Array.isArray(c.services) ? c.services : [],
+      // Heal any service URLs that have leading/trailing Unicode
+      // whitespace (typically a stray NBSP from pasting into chat apps).
+      // .trim() doesn't strip NBSP, so without this the broken href
+      // " https://..." survives every reload via the cache and every
+      // re-pick of the source file. Idempotent — clean URLs pass
+      // through unchanged. See trimWhitespace() near escapeHtml.
+      services: (Array.isArray(c.services) ? c.services : []).map((s) => ({
+        ...s,
+        url: trimWhitespace(s?.url),
+      })),
       vault: {
         kdf: 'PBKDF2-SHA256',
         iterations: c.vault?.iterations || 600000,
@@ -2959,12 +2980,12 @@
   function serviceCardHTML(s) {
     const initial = (s.icon || s.name[0] || '?').toUpperCase().slice(0, 1);
     return `
-      <a class="service-card" href="${escapeHtml(s.url)}" target="_blank" rel="noopener" data-action="service" data-id="${escapeHtml(s.id)}">
+      <a class="service-card" href="${escapeHtml(trimWhitespace(s.url))}" target="_blank" rel="noopener" data-action="service" data-id="${escapeHtml(s.id)}">
         <div class="service-card-head">
           <div class="service-card-icon">${escapeHtml(initial)}</div>
           <div style="min-width: 0; flex: 1;">
             <div class="service-card-name">${escapeHtml(s.name)}</div>
-            <div class="service-card-url">${escapeHtml(s.url)}</div>
+            <div class="service-card-url">${escapeHtml(trimWhitespace(s.url))}</div>
           </div>
           <button type="button" class="icon-btn service-card-edit" data-action="edit-service" data-id="${escapeHtml(s.id)}" aria-label="${escapeHtml(t('servers.btn.edit'))}" title="${escapeHtml(t('servers.btn.edit'))}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -3177,7 +3198,7 @@
     $('service-modal-title').textContent = svc ? t('service.modal.edit') : t('service.modal.add');
     $('service-id').value = svc?.id || '';
     $('service-name').value = svc?.name || '';
-    $('service-url').value = svc?.url || '';
+    $('service-url').value = trimWhitespace(svc?.url || '');
     $('service-type').value = svc?.type || 'web';
     $('service-server').value = svc?.serverId || '';
     $('service-icon').value = svc?.icon || (svc?.name?.[0] || 'A');
@@ -3203,7 +3224,7 @@
     const data = {
       id: id || randomId(),
       name: $('service-name').value.trim(),
-      url: $('service-url').value.trim(),
+      url: trimWhitespace($('service-url').value),
       type: $('service-type').value,
       serverId: $('service-server').value,
       icon: $('service-icon').value.trim() || ($('service-name').value[0] || 'A'),

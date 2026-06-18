@@ -751,6 +751,76 @@ async function run() {
       }
     }
 
+    // 15e. regression: a service URL with a leading U+00A0 (NBSP)
+    //      pasted into the Add Service form is stripped on save so the
+    //      rendered href is clean and the re-edit input shows the
+    //      cleaned URL. (Pasting NBSP is common from chat apps — the
+    //      bug originally produced hrefs like " https://..." which
+    //      the browser URL-encoded as "%C2%A0http://...".)
+    log('regression: NBSP-prefixed service URL is sanitized on save');
+    {
+      const ctxNBSP = await browser.newContext();
+      const pageNBSP = await ctxNBSP.newPage();
+      pageNBSP.on('dialog', async (d) => { await d.accept(); });
+      const fs = await import('fs');
+      const realConfigNBSP = resolve(projectRoot, 'config.json');
+      const realConfigNBSPBak = realConfigNBSP + '.bak-e2e-nbsp';
+      const hadConfigNBSP = fs.existsSync(realConfigNBSP);
+      if (hadConfigNBSP) fs.renameSync(realConfigNBSP, realConfigNBSPBak);
+      try {
+        await pageNBSP.goto(URL, { waitUntil: 'domcontentloaded' });
+        await pageNBSP.waitForTimeout(400);
+        if (await pageNBSP.$('#picker-screen:not(.hidden)')) {
+          await (await pageNBSP.$('#file-input')).setInputFiles(resolve(projectRoot, 'config.example.json'));
+          await pageNBSP.waitForTimeout(800);
+        }
+        if (await pageNBSP.$('#setup-screen:not(.hidden)')) {
+          await pageNBSP.fill('#setup-pw1', 'nbsp-test-pw');
+          await pageNBSP.fill('#setup-pw2', 'nbsp-test-pw');
+          await pageNBSP.click('#setup-form button[type="submit"]');
+          await pageNBSP.waitForSelector('#app:not(.hidden)', { timeout: 15000 });
+        }
+        await pageNBSP.click('button.tab[data-tab="services"]');
+        await pageNBSP.waitForTimeout(300);
+        await pageNBSP.click('#add-service-btn');
+        await pageNBSP.waitForSelector('#service-modal:not(.hidden)', { timeout: 3000 });
+        await pageNBSP.fill('#service-name', 'NBSP repro');
+        // Inject the NBSP-prefixed URL via the DOM so .fill() (which
+        // sets the value as plain text) doesn't normalize it away.
+        await pageNBSP.evaluate(() => {
+          document.getElementById('service-url').value = ' http://192.168.1.50:9999';
+          // NBSP-prefixed URLs fail the browser's native type="url"
+          // validation, which would block the form from submitting
+          // at all. Turn off native validation so we can exercise
+          // the sanitization path. (In real browsers the validation
+          // is patchy enough that users do hit this bug.)
+          document.getElementById('service-form').noValidate = true;
+        });
+        await pageNBSP.click('#service-form button[type="submit"]');
+        // Modal close adds the .hidden class; wait for that explicitly
+        // because waitForSelector('#service-modal.hidden') defaults to
+        // state:'visible' which never matches a hidden element.
+        await pageNBSP.waitForFunction(
+          () => document.getElementById('service-modal').classList.contains('hidden'),
+          { timeout: 3000 }
+        );
+        const cardHref = await pageNBSP.$eval('a.service-card', (el) => el.getAttribute('href'));
+        if (cardHref !== 'http://192.168.1.50:9999') {
+          throw new Error('NBSP-prefixed URL was not sanitized: href=' + JSON.stringify(cardHref));
+        }
+        await pageNBSP.click('button[data-action="edit-service"]');
+        await pageNBSP.waitForSelector('#service-modal:not(.hidden)', { timeout: 3000 });
+        const inputUrl = await pageNBSP.$eval('#service-url', (el) => el.value);
+        if (inputUrl !== 'http://192.168.1.50:9999') {
+          throw new Error('Edit modal still shows dirty URL: ' + JSON.stringify(inputUrl));
+        }
+        log('  ✓ NBSP-prefixed URLs are sanitized on save and on re-edit');
+      } finally {
+        if (fs.existsSync(realConfigNBSPBak)) fs.renameSync(realConfigNBSPBak, realConfigNBSP);
+        await ctxNBSP.close();
+      }
+    }
+
     // 16. regression: Lodge works opened directly from a file:// URL.
     //     Modern browsers treat file:// as a secure context, so
     //     window.isSecureContext === true and crypto.subtle is
