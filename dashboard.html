@@ -465,6 +465,24 @@
   .card-row { display: flex; align-items: center; gap: 8px; }
   .card-row .label { color: var(--text-tertiary); font-size: 12px; min-width: 56px; }
   .card-row .value { color: var(--text); font-family: var(--font-mono); font-size: 13px; word-break: break-all; }
+  /* Small inline copy button — sits at the end of a .card-row next to
+     a value (e.g. the server IP). Sized to match the 13px mono text
+     so the row stays compact, and tinted to --text-tertiary so it
+     doesn't compete with the value. Briefly turns into a checkmark
+     after a successful copy (state class .copied). */
+  .card-row-copy {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 5px;
+    color: var(--text-tertiary);
+    background: transparent; border: 0; padding: 0;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .card-row-copy:hover { background: var(--surface-2); color: var(--text); }
+  .card-row-copy:focus-visible { outline: 2px solid var(--action); outline-offset: 1px; }
+  .card-row-copy.copied { color: var(--success); }
   .card-notes { font-size: 13px; color: var(--text-tertiary); line-height: 1.5; }
 
   .card-footer { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
@@ -617,8 +635,7 @@
   .toast.success { background: rgba(0,128,9,0.95); }
   .toast.error { background: rgba(215,0,21,0.95); }
 
-  /* Action toast — used by SSH "command + Copy" so the user has a
-     working fallback when the auto-clipboard write fails. */
+  /* Action toast — generic styled toast with action buttons. */
   .toast.toast-action {
     background: var(--surface);
     color: var(--text);
@@ -628,23 +645,6 @@
     padding: 14px 16px;
     text-align: left;
     max-width: 420px;
-  }
-  .ssh-cmd-toast-cmd {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text);
-    background: var(--surface-2);
-    padding: 8px 10px;
-    border-radius: var(--radius);
-    overflow-x: auto;
-    user-select: all;  /* so the user can long-press to select */
-  }
-  .ssh-cmd-toast-actions {
-    display: flex; gap: 8px; margin-top: 10px;
-  }
-  .ssh-cmd-toast-actions .btn {
-    padding: 7px 14px; font-size: 13px;
   }
 
   /* ===== Footer ===== */
@@ -1368,6 +1368,7 @@
       'servers.btn.ssh': 'SSH',
       'servers.mac.sshTip': 'Mac: prefer iTerm as your SSH client? Run in a terminal: brew install duti && duti -s com.googlecode.iterm2 ssh — this makes iTerm the default ssh:// handler.',
       'servers.btn.copy': 'Copy',
+      'servers.btn.copyHost': 'Copy IP',
       'servers.btn.edit': 'Edit',
 
       'services.title': 'Services',
@@ -1489,7 +1490,6 @@
       'changepw.err.mismatch': 'The two entries do not match',
 
       'toast.ssh.copied': 'SSH command copied',
-      'toast.ssh.copy': 'Copy',
       'toast.copy.fail': 'Copy failed, please copy manually: ',
       'toast.auto.locked': 'Auto-locked',
       'toast.copied': 'Copied',
@@ -1614,6 +1614,7 @@
       'servers.btn.ssh': 'SSH',
       'servers.mac.sshTip': 'Mac: 想用 iTerm 作为 SSH 客户端？在终端执行：brew install duti && duti -s com.googlecode.iterm2 ssh —— 把 iTerm 设为 ssh:// 的默认处理器。',
       'servers.btn.copy': '复制',
+      'servers.btn.copyHost': '复制 IP',
       'servers.btn.edit': '编辑',
 
       'services.title': '服务',
@@ -1735,7 +1736,6 @@
       'changepw.err.mismatch': '两次输入不一致',
 
       'toast.ssh.copied': 'SSH 命令已复制',
-      'toast.ssh.copy': '复制',
       'toast.copy.fail': '复制失败，请手动复制: ',
       'toast.auto.locked': '已自动锁定',
       'toast.copied': '已复制',
@@ -2322,61 +2322,22 @@
       return cmd;
     },
     async open(server) {
+      // Trigger the system default ssh:// handler. The user has
+      // already committed to jumping to their terminal by clicking
+      // the SSH button, so we don't surface a follow-up toast —
+      // the deep-link handoff IS the feedback. If the OS has no
+      // handler registered, nothing visible happens; the footer
+      // "Copy" button (→ copyCommand) stays as the manual escape
+      // hatch for that case.
       const link = this.deepLink(server);
-      // Try to open the system default ssh:// handler. We do NOT
-      // auto-copy to the clipboard here — programmatic writeText
-      // (outside a user-gesture context) is silently blocked on
-      // iOS Safari/Chrome and in some desktop browsers, so the
-      // fallback was actually unreliable. Instead, we show the
-      // command in a toast with a Copy button — a click on Copy
-      // IS a user gesture and reliably writes to the clipboard.
       const a = document.createElement('a');
       a.href = link;
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => a.remove(), 100);
-      // Defer the toast slightly so the deep link has a chance to
-      // hand off to the OS before the user sees a UI element.
-      setTimeout(() => this.showCommandWithCopy(server), 250);
     },
 
-    async showCommandWithCopy(server) {
-      const cmd = this.command(server);
-      // Toast is just the command + action buttons. No label —
-      // the user clicked SSH, the toast itself is the obvious
-      // follow-up; they don't need a paragraph explaining it.
-      const html =
-        '<div class="ssh-cmd-toast">' +
-          '<code class="ssh-cmd-toast-cmd">' + escapeHtml(cmd) + '</code>' +
-          '<div class="ssh-cmd-toast-actions">' +
-            '<button type="button" class="btn btn-primary" data-action="copy" data-i18n="toast.ssh.copy">Copy</button>' +
-            '<button type="button" class="btn btn-ghost" data-action="dismiss" data-i18n="common.dismiss">Dismiss</button>' +
-          '</div>' +
-        '</div>';
-      actionToast({
-        html,
-        type: 'info',
-        autoDismiss: 0,
-        actions: [
-          { id: 'copy', onClick: async (toastEl) => {
-            try {
-              await navigator.clipboard.writeText(cmd);
-              const btn = toastEl.querySelector('[data-action="copy"]');
-              if (btn) {
-                btn.textContent = t('toast.ssh.copied');
-                btn.disabled = true;
-              }
-              Clipboard.scheduleClear();
-              setTimeout(() => toastEl.remove(), 700);
-            } catch {
-              toast(t('toast.copy.fail') + cmd, 'error');
-            }
-          } },
-          { id: 'dismiss', onClick: (el) => el.remove() },
-        ],
-      });
-    },
     async copyCommand(server, showToast = true) {
       const cmd = this.command(server);
       try {
@@ -3091,6 +3052,10 @@
           <div class="card-row">
             <span class="label">${escapeHtml(t('servers.card.address'))}</span>
             <span class="value">${escapeHtml(s.host)}${s.sshPort !== 22 ? ':' + s.sshPort : ''}</span>
+            <button type="button" class="card-row-copy" data-action="copy-host" data-id="${escapeHtml(s.id)}" data-copy-value="${escapeHtml(s.host)}" aria-label="${escapeHtml(t('servers.btn.copyHost'))}" title="${escapeHtml(t('servers.btn.copyHost'))}">
+              <svg class="card-row-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="card-row-copy-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
           </div>
           ${s.notes ? `<p class="card-notes">${escapeHtml(s.notes)}</p>` : ''}
         </div>
@@ -3308,6 +3273,30 @@
     } else if (action === 'copy') {
       const s = state.config.servers.find((x) => x.id === id);
       if (s) SSH.copyCommand(s);
+    } else if (action === 'copy-host') {
+      // Inline copy button next to the address row — copies just the
+      // IP/host (not the SSH command) so the user can paste it into
+      // another app quickly. Flips to a checkmark for ~1.2s as feedback.
+      const text = btn.dataset.copyValue || '';
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        toast(t('toast.copied'));
+        const icon = btn.querySelector('.card-row-copy-icon');
+        const check = btn.querySelector('.card-row-copy-check');
+        if (icon && check) {
+          icon.style.display = 'none';
+          check.style.display = '';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            icon.style.display = '';
+            check.style.display = 'none';
+            btn.classList.remove('copied');
+          }, 1200);
+        }
+      } catch (err) {
+        toast(t('toast.copy.failed'), 'error');
+      }
     } else if (action === 'edit') {
       const s = state.config.servers.find((x) => x.id === id);
       if (s) openServerModal(s);
