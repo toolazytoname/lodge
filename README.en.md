@@ -335,19 +335,19 @@ The first time on a new device you pick the file; afterwards `localStorage` cach
 
 ## Comparison
 
-| | Lodge | Bitwarden / Vaultwarden | Heimdall / Homarr | Spreadsheet |
-|---|---|---|---|---|
-| Server inventory | ✅ | ❌ | partial (bookmarks) | ✅ |
-| Service catalog | ✅ | ❌ | ✅ | ✅ |
-| Token vault | ✅ | ✅ (their core) | ❌ | ❌ (plaintext) |
-| Zero-knowledge encryption | ✅ | ✅ | ❌ | ❌ |
-| Self-hostable | ✅ (one HTML) | needs Docker stack | needs Docker stack | trivial |
-| Build step | none | none | none | none |
-| Backend required | none | required | required | none |
-| Single file | ✅ | ❌ | ❌ | ✅ |
-| Mobile-friendly | ✅ | ✅ | partial | ✅ |
-| Runs offline | ✅ (file://) | ❌ | ❌ | ✅ |
-| Cost | free | free / $10/yr | free | free |
+| | Lodge | Bitwarden / Vaultwarden | Heimdall / Homarr |
+|---|---|---|---|
+| Server inventory | ✅ | ❌ | partial (bookmarks) |
+| Service catalog | ✅ | ❌ | ✅ |
+| Token vault | ✅ | ✅ (their core) | ❌ |
+| Zero-knowledge encryption | ✅ | ✅ | ❌ |
+| Self-hostable | ✅ (one HTML) | needs Docker stack | needs Docker stack |
+| Build step | none | none | none |
+| Backend required | none | required | required |
+| Single file | ✅ | ❌ | ❌ |
+| Mobile-friendly | ✅ | ✅ | partial |
+| Runs offline | ✅ (file://) | ❌ | ❌ |
+| Cost | free | free / $10/yr | free |
 
 **When to pick something else:**
 - You need TOTP autofill → **1Password** / **Bitwarden** / **Authy**
