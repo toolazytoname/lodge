@@ -1,8 +1,10 @@
 {
   "trailingSlash": false,
   "redirects": [
-    { "source": "/", "destination": "/dashboard.html", "statusCode": 301 },
+    { "source": "/", "destination": "/about.html", "statusCode": 301 },
     { "source": "/index.html", "destination": "/about.html", "statusCode": 301 },
+    { "source": "/about", "destination": "/about.html", "statusCode": 301 },
+    { "source": "/about/", "destination": "/about.html", "statusCode": 301 },
     { "source": "/dashboard", "destination": "/dashboard.html", "statusCode": 301 },
     { "source": "/dashboard/", "destination": "/dashboard.html", "statusCode": 301 }
   ],

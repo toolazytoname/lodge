@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /config.json
+Disallow: /config.local.json
+
+Sitemap: https://lodge.weichao.studio/sitemap.xml

@@ -9,6 +9,7 @@
 
 <title>Lodge — Your private home base for servers, services, and secrets</title>
 <meta name="description" content="A self-hosted personal console. One HTML file, zero servers, end-to-end encrypted. Manage your servers, service subscriptions, and tokens — privately.">
+<link rel="canonical" href="https://lodge.weichao.studio/about.html">
 
 <!-- Open Graph -->
 <meta property="og:type" content="website">
@@ -17,15 +18,15 @@
 <meta property="og:image" content="https://lodge.weichao.studio/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:url" content="https://lodge.weichao.studio/about.html">
+<meta property="og:site_name" content="Lodge">
+<meta property="og:locale" content="en_US">
+
+<!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Lodge — Your private home base">
 <meta name="twitter:description" content="One HTML file. Zero servers. End-to-end encrypted.">
 <meta name="twitter:image" content="https://lodge.weichao.studio/assets/og.png">
-
-<!-- Twitter -->
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Lodge — Your private home base">
-<meta name="twitter:description" content="One HTML file. Zero servers. End-to-end encrypted.">
 
 <!-- Favicon -->
 <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
@@ -651,6 +652,40 @@
   .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.7s ease, transform 0.7s ease; }
   .reveal.in { opacity: 1; transform: translateY(0); }
 
+  /* ===== FAQ ===== */
+  .faq { background: var(--bg); }
+  .faq-list { max-width: 760px; margin: 0 auto; }
+  .faq-item {
+    border-top: 1px solid var(--border);
+    padding: 24px 0;
+  }
+  .faq-item:last-child { border-bottom: 1px solid var(--border); }
+  .faq-q {
+    font-size: 19px; font-weight: 600;
+    cursor: pointer; list-style: none;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  }
+  .faq-q::-webkit-details-marker { display: none; }
+  .faq-q::after {
+    content: '+'; font-size: 24px; color: var(--text-secondary);
+    transition: transform 0.2s; line-height: 1;
+  }
+  .faq-item[open] .faq-q::after { content: '\2212'; }
+  .faq-a {
+    margin-top: 12px; line-height: 1.6;
+    color: var(--text-secondary); font-size: 16px;
+  }
+  .faq-a code {
+    background: var(--bg-alt); padding: 1px 6px; border-radius: 4px;
+    font-size: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .faq { background: var(--bg-dark); color: var(--text-on-dark); }
+    .faq-q { color: var(--text-on-dark); }
+    .faq-a { color: var(--text-tertiary-on-dark); }
+    .faq-a code { background: rgba(255,255,255,0.08); }
+  }
+
   /* ===== Mobile ===== */
   @media (max-width: 640px) {
     section { padding: 80px 20px; }
@@ -693,7 +728,7 @@
       One HTML file. Zero servers. End-to-end encrypted.
     </p>
     <div class="hero-cta reveal">
-      <a href="https://lodge.weichao.studio/" class="btn btn-primary" data-i18n="hero.cta.start">Open Lodge →</a>
+      <a href="https://lodge.weichao.studio/dashboard.html" class="btn btn-primary" data-i18n="hero.cta.start">Open Lodge →</a>
       <a href="https://github.com/toolazytoname/lodge" class="btn btn-outline" target="_blank" rel="noopener" data-i18n="hero.cta.github">View on GitHub</a>
     </div>
     <div class="hero-terminal reveal">
@@ -932,7 +967,7 @@
 
     <div class="url-bar reveal">
       <code class="url-bar-text">https://lodge.weichao.studio</code>
-      <a href="https://lodge.weichao.studio/" target="_blank" rel="noopener" class="btn btn-primary" data-i18n="start.open">Open</a>
+      <a href="https://lodge.weichao.studio/dashboard.html" target="_blank" rel="noopener" class="btn btn-primary" data-i18n="start.open">Open</a>
       <button class="btn btn-secondary" data-copy="https://lodge.weichao.studio" data-i18n="start.copy">Copy</button>
     </div>
 
@@ -964,7 +999,7 @@
     <div data-i18n="footer.copy">© Lodge · MIT License</div>
     <div class="footer-links">
       <a href="https://github.com/toolazytoname/lodge" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
-      <a href="/" data-i18n="footer.app">App</a>
+      <a href="/dashboard.html" data-i18n="footer.app">App</a>
       <a href="#features" data-i18n="nav.features">Features</a>
       <a href="#security" data-i18n="nav.security">Security</a>
     </div>
@@ -1213,6 +1248,121 @@
     <a href="mailto:lazywc@gmail.com">✉️ Email</a>
   </nav>
 </footer>
+
+<!-- ===== FAQ ===== -->
+<section id="faq" class="faq reveal">
+  <h2 class="section-title">Frequently asked</h2>
+  <p class="section-subtitle">The questions people ask most before trying Lodge.</p>
+
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary class="faq-q">Does Lodge send my secrets to a server?</summary>
+      <p class="faq-a">No. Lodge has no server. The two files (<code>dashboard.html</code> + <code>config.json</code>) live wherever you place them — iCloud Drive, NAS, VPS, GitHub Pages. Vault items are encrypted in your browser with AES-GCM 256 and never leave your device.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">How is this different from Bitwarden or 1Password?</summary>
+      <p class="faq-a">Lodge is a personal console combining server inventory, a service catalog, and a secret vault — not a team password manager. Two files instead of an account and a sync engine. You own the storage, so there is no central database to breach.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">Can I use it offline?</summary>
+      <p class="faq-a">Yes. Once the page is loaded, no network is needed for any operation. The Content-Security-Policy allows only the bundled code, so the app does not phone home.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">How strong is the encryption?</summary>
+      <p class="faq-a">AES-GCM 256, with the key derived from your master password via PBKDF2-SHA256 at 600,000 iterations. The browser's built-in WebCrypto does the work. Your master password never leaves the device — there is no server to send it to.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">Can I migrate my data later?</summary>
+      <p class="faq-a">Yes. <code>config.json</code> is plain JSON you can inspect, edit, or import into another tool. The encrypted vault uses a standard AES-GCM format.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">Does Lodge have analytics or third-party requests?</summary>
+      <p class="faq-a">No. The Content-Security-Policy locks the page to <code>'self'</code> (with the usual <code>'unsafe-inline'</code> / <code>'unsafe-eval'</code> exceptions for the bundled JS). No analytics, no external fonts, no CDN, no telemetry of any kind.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ===== Structured data ===== -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Lodge",
+  "alternateName": "懒得起名 Lodge",
+  "description": "A self-hosted personal console. One HTML file, zero servers, end-to-end encrypted. Manage servers, services, and secrets — privately.",
+  "url": "https://lodge.weichao.studio/",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any (browser)",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "license": "https://github.com/toolazytoname/lodge/blob/main/LICENSE",
+  "author": {
+    "@type": "Person",
+    "name": "lazy",
+    "alternateName": "懒得起名"
+  }
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Does Lodge send my secrets to a server?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Lodge has no server. The two files (dashboard.html and config.json) live wherever you place them — iCloud Drive, NAS, VPS, GitHub Pages. Vault items are encrypted in your browser with AES-GCM 256 and never leave your device."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How is this different from Bitwarden or 1Password?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Lodge is a personal console combining server inventory, a service catalog, and a secret vault — not a team password manager. Two files instead of an account and a sync engine. You own the storage, so there is no central database to breach."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use it offline?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Once the page is loaded, no network is needed for any operation. The Content-Security-Policy allows only the bundled code, so the app does not phone home."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How strong is the encryption?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AES-GCM 256, with the key derived from your master password via PBKDF2-SHA256 at 600,000 iterations. The browser's built-in WebCrypto does the work. Your master password never leaves the device — there is no server to send it to."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I migrate my data later?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. config.json is plain JSON you can inspect, edit, or import into another tool. The encrypted vault uses a standard AES-GCM format."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Lodge have analytics or third-party requests?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. The Content-Security-Policy locks the page to 'self' (with the usual 'unsafe-inline' / 'unsafe-eval' exceptions for the bundled JS). No analytics, no external fonts, no CDN, no telemetry of any kind."
+      }
+    }
+  ]
+}
+</script>
 
 </body>
 </html>
