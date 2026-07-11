@@ -1179,5 +1179,39 @@
   });
 </script>
 
+<!-- made-by-lazy: cross-product footer (Lodge — skips self link) -->
+<style>
+  .made-by-lazy {
+    margin: 64px auto 32px;
+    padding: 22px 24px;
+    max-width: 980px;
+    border-top: 1px solid rgba(125,125,130,.18);
+    font: 13px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: rgba(110,110,115,1);
+    text-align: center;
+  }
+  .made-by-lazy a { color: inherit; text-decoration: none; }
+  .made-by-lazy a:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .made-by-lazy .mbl-brand { font-weight: 600; color: rgba(60,60,67,.85); }
+  .made-by-lazy .mbl-tag { display: block; margin-top: 2px; font-size: 12px; opacity: .75; }
+  .made-by-lazy nav { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; margin-top: 10px; font-size: 13px; }
+  @media (prefers-color-scheme: dark) {
+    .made-by-lazy { border-top-color: rgba(255,255,255,.08); color: rgba(180,180,185,1); }
+    .made-by-lazy .mbl-brand { color: rgba(230,230,235,.9); }
+  }
+</style>
+<footer class="made-by-lazy" aria-label="Cross-product footer">
+  <div>
+    <span class="mbl-brand">Made by <a href="https://github.com/toolazytoname">lazy</a> · 懒得起名</span>
+    <span class="mbl-tag">前宇宙大厂基础架构工程师 · 独立开发者 · 用 AI 造自己想要的工具</span>
+  </div>
+  <nav aria-label="Other products by lazy">
+    <a href="https://jpq.weichao.studio">🐰 节拍器</a>
+    <a href="https://beta.gridgo.weichao.studio">📅 GridGo</a>
+    <a href="https://weichao.ren">✍️ Blog</a>
+    <a href="mailto:lazywc@gmail.com">✉️ Email</a>
+  </nav>
+</footer>
+
 </body>
 </html>
