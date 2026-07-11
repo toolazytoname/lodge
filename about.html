@@ -993,6 +993,38 @@
   </div>
 </section>
 
+<!-- ===== FAQ ===== -->
+<section id="faq" class="faq">
+  <h2 class="section-title">Frequently asked</h2>
+  <p class="section-subtitle">The questions people ask most before trying Lodge.</p>
+
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary class="faq-q">Does Lodge send my secrets to a server?</summary>
+      <p class="faq-a">No. Lodge has no server. The two files (<code>dashboard.html</code> + <code>config.json</code>) live wherever you place them — iCloud Drive, NAS, VPS, GitHub Pages. Vault items are encrypted in your browser with AES-GCM 256 and never leave your device.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">How is this different from Bitwarden or 1Password?</summary>
+      <p class="faq-a">Lodge is a personal console combining server inventory, a service catalog, and a secret vault — not a team password manager. Two files instead of an account and a sync engine. You own the storage, so there is no central database to breach.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">Can I use it offline?</summary>
+      <p class="faq-a">Yes. Once the page is loaded, no network is needed for any operation. The Content-Security-Policy allows only the bundled code, so the app does not phone home.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">How strong is the encryption?</summary>
+      <p class="faq-a">AES-GCM 256, with the key derived from your master password via PBKDF2-SHA256 at 600,000 iterations. The browser's built-in WebCrypto does the work. Your master password never leaves the device — there is no server to send it to.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">Can I migrate my data later?</summary>
+      <p class="faq-a">Yes. <code>config.json</code> is plain JSON you can inspect, edit, or import into another tool. The encrypted vault uses a standard AES-GCM format.</p>
+    </details>
+    <details class="faq-item">
+      <summary class="faq-q">Does Lodge have analytics or third-party requests?</summary>
+      <p class="faq-a">No. The Content-Security-Policy locks the page to <code>'self'</code> (with the usual <code>'unsafe-inline'</code> / <code>'unsafe-eval'</code> exceptions for the bundled JS). No analytics, no external fonts, no CDN, no telemetry of any kind.</p>
+    </details>
+  </div>
+</section>
 <!-- ===== Footer ===== -->
 <footer>
   <div class="footer-inner">
@@ -1000,6 +1032,8 @@
     <div class="footer-links">
       <a href="https://github.com/toolazytoname/lodge" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
       <a href="/dashboard.html" data-i18n="footer.app">App</a>
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#security" data-i18n="nav.security">Security</a>
     </div>
   </div>
 </footer>
@@ -1212,38 +1246,6 @@
   });
 </script>
 
-<!-- ===== FAQ ===== -->
-<section id="faq" class="faq">
-  <h2 class="section-title">Frequently asked</h2>
-  <p class="section-subtitle">The questions people ask most before trying Lodge.</p>
-
-  <div class="faq-list">
-    <details class="faq-item">
-      <summary class="faq-q">Does Lodge send my secrets to a server?</summary>
-      <p class="faq-a">No. Lodge has no server. The two files (<code>dashboard.html</code> + <code>config.json</code>) live wherever you place them — iCloud Drive, NAS, VPS, GitHub Pages. Vault items are encrypted in your browser with AES-GCM 256 and never leave your device.</p>
-    </details>
-    <details class="faq-item">
-      <summary class="faq-q">How is this different from Bitwarden or 1Password?</summary>
-      <p class="faq-a">Lodge is a personal console combining server inventory, a service catalog, and a secret vault — not a team password manager. Two files instead of an account and a sync engine. You own the storage, so there is no central database to breach.</p>
-    </details>
-    <details class="faq-item">
-      <summary class="faq-q">Can I use it offline?</summary>
-      <p class="faq-a">Yes. Once the page is loaded, no network is needed for any operation. The Content-Security-Policy allows only the bundled code, so the app does not phone home.</p>
-    </details>
-    <details class="faq-item">
-      <summary class="faq-q">How strong is the encryption?</summary>
-      <p class="faq-a">AES-GCM 256, with the key derived from your master password via PBKDF2-SHA256 at 600,000 iterations. The browser's built-in WebCrypto does the work. Your master password never leaves the device — there is no server to send it to.</p>
-    </details>
-    <details class="faq-item">
-      <summary class="faq-q">Can I migrate my data later?</summary>
-      <p class="faq-a">Yes. <code>config.json</code> is plain JSON you can inspect, edit, or import into another tool. The encrypted vault uses a standard AES-GCM format.</p>
-    </details>
-    <details class="faq-item">
-      <summary class="faq-q">Does Lodge have analytics or third-party requests?</summary>
-      <p class="faq-a">No. The Content-Security-Policy locks the page to <code>'self'</code> (with the usual <code>'unsafe-inline'</code> / <code>'unsafe-eval'</code> exceptions for the bundled JS). No analytics, no external fonts, no CDN, no telemetry of any kind.</p>
-    </details>
-  </div>
-</section>
 <!-- made-by-lazy: cross-product footer v2 (Lodge — self-contained plate) -->
 <style>
   .made-by-lazy {
