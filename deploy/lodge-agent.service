@@ -1,0 +1,31 @@
+[Unit]
+Description=Lodge agent — host status & service discovery
+Documentation=https://github.com/toolazytoname/lodge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lodge
+Group=lodge
+
+ExecStart=/usr/local/bin/lodge-agent --addr 127.0.0.1:9101 --token-file /etc/lodge-agent/token
+Restart=on-failure
+RestartSec=5s
+
+# --- 加固 ---
+# 注意：这里刻意【不】设 NoNewPrivileges=true，也【不】设 CapabilityBoundingSet=。
+# agent 靠 sudo（setuid-root）执行 sudoers 白名单命令，sudo 切到 root 需要
+# CAP_SETGID/CAP_SETUID 处于 bounding set 内。NoNewPrivileges 会禁止 execve 获
+# setuid 特权、CapabilityBoundingSet= 会掏空 bounding set —— 任一都会让 sudo
+# 报 "unable to change to root gid: Operation not permitted"，整个白名单瘫痪。
+# 因此本服务的特权边界 = /etc/sudoers.d/lodge-agent 的逐条精确匹配，
+# 而非这两类 systemd 限制。这是 sudoers 设计的固有取舍。
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# token 落在 /etc/lodge-agent，agent 首次启动时写入；其余路径只读。
+ReadWritePaths=/etc/lodge-agent
+
+[Install]
+WantedBy=multi-user.target

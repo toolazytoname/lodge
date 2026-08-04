@@ -1,0 +1,21 @@
+{
+  "_comment": "lodge-hub 配置示例。复制为 /etc/lodge-hub/config.json 并填真实值（0600，勿提交）。",
+  "_comment_agents": "url 用 agent 的 tailscale serve 地址（同机可用 http://127.0.0.1:9101）；token 与 agent 的 /etc/lodge-agent/token 一致；publicHost 是点服务直达用的公网主机（域名/IP）",
+  "password": "换成你自己的强密码",
+  "agents": [
+    {
+      "id": "machine-a",
+      "name": "machine-a",
+      "url": "http://127.0.0.1:9101",
+      "token": "<agent 上 /etc/lodge-agent/token 的内容>",
+      "publicHost": "machine-a.example.com"
+    },
+    {
+      "id": "machine-b",
+      "name": "machine-b",
+      "url": "http://100.x.y.z:8443",
+      "token": "<token>",
+      "publicHost": "machine-b.example.com"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+package agent
+
+import (
+	"testing"
+
+	"github.com/toolazytoname/lodge/internal/shared"
+)
+
+func TestParseSS(t *testing.T) {
+	content := `tcp   LISTEN 0      4096  127.0.0.1:9101      0.0.0.0:*           users:(("lodge-agent",pid=1234,fd=3))
+tcp   LISTEN 0      128    0.0.0.0:443         0.0.0.0:*           users:(("caddy",pid=5678,fd=7))
+tcp   LISTEN 0      128    *:8765              0.0.0.0:*           users:(("python3",pid=9012,fd=3))
+tcp   LISTEN 0      128    [::]:443            [::]:*              users:(("caddy",pid=5678,fd=9))
+`
+	socks := parseSS(content)
+	if len(socks) != 4 {
+		t.Fatalf("应解析出 4 个套接字，得到 %d", len(socks))
+	}
+	// 第一个：127.0.0.1:9101, pid 1234, lodge-agent
+	if socks[0].bind != "127.0.0.1" || socks[0].port != 9101 || socks[0].pid != 1234 || socks[0].proc != "lodge-agent" {
+		t.Errorf("第一个套接字解析错误: %+v", socks[0])
+	}
+	// 第三个：*:8765 bind 应为 "*"，pid 9012
+	if socks[2].bind != "*" || socks[2].port != 8765 || socks[2].pid != 9012 {
+		t.Errorf("*:8765 解析错误: %+v", socks[2])
+	}
+	// 第四个：[::]:443 → bind "::"
+	if socks[3].bind != "::" || socks[3].port != 443 {
+		t.Errorf("[::]:443 解析错误: %+v", socks[3])
+	}
+}
+
+// TestParseSSNoNetidColumn 覆盖真实环境布局：Ubuntu 24.04 的 ss 在 -t 下
+// 省略 Netid 列，行以 "LISTEN" 开头。这是在 bytedragon 实测踩到的坑。
+func TestParseSSNoNetidColumn(t *testing.T) {
+	content := `LISTEN 0      511                      127.0.0.1:18792 0.0.0.0:* users:(("clawdbot-gatewa",pid=978,fd=31))
+LISTEN 0      4096                     127.0.0.1:9101 0.0.0.0:* users:(("lodge-agent",pid=3428657,fd=6))
+LISTEN 0      4096                 100.105.249.48:50149 0.0.0.0:* users:(("tailscaled",pid=1815838,fd=11))
+`
+	socks := parseSS(content)
+	if len(socks) != 3 {
+		t.Fatalf("应解析出 3 个套接字，得到 %d", len(socks))
+	}
+	// 第一个：无 Netid 列，Local 在进程列前两列
+	if socks[0].bind != "127.0.0.1" || socks[0].port != 18792 || socks[0].proc != "clawdbot-gatewa" {
+		t.Errorf("无 Netid 布局解析错误: %+v", socks[0])
+	}
+	// tailscaled 绑 tailnet IP
+	if socks[2].bind != "100.105.249.48" || socks[2].port != 50149 {
+		t.Errorf("tailscaled 地址解析错误: %+v", socks[2])
+	}
+}
+
+func TestParseDockerPorts(t *testing.T) {
+	ports := parseDockerPorts("0.0.0.0:443->443/tcp, 127.0.0.1:8080->80/tcp, :::443->443/tcp")
+	if len(ports) != 3 {
+		t.Fatalf("应解析出 3 个端口，得到 %d", len(ports))
+	}
+	// 0.0.0.0:443 → public
+	if ports[0].Bind != "0.0.0.0" || ports[0].Port != 443 || ports[0].Exposure != shared.ExposurePublic {
+		t.Errorf("443 端口暴露分级错误: %+v", ports[0])
+	}
+	// 127.0.0.1:8080 → local
+	if ports[1].Bind != "127.0.0.1" || ports[1].Port != 8080 || ports[1].Exposure != shared.ExposureLocal {
+		t.Errorf("8080 应为 local: %+v", ports[1])
+	}
+	// :::443 → bind "::" → public
+	if ports[2].Bind != "::" || ports[2].Exposure != shared.ExposurePublic {
+		t.Errorf(":::443 应为 public: %+v", ports[2])
+	}
+
+	// 仅 EXPOSE 未发布（无宿主绑定）应被忽略
+	if p := parseDockerPorts("443/tcp"); len(p) != 0 {
+		t.Errorf("未发布的 EXPOSE 端口应忽略，得到 %+v", p)
+	}
+}
+
+func TestParseDockerPS(t *testing.T) {
+	content := `{"ID":"abc123def4567890123456789012345678901234567890123456789012345678","Names":"/nginx","Image":"nginx:alpine","State":"running","Status":"Up 2 hours","Ports":"0.0.0.0:443->443/tcp"}
+{"ID":"xyz","Names":"redis,redis2","Image":"redis:7","State":"exited","Status":"Exited","Ports":""}
+`
+	cs := parseDockerPS(content)
+	if len(cs) != 2 {
+		t.Fatalf("应解析出 2 个容器，得到 %d", len(cs))
+	}
+	// 第一个：名字应去掉前导 /
+	if cs[0].Names != "nginx" || cs[0].Image != "nginx:alpine" || cs[0].State != "running" {
+		t.Errorf("第一个容器解析错误: %+v", cs[0])
+	}
+	// 第二个：多名字取第一个
+	if cs[1].Names != "redis" {
+		t.Errorf("多名字应取第一个: %+v", cs[1])
+	}
+}
+
+func TestParseCgroupDockerV2(t *testing.T) {
+	content := "0::/docker/abc123def4567890123456789012345678901234567890123456789012345678\n"
+	o := parseCgroup(content)
+	if o.kind != shared.KindDocker {
+		t.Errorf("应为 docker，得到 %v", o.kind)
+	}
+}
+
+func TestParseCgroupDockerV1(t *testing.T) {
+	content := "11:blkio:/docker/abc123def4567890123456789012345678901234567890123456789012345678\n"
+	o := parseCgroup(content)
+	if o.kind != shared.KindDocker {
+		t.Errorf("v1 也应识别 docker，得到 %v", o.kind)
+	}
+}
+
+func TestParseCgroupSystemd(t *testing.T) {
+	content := "0::/system.slice/caddy.service\n"
+	o := parseCgroup(content)
+	if o.kind != shared.KindSystemd || o.unit != "caddy.service" {
+		t.Errorf("应为 systemd:caddy.service，得到 %+v", o)
+	}
+}
+
+func TestParseCgroupSystemdV1Named(t *testing.T) {
+	// v1 的 name=systemd 层级
+	content := "1:name=systemd:/system.slice/sshd.service\n"
+	o := parseCgroup(content)
+	if o.kind != shared.KindSystemd || o.unit != "sshd.service" {
+		t.Errorf("v1 systemd 应识别 sshd.service，得到 %+v", o)
+	}
+}
+
+func TestParseCgroupBare(t *testing.T) {
+	content := "0::/user.slice/user-1000.slice/session-1.scope\n"
+	o := parseCgroup(content)
+	if o.kind != shared.KindProcess {
+		t.Errorf("无归属应为裸进程，得到 %v", o.kind)
+	}
+}
+
+func TestStateOrStatus(t *testing.T) {
+	if got := stateOrStatus("running", "Up 2h"); got != "running" {
+		t.Errorf("应优先 State: %q", got)
+	}
+	if got := stateOrStatus("", "Exited (0)"); got != "Exited (0)" {
+		t.Errorf("State 空时应退回 Status: %q", got)
+	}
+}

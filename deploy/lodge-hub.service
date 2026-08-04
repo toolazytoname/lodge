@@ -1,0 +1,23 @@
+[Unit]
+Description=Lodge hub — central collector & API
+Documentation=https://github.com/toolazytoname/lodge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lodge
+Group=lodge
+ExecStart=/usr/local/bin/lodge-hub --addr 127.0.0.1:9102 --config /etc/lodge-hub/config.json --state /etc/lodge-hub/state.json
+Restart=on-failure
+RestartSec=5s
+
+# hub 不需要 sudo，所以可以上更严的加固（与 agent 不同）。
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/etc/lodge-hub
+
+[Install]
+WantedBy=multi-user.target
