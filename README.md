@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://lodge.weichao.studio">立即体验</a>
+  <a href="https://local.lodge.weichao.studio">立即体验</a>
   ·
   <a href="#快速开始">快速开始</a>
   ·
-  <a href="https://lodge.weichao.studio/about.html">关于页</a>
+  <a href="https://local.lodge.weichao.studio/about.html">关于页</a>
   ·
   <a href="README.en.md">English docs</a>
 </p>
@@ -93,7 +93,7 @@
 
 Lodge = **上面四件事合在一个 HTML 文件里**。打开 DevTools → Network 标签 → 刷新：啥都不发生。这就是它全部的架构。
 
-> *「丢两个文件，设一个密码，完事。」* —— 出自[关于页](https://lodge.weichao.studio/about.html)
+> *「丢两个文件，设一个密码，完事。」* —— 出自[关于页](https://local.lodge.weichao.studio/about.html)
 
 ---
 
@@ -144,7 +144,7 @@ Lodge = **上面四件事合在一个 HTML 文件里**。打开 DevTools → Net
 
 ### A. 直接用线上版 —— 零配置
 
-👉 **<https://lodge.weichao.studio>**
+👉 **<https://local.lodge.weichao.studio>**
 
 根路径 301 重定向到 dashboard。所有现代浏览器都行：macOS / Windows / Linux / iPhone / iPad。
 
@@ -322,7 +322,7 @@ UI 里改最安全；清楚自己在干啥也可以手编。脱敏模板见 [`co
 
 | 模式 | 适合 | 怎么搞 |
 |---|---|---|
-| **线上 demo** | 试用、单设备 | 打开 <https://lodge.weichao.studio>，选你的 config |
+| **线上 demo** | 试用、单设备 | 打开 <https://local.lodge.weichao.studio>，选你的 config |
 | **iCloud Drive** | 个人，1-3 台 Apple 设备 | 把两个文件丢 iCloud Drive，从任一设备打开 |
 | **Dropbox / Syncthing** | 多系统混用家庭 | 跟 iCloud 一样 |
 | **Vercel + 自己的 config 服务器** | 想用「正经」HTTPS 公网链接 | HTML 推 Vercel，`config.json` 通过 Cloudflare Tunnel 提供 |

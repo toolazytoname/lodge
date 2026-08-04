@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://lodge.weichao.studio">Try it</a>
+  <a href="https://local.lodge.weichao.studio">Try it</a>
   ·
   <a href="#quick-start">Quick start</a>
   ·
-  <a href="https://lodge.weichao.studio/about.html">About page</a>
+  <a href="https://local.lodge.weichao.studio/about.html">About page</a>
   ·
   <a href="README.md">中文文档</a>
 </p>
@@ -93,7 +93,7 @@ The alternatives each miss something:
 
 Lodge is **all of the above, in one HTML file**. Open DevTools → Network tab → refresh: nothing happens. That's the whole architecture.
 
-> *"Drop two files. Set one password. Done."* — from the [about page](https://lodge.weichao.studio/about.html)
+> *"Drop two files. Set one password. Done."* — from the [about page](https://local.lodge.weichao.studio/about.html)
 
 ---
 
@@ -144,7 +144,7 @@ Three ways to run it. Pick whichever fits.
 
 ### A. Use the hosted demo — zero config
 
-👉 **<https://lodge.weichao.studio>**
+👉 **<https://local.lodge.weichao.studio>**
 
 The root URL 301-redirects to the dashboard. Works in any modern browser on macOS, Windows, Linux, iPhone, iPad.
 
@@ -322,7 +322,7 @@ Edit through the UI for safety, or hand-edit if you know what you're doing. See 
 
 | Mode | Best for | Setup |
 |---|---|---|
-| **Hosted demo** | Trying it out, single device | Open <https://lodge.weichao.studio>, pick your config |
+| **Hosted demo** | Trying it out, single device | Open <https://local.lodge.weichao.studio>, pick your config |
 | **iCloud Drive** | Personal, 1–3 Apple devices | Drop both files in iCloud Drive, open from any device |
 | **Dropbox / Syncthing** | Mixed-OS households | Same as iCloud |
 | **Vercel + your config server** | Public-ish URL with full HTTPS | Push HTML to Vercel, serve `config.json` from Cloudflare Tunnel |

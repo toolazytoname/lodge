@@ -50,3 +50,4 @@ scripts/.last-failure.png
 # Temporary downloads (config-TIMESTAMP.json)
 # These are intentionally allowed to be committed
 # since they're harmless demo data with empty vault.
+.vercel
