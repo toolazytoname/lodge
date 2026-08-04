@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"io/fs"
@@ -19,10 +20,11 @@ type Server struct {
 	store    Store
 	password string
 	mux      *http.ServeMux
+	limiter  *loginLimiter
 }
 
 func NewServer(store Store, password string) *Server {
-	s := &Server{store: store, password: password}
+	s := &Server{store: store, password: password, limiter: newLoginLimiter()}
 	s.mux = http.NewServeMux()
 
 	// 公开路由：登录、会话查询、前端页面。
@@ -48,6 +50,11 @@ func NewServer(store Store, password string) *Server {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
+}
+
+// RunCleanup 后台定期清理登录限速的陈旧记录，ctx 取消时退出。
+func (s *Server) RunCleanup(ctx context.Context) {
+	s.limiter.runCleanup(ctx)
 }
 
 // auth 包一层登录校验。未登录返回 401，前端据此跳登录页。

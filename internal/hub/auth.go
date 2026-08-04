@@ -71,9 +71,16 @@ func (s *Server) authed(r *http.Request) bool {
 }
 
 // handleLogin POST /api/login {password}。成功设置会话 cookie。
+// 连续失败达到阈值后按指数退避锁定该 IP，见 ratelimit.go。
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if s.password == "" {
 		writeJSONHub(w, http.StatusOK, map[string]bool{"authed": true})
+		return
+	}
+	ip := clientIP(r)
+	if wait, locked := s.limiter.locked(ip); locked {
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		writeJSONHub(w, http.StatusTooManyRequests, map[string]string{"error": "too_many_attempts"})
 		return
 	}
 	var body struct {
@@ -81,10 +88,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	if !checkPassword(body.Password, s.password) {
+		s.limiter.recordFailure(ip)
 		// 不区分「密码错」与「缺密码」，统一 401，减少信息泄露。
 		writeJSONHub(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
+	s.limiter.recordSuccess(ip)
 	http.SetCookie(w, &http.Cookie{
 		Name: cookieName, Value: issueCookie(s.password),
 		Path: "/", HttpOnly: true, MaxAge: int(sessionTTL / time.Second),

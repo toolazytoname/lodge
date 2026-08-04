@@ -52,6 +52,7 @@ func main() {
 	go scraper.Run(ctx)
 
 	srv := hub.NewServer(store, password)
+	go srv.RunCleanup(ctx)
 	httpSrv := &http.Server{Addr: *addr, Handler: srv}
 
 	// 优雅关闭

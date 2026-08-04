@@ -247,3 +247,69 @@ func TestServerNoPasswordIsOpen(t *testing.T) {
 		t.Errorf("无密码模式应放行，得到 %d", w.Code)
 	}
 }
+
+func TestLoginRateLimit(t *testing.T) {
+	s := NewServer(NewMemStore(""), "pw")
+
+	// 阈值内不锁，正常 401；第 threshold+1 次失败触发锁定
+	for i := 0; i < rateLimitThreshold+1; i++ {
+		r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"wrong"}`))
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("第 %d 次错密码应 401，得到 %d", i+1, w.Code)
+		}
+	}
+
+	// 已锁定，即使密码正确也拒绝
+	r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"pw"}`))
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("锁定期内应 429，得到 %d", w.Code)
+	}
+	if w.Header().Get("Retry-After") == "" {
+		t.Error("锁定响应应带 Retry-After")
+	}
+}
+
+func TestLoginRateLimitResetsOnSuccess(t *testing.T) {
+	s := NewServer(NewMemStore(""), "pw")
+
+	// 若干次失败但不到阈值
+	for i := 0; i < rateLimitThreshold-1; i++ {
+		r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"wrong"}`))
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+	}
+	// 登录成功
+	r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"pw"}`))
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("登录应成功，得到 %d", w.Code)
+	}
+	// 成功后失败计数应清零，之后错密码不会立刻被锁
+	r = httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"wrong"}`))
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("成功登录后失败计数应重置，得到 %d", w.Code)
+	}
+}
+
+func TestClientIPTrustsXFFOnlyFromLoopback(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "127.0.0.1:5555"
+	r.Header.Set("X-Forwarded-For", "1.2.3.4, 5.6.7.8")
+	if ip := clientIP(r); ip != "1.2.3.4" {
+		t.Errorf("回环连接应信任 XFF 首个地址，得到 %q", ip)
+	}
+
+	r2 := httptest.NewRequest("GET", "/", nil)
+	r2.RemoteAddr = "9.9.9.9:5555"
+	r2.Header.Set("X-Forwarded-For", "1.2.3.4")
+	if ip := clientIP(r2); ip != "9.9.9.9" {
+		t.Errorf("非回环连接不应信任 XFF，得到 %q", ip)
+	}
+}
