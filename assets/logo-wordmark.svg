@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 50" fill="none">
-  <g transform="translate(0, 5)">
-    <rect width="40" height="40" rx="9" fill="#000"/>
-    <path d="M20 12 L9.6 20.8 L9.6 31.2 L30.4 31.2 L30.4 20.8 Z M18 31.2 L18 25.6 L22 25.6 L22 31.2 Z" fill="#fff" fill-rule="evenodd" transform="scale(0.8)"/>
-  </g>
-  <text x="52" y="36" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter Tight', 'Helvetica Neue', sans-serif" font-weight="600" font-size="32" letter-spacing="-0.5" fill="currentColor">Lodge</text>
-</svg>

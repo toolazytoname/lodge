@@ -1,1 +1,0 @@
-此项目无静态内容——所有路径由 vercel.json 反向代理到 Lodge hub（Tailscale Funnel）。
