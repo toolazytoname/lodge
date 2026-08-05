@@ -1,22 +1,10 @@
 # Lodge
 
-> A self-hosted personal console for servers, services, and secrets. One HTML file, zero servers, end-to-end encrypted.
+> A private server/service console. hub + agent architecture, a single static Go binary.
 
 ## About
 
-Lodge is a two-file personal dashboard: `dashboard.html` (the app) and `config.json` (your data, kept by you). It centralizes server inventory, service subscriptions, and an AES-GCM 256 encrypted vault — all in your browser, no server, no telemetry.
-
-Features:
-- Server inventory with aliases, tags, and one-click SSH
-- Service catalog grouped by host with millisecond search
-- Encrypted vault (AES-GCM 256, PBKDF2-SHA256 600k iterations)
-- Offline-capable once loaded
-- Static `dashboard.html` — works from iCloud Drive, NAS, VPS, GitHub Pages
-
-## Pages
-
-- [About / landing](https://lodge.weichao.studio/about.html): product description, features, security details, quick start, FAQ
-- [Dashboard](https://lodge.weichao.studio/dashboard.html): single-user app (you pick your local `config.json`)
+Lodge discovers what services run on each of your machines and what they're exposed to (local / tailnet / public). An agent runs on each managed machine under a non-root account with a sudoers allowlist for the few privileged actions it needs; a central hub polls the agents and serves a password-protected web UI with an end-to-end encrypted vault.
 
 ## Repository
 
@@ -24,4 +12,4 @@ https://github.com/toolazytoname/lodge
 
 ## License
 
-MIT. Free.
+MIT.

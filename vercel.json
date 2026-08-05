@@ -1,23 +1,9 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "trailingSlash": false,
-  "redirects": [
-    { "source": "/", "destination": "/about.html", "statusCode": 301 },
-    { "source": "/index.html", "destination": "/about.html", "statusCode": 301 },
-    { "source": "/about", "destination": "/about.html", "statusCode": 301 },
-    { "source": "/about/", "destination": "/about.html", "statusCode": 301 },
-    { "source": "/dashboard", "destination": "/dashboard.html", "statusCode": 301 },
-    { "source": "/dashboard/", "destination": "/dashboard.html", "statusCode": 301 }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:" }
-      ]
-    }
+  "rewrites": [
+    { "source": "/baidu_verify_codeva-ktxa9PM5VT.html", "destination": "/baidu_verify_codeva-ktxa9PM5VT.html" },
+    { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/(.*)", "destination": "https://bytedragon.tail7b8be9.ts.net:10000/$1" }
   ]
 }
