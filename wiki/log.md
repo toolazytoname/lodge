@@ -31,3 +31,12 @@
 - 新增真实 v1→v2 迁移测试、未知/缺失 Agent API 版本拒绝、30 天观测裁剪、优雅关闭和注解失败 500 处理。
 - `lodge-hub --backup` 只接受已存在的初始化数据库，不迁移源库，通过 `VACUUM INTO`、完整性与源/备份版本一致性检查后成功。
 - 单元、静态分析、竞态、无 CGo Linux 构建、CLI 错误路径和漏洞扫描全部通过；生产 Hub 尚未部署本提交，因此运行时保留天数仍记为 0。
+
+## [2026-08-07] deployment | bytedragon Hub 迁移到 SQLite
+
+- 部署提交 `d2a13a5` 的静态 x86-64 Hub，二进制 SHA-256 为 `dabfadead53668d369a522dc80267f595b13a6c83e76befdde227a4464b24318`。
+- 事务安装器在停 Hub 后创建 root-only 回滚包 `/var/lib/lodge-deploy-backups/hub-20260806T225038Z-0eqEeE`，再迁移配置、binary 与 systemd unit；所有验收通过，未触发回滚。
+- `config.json` 已从明文 `password` 原子迁移为 `passwordHash`；新 `session-secret`、config、SQLite/WAL/SHM 和 post-deploy 备份均为 `lodge:lodge 0600`。
+- SQLite schema 2 完整性为 `ok`；3 台已配置主机首轮写入 3 条观测，第二轮增至 9，删除旧状态并重启后增至 12，3 台最新观测均在线。
+- 旧 `state.json` 的摘要导入记录完成后，从 live 路径删除；其 owner-only 可恢复副本保留在回滚包内。post-deploy 一致性备份为 `/var/lib/lodge-hub/backups/post-deploy-20260806T225040Z-3787473.db`。
+- Tailnet 会话 API 正常、受保护 API 未认证返回 401、Tailscale `AllowFunnel` 保持 0。`history_retention_days` 运行时指标由 0 更新为 30。

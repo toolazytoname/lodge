@@ -92,6 +92,19 @@ sources:
 - 该记录证明公网管理端点由 1 降为 0；细粒度 grants 仍需按
   `docs/tailnet-deployment.md` 在管理控制台验证。
 
+## 2026-08-07 M2 部署记录
+
+- bytedragon Hub 已从内存 + JSON 状态迁移到 SQLite schema 2；运行参数包含
+  `--database /var/lib/lodge-hub/lodge.db` 与 `--history-retention 720h`。
+- 登录配置已不含明文 `password`，改为 Argon2id `passwordHash` 和独立
+  `session-secret`；受保护文件均为 `lodge:lodge 0600`。
+- 旧 JSON 只执行内容摘要标识的注解导入，Agent 连接记录未进入数据库；
+  验证后 live `state.json` 已删除，root-only 回滚包保留可恢复副本。
+- 数据库通过完整性检查，重启前后观测从 3 增至 12，3 台现有 Agent
+  最新状态均在线；一致性 post-deploy 备份已通过 Hub 自身校验。
+- Hub 继续只监听 `127.0.0.1:9102`，Tailnet HTTPS 可达，未认证受保护 API
+  返回 401，Tailscale Funnel 条目仍为 0。
+
 ## 外部参考
 
 - [Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve)

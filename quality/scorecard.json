@@ -66,12 +66,12 @@
     {
       "id": "history_retention_days",
       "dimension": "reliability",
-      "name": "Observation and event history retention",
-      "current": 0,
+      "name": "Observation history retention",
+      "current": 30,
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Live Hub has not yet been migrated; repository default is 30 days after deployment"
+      "evidence": "Live bytedragon Hub uses --history-retention 720h with SQLite schema 2 on 2026-08-07"
     },
     {
       "id": "web_operations",
