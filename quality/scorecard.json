@@ -24,6 +24,26 @@
       "evidence": "Tailscale Funnel status"
     },
     {
+      "id": "reachable_go_vulnerabilities",
+      "dimension": "security",
+      "name": "Reachable Go vulnerabilities on the supported toolchain",
+      "current": 0,
+      "target": 0,
+      "unit": "vulnerabilities",
+      "direction": "decrease",
+      "evidence": "govulncheck v1.6.0 on Go 1.26.5"
+    },
+    {
+      "id": "hub_security_regression_tests",
+      "dimension": "engineering",
+      "name": "Hub authentication and browser-boundary regression tests",
+      "current": 16,
+      "target": 16,
+      "unit": "tests",
+      "direction": "increase",
+      "evidence": "internal/hub test inventory"
+    },
+    {
       "id": "ssh_password_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with SSH password authentication disabled",

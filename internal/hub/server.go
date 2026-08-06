@@ -27,17 +27,23 @@ const (
 	maxURLBytes            = 2048
 )
 
-// Server 是 hub 的 HTTP 服务，给前端提供 API。
-// 设了 password 即对所有 /api/*（登录/会话查询除外）强制会话认证。
+// Server is the Hub HTTP boundary. A configured authenticator protects every
+// API except login and session discovery.
 type Server struct {
-	store    Store
-	password string
-	mux      *http.ServeMux
-	limiter  *loginLimiter
+	store   Store
+	authn   *authenticator
+	mux     *http.ServeMux
+	limiter *loginLimiter
 }
 
-func NewServer(store Store, password string) *Server {
-	s := &Server{store: store, password: password, limiter: newLoginLimiter()}
+// NewServerWithAuth requires an Argon2id verifier and an independent signing
+// key. Passing an empty verifier explicitly selects private-tailnet-only mode.
+func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Server, error) {
+	authn, err := newAuthenticator(passwordHash, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	s := &Server{store: store, authn: authn, limiter: newLoginLimiter()}
 	s.mux = http.NewServeMux()
 
 	// 公开路由：登录、会话查询、前端静态资源。
@@ -54,7 +60,7 @@ func NewServer(store Store, password string) *Server {
 	s.mux.HandleFunc("/api/agents", s.auth(s.agents))
 	s.mux.HandleFunc("/api/services", s.auth(s.services))
 	s.mux.HandleFunc("/api/annotation", s.auth(s.annotation))
-	return s
+	return s, nil
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

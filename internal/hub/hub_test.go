@@ -21,6 +21,25 @@ func newJSONRequest(method, target, body string) *http.Request {
 	return r
 }
 
+func newTestServer(t *testing.T, store Store, password string) *Server {
+	t.Helper()
+	var passwordHash string
+	var sessionKey []byte
+	var err error
+	if password != "" {
+		passwordHash, err = HashPassword(password)
+		sessionKey = []byte("0123456789abcdef0123456789abcdef")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewServerWithAuth(store, passwordHash, sessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return server
+}
+
 func TestJoinServices(t *testing.T) {
 	services := []shared.Service{
 		{Key: "docker:nginx", Name: "nginx", MaxExposure: shared.ExposurePublic},
@@ -181,24 +200,48 @@ func TestGuessURL(t *testing.T) {
 }
 
 func TestAuthCookieRoundTrip(t *testing.T) {
-	pw := "s3cret"
-	cookie := issueCookie(pw)
-	if !validCookie(cookie, pw) {
+	passwordHash, err := HashPassword("s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := []byte("0123456789abcdef0123456789abcdef")
+	authn, err := newAuthenticator(passwordHash, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie, err := authn.issueCookie()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !authn.validCookie(cookie) {
 		t.Error("签发的 cookie 应校验通过")
 	}
-	// 改密码后旧 cookie 失效
-	if validCookie(cookie, "other") {
+	otherHash, err := HashPassword("other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedPassword, err := newAuthenticator(otherHash, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedPassword.validCookie(cookie) {
 		t.Error("换密码后旧 cookie 应失效")
 	}
-	// 篡改 cookie
-	if validCookie(cookie+".x", pw) {
+	changedKey, err := newAuthenticator(passwordHash, []byte("abcdef0123456789abcdef0123456789"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedKey.validCookie(cookie) {
+		t.Error("换会话密钥后旧 cookie 应失效")
+	}
+	if authn.validCookie(cookie + "x") {
 		t.Error("篡改的 cookie 不应通过")
 	}
 }
 
 func TestServerAuthGate(t *testing.T) {
 	store := NewMemStore("")
-	s := NewServer(store, "pw") // 启用认证
+	s := newTestServer(t, store, "pw") // 启用认证
 
 	// 未登录访问受保护 API → 401
 	r := httptest.NewRequest("GET", "/api/agents", nil)
@@ -249,7 +292,7 @@ func TestServerAuthGate(t *testing.T) {
 
 func TestServerNoPasswordIsOpen(t *testing.T) {
 	// 未设 password（仅 tailnet 模式）→ /api/agents 直接放行
-	s := NewServer(NewMemStore(""), "")
+	s := newTestServer(t, NewMemStore(""), "")
 	r := httptest.NewRequest("GET", "/api/agents", nil)
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
@@ -259,7 +302,7 @@ func TestServerNoPasswordIsOpen(t *testing.T) {
 }
 
 func TestLoginRateLimit(t *testing.T) {
-	s := NewServer(NewMemStore(""), "pw")
+	s := newTestServer(t, NewMemStore(""), "pw")
 
 	// 阈值内不锁，正常 401；第 threshold+1 次失败触发锁定
 	for i := 0; i < rateLimitThreshold+1; i++ {
@@ -284,7 +327,7 @@ func TestLoginRateLimit(t *testing.T) {
 }
 
 func TestLoginRateLimitResetsOnSuccess(t *testing.T) {
-	s := NewServer(NewMemStore(""), "pw")
+	s := newTestServer(t, NewMemStore(""), "pw")
 
 	// 若干次失败但不到阈值
 	for i := 0; i < rateLimitThreshold-1; i++ {
@@ -349,7 +392,7 @@ func loginSession(t *testing.T, s *Server, password string) (*http.Cookie, strin
 func TestAnnotationRequiresCSRFAndValidatesURL(t *testing.T) {
 	store := NewMemStore("")
 	store.SetAgents([]AgentConfig{{ID: "host-a", Name: "host-a", URL: "http://agent"}})
-	s := NewServer(store, "pw")
+	s := newTestServer(t, store, "pw")
 	cookie, token := loginSession(t, s, "pw")
 	target := "/api/annotation?agent=host-a&key=systemd:caddy.service"
 
@@ -395,7 +438,7 @@ func TestAnnotationRequiresCSRFAndValidatesURL(t *testing.T) {
 func TestAnnotationRejectsUnknownAgentAndOversizedBody(t *testing.T) {
 	store := NewMemStore("")
 	store.SetAgents([]AgentConfig{{ID: "host-a", URL: "http://agent"}})
-	s := NewServer(store, "")
+	s := newTestServer(t, store, "")
 
 	request := newJSONRequest(http.MethodPost, "/api/annotation?agent=missing&key=port:tcp/80", `{"url":"https://example.test"}`)
 	w := httptest.NewRecorder()
@@ -414,7 +457,7 @@ func TestAnnotationRejectsUnknownAgentAndOversizedBody(t *testing.T) {
 }
 
 func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
-	s := NewServer(NewMemStore(""), "")
+	s := newTestServer(t, NewMemStore(""), "")
 	for _, path := range []string{"/", "/app.css", "/app.js", "/api/session"} {
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))

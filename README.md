@@ -30,15 +30,17 @@
                 (Go，内嵌前端)                    (非 root，sudoers 白名单)
 ```
 
-hub 主动拉取（非 agent 推送），机器都在同一个 tailnet 里；agent 只监听 `127.0.0.1`，靠 Tailscale serve/funnel 暴露给 hub 或公网。
+hub 主动拉取（非 agent 推送），机器都在同一个 tailnet 里；agent 只监听 `127.0.0.1`，通过 Tailscale Serve 仅向 tailnet 中获授权的 hub 提供数据，不能使用 Funnel 暴露到公网。
 
 ## 安全模型
 
 - **agent 绝不以 root 运行**，专用系统账号，不加入 `docker` 组（docker 组等价 root）。特权操作走 `/etc/sudoers.d/lodge-agent` 的完整命令行精确匹配白名单，agent 内部用固定 argv 经 `exec.Command` 执行，不经 shell。
-- **hub 登录**：常数时间密码比较 + HMAC 签名会话 cookie；连续登录失败按指数退避锁定（IP 分桶 + 全局兜底桶）。
-- **管理面边界**：当前认证是过渡实现。生产管理面应只在 Tailnet 内开放；密码慢哈希、独立会话密钥、CSRF 防护和 vault 威胁模型列入安全里程碑。
+- **hub 登录**：Argon2id 慢哈希 verifier，不保存明文密码；独立随机密钥签名会话，Cookie 使用 `Secure`、`HttpOnly`、`SameSite=Strict`，写操作验证 CSRF token；连续失败按指数退避锁定。
+- **管理面边界**：生产管理面只允许在 Tailnet 内开放；登录认证是纵深防御，不是公网暴露的许可。受控运维和 vault 仍在路线图中，未完成前不作为安全承诺。
 
 ## 开发
+
+需要 Go 1.25.12 或更新的受支持工具链；CI 固定使用最新 Go 1.26.x。
 
 ```bash
 go build ./...
@@ -66,6 +68,7 @@ quality/            可量化质量基线与目标
 
 - [架构](docs/architecture.md)
 - [威胁模型](docs/threat-model.md)
+- [Hub 认证配置与迁移](docs/hub-authentication.md)
 - [质量门禁](docs/quality-gates.md)
 - [开发与验收](docs/development.md)
 - [实施路线](docs/roadmap.md)

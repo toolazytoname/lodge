@@ -14,7 +14,7 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 ## M1 — Hub security
 
 - [ ] Tailnet-only management deployment procedure
-- [ ] Slow password verifier and independent session secret
+- [x] Slow password verifier and independent session secret
 - [x] Secure session cookie and CSRF protection
 - [x] Strict URL and annotation validation
 - [x] Safe DOM rendering and restrictive security headers

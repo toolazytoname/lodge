@@ -1,7 +1,7 @@
 {
-  "_comment": "lodge-hub 配置示例。复制为 /etc/lodge-hub/config.json 并填真实值（0600，勿提交）。",
+  "_comment": "lodge-hub 配置示例。复制为 /etc/lodge-hub/config.json 并填真实值（0600，勿提交）。用 read -rsp 'Lodge password: ' LODGE_NEW_PASSWORD; printf '%s\\n' \"$LODGE_NEW_PASSWORD\" | lodge-hub --hash-password 生成 passwordHash，随后 unset LODGE_NEW_PASSWORD。",
   "_comment_agents": "url 用 agent 的 tailscale serve 地址（同机可用 http://127.0.0.1:9101）；token 与 agent 的 /etc/lodge-agent/token 一致；publicHost 是点服务直达用的公网主机（域名/IP）",
-  "password": "换成你自己的强密码",
+  "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$<salt>$<hash>",
   "agents": [
     {
       "id": "machine-a",

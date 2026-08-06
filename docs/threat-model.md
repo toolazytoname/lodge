@@ -52,7 +52,8 @@
 ### Secrets
 
 - Secrets never appear in API payloads, logs, operation output, screenshots, or Git.
-- Config files containing Agent credentials are mode `0600` and root-owned.
+- Config files containing Agent credentials are mode `0600` and owned only by
+  the dedicated Hub service account (or delivered as systemd credentials).
 - Vault functionality is not claimed until its browser cryptography, recovery model, and compromise boundaries are independently documented and tested.
 
 ## Release review

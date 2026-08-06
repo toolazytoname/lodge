@@ -1,5 +1,11 @@
 # Development and delivery
 
+## Toolchain
+
+Use Go 1.25.12 or newer. This patch-level floor excludes known standard-library
+vulnerabilities in earlier releases. CI uses the latest Go 1.26.x patch and
+production artifacts must be built by the same supported toolchain family.
+
 ## Local checks
 
 ```bash
