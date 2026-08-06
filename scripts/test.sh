@@ -28,6 +28,7 @@ step "deployment scripts"
 bash -n deploy/*.sh scripts/*.sh
 bash scripts/test-tailnet-management.sh
 bash scripts/test-install-hub.sh
+bash scripts/test-install-agent.sh
 
 step "browser JavaScript syntax"
 node --check internal/hub/web/app.js

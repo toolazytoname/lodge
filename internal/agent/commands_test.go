@@ -37,14 +37,14 @@ func TestGenerateSudoers(t *testing.T) {
 	if !strings.Contains(out, `--format {{json\ .}}`) {
 		t.Errorf("sudoers 未正确转义 docker format 空格:\n%s", out)
 	}
-	if !strings.Contains(out, "Cmnd_Alias LODGE_READ =") {
-		t.Errorf("缺少 LODGE_READ 别名:\n%s", out)
+	if strings.Contains(out, "Cmnd_Alias") {
+		t.Errorf("不应定义可能与重复 includedir 冲突的全局别名:\n%s", out)
 	}
-	if !strings.Contains(out, "Cmnd_Alias LODGE_WRITE =") {
-		t.Errorf("缺少 LODGE_WRITE 别名:\n%s", out)
+	if strings.Count(out, "lodge ALL=(root) NOPASSWD:") != 2 {
+		t.Errorf("读写命令应分别生成直接授权行:\n%s", out)
 	}
-	if !strings.Contains(out, "lodge ALL=(root) NOPASSWD: LODGE_READ, LODGE_WRITE") {
-		t.Errorf("缺少授权行:\n%s", out)
+	if !strings.Contains(out, "# 只读采集") || !strings.Contains(out, "# 受控写操作") {
+		t.Errorf("缺少读写边界注释:\n%s", out)
 	}
 	// 多条命令之间应有逗号分隔
 	if strings.Count(out, "/usr/bin/docker ps") != 1 {
@@ -53,6 +53,13 @@ func TestGenerateSudoers(t *testing.T) {
 	// 不能有尾随的续行符（\ 后直接换行再 EOF）
 	if strings.HasSuffix(strings.TrimSpace(out), "\\") {
 		t.Errorf("文件以续行符结尾:\n%s", out)
+	}
+}
+
+func TestGenerateSudoersOmitsEmptyCommandClass(t *testing.T) {
+	out := GenerateSudoers([][]string{{"/usr/bin/ss", "-tlnpH"}}, nil)
+	if strings.Count(out, "lodge ALL=(root) NOPASSWD:") != 1 || strings.Contains(out, "# 受控写操作") {
+		t.Fatalf("empty command class generated an authorization spec:\n%s", out)
 	}
 }
 

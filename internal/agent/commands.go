@@ -137,40 +137,32 @@ func formatSudoersLine(argv []string) string {
 }
 
 // GenerateSudoers 把已解析为绝对路径的读写命令渲染成完整的 sudoers 文件内容。
-// 纯函数，便于测试。
+// 直接写 user specification，不定义全局 Alias：这样即使某台旧机器错误地
+// 重复 includedir，也不会发生 Alias 重定义并污染每次 sudo 调用。
 func GenerateSudoers(read, write [][]string) string {
 	var b strings.Builder
 	b.WriteString("# /etc/sudoers.d/lodge-agent\n")
 	b.WriteString("# 由 `lodge-agent --print-sudoers` 生成，请勿手改。\n")
-	b.WriteString("# 与 agent 二进制内部的命令逐字对应，手改会导致 sudo 拒绝执行。\n\n")
-
-	b.WriteString("Cmnd_Alias LODGE_READ = \\\n")
-	for i, argv := range read {
-		b.WriteString("    " + formatSudoersLine(argv))
-		if i < len(read)-1 {
-			b.WriteString(",")
-		}
-		b.WriteString(" \\\n")
-	}
-	// 最后一条后的续行符需要去掉，换成换行；上面循环给每行都加了 \，此处修正末行。
-	out := strings.TrimSuffix(b.String(), " \\\n") + "\n"
-	b.Reset()
-	b.WriteString(out)
-
-	b.WriteString("\nCmnd_Alias LODGE_WRITE = \\\n")
-	for i, argv := range write {
-		b.WriteString("    " + formatSudoersLine(argv))
-		if i < len(write)-1 {
-			b.WriteString(",")
-		}
-		b.WriteString(" \\\n")
-	}
-	out = strings.TrimSuffix(b.String(), " \\\n") + "\n"
-	b.Reset()
-	b.WriteString(out)
-
-	b.WriteString("\nlodge ALL=(root) NOPASSWD: LODGE_READ, LODGE_WRITE\n")
+	b.WriteString("# 与 agent 二进制内部的命令逐字对应，手改会导致 sudo 拒绝执行。\n")
+	writeSudoersSpec(&b, "只读采集", read)
+	writeSudoersSpec(&b, "受控写操作", write)
 	return b.String()
+}
+
+func writeSudoersSpec(b *strings.Builder, description string, commands [][]string) {
+	if len(commands) == 0 {
+		return
+	}
+	b.WriteString("\n# " + description + "\n")
+	b.WriteString("lodge ALL=(root) NOPASSWD: \\\n")
+	for index, argv := range commands {
+		b.WriteString("    " + formatSudoersLine(argv))
+		if index < len(commands)-1 {
+			b.WriteString(", \\\n")
+		} else {
+			b.WriteByte('\n')
+		}
+	}
 }
 
 // PrintSudoers 解析当前机器上的命令路径并生成 sudoers 内容。

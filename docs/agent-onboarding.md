@@ -16,7 +16,8 @@ each server:
    checksum before installation;
 3. run `deploy/install-agent.sh`, then confirm the `lodge` account has no
    privileged groups, the service is active, `--check` succeeds, and the token
-   is owner-only;
+   is owner-only; the installer validates both the generated sudoers candidate
+   and the complete host policy, restoring the prior Lodge policy on failure;
 4. run `deploy/tailnet-management.sh apply agent`, verify Tailscale Funnel is
    disabled, and test port 8443 from the Hub;
 5. transfer the token as an owner-only file, atomically add it to the Hub

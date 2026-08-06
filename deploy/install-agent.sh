@@ -76,23 +76,37 @@ fi
 # ── 4. sudoers（从二进制生成，单一真相来源）──────────────
 # lodge-agent --print-sudoers 在本机 LookPath 出 docker/ss 的真实路径，
 # 渲染成与 agent 内部命令逐字对应的 sudoers。
-SUDOERS="$INSTALL_DIR/lodge-agent --print-sudoers"
 SUDOERS_FILE="/etc/sudoers.d/lodge-agent"
 TMP_SUDOERS="$(mktemp)"
+SUDOERS_BACKUP="$(mktemp)"
+SUDOERS_EXISTED=0
 if ! "$INSTALL_DIR/lodge-agent" --print-sudoers > "$TMP_SUDOERS"; then
-  rm -f "$TMP_SUDOERS"
+  rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
   err "生成 sudoers 失败（agent --print-sudoers 报错，多半是本机缺 docker/ss 等命令）"
 fi
 # 先用 visudo 校验语法，再落地，避免坏 sudoers 卡死系统
 if command -v visudo >/dev/null; then
   if ! visudo -cf "$TMP_SUDOERS" >/dev/null; then
-    rm -f "$TMP_SUDOERS"
+    rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
     err "visudo 校验失败，未写入 sudoers"
   fi
 fi
+if [ -f "$SUDOERS_FILE" ]; then
+  cp -p -- "$SUDOERS_FILE" "$SUDOERS_BACKUP"
+  SUDOERS_EXISTED=1
+fi
 install -m 0440 -o root -g root "$TMP_SUDOERS" "$SUDOERS_FILE"
-rm -f "$TMP_SUDOERS"
-info "sudoers → $SUDOERS_FILE（由 agent 生成并经 visudo 校验）"
+if command -v visudo >/dev/null && ! visudo -c >/dev/null; then
+  if [ "$SUDOERS_EXISTED" -eq 1 ]; then
+    install -m 0440 -o root -g root "$SUDOERS_BACKUP" "$SUDOERS_FILE"
+  else
+    rm -f -- "$SUDOERS_FILE"
+  fi
+  rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
+  err "完整 sudoers 策略校验失败，已恢复安装前策略"
+fi
+rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
+info "sudoers → $SUDOERS_FILE（候选文件与完整策略均经 visudo 校验）"
 
 # ── 5. systemd unit ───────────────────────────────────────
 install -m 0644 "$UNIT_SRC" "$UNIT_DST"
