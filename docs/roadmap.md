@@ -15,10 +15,10 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 
 - [ ] Tailnet-only management deployment procedure
 - [ ] Slow password verifier and independent session secret
-- [ ] Secure session cookie and CSRF protection
-- [ ] Strict URL and annotation validation
-- [ ] Safe DOM rendering and restrictive security headers
-- [ ] Authentication, CSRF, URL, and injection regression tests
+- [x] Secure session cookie and CSRF protection
+- [x] Strict URL and annotation validation
+- [x] Safe DOM rendering and restrictive security headers
+- [x] CSRF, URL, injection, static-asset, and header regression tests
 
 ## M2 — Durable domain model
 

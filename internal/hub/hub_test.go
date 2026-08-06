@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,12 @@ import (
 
 	"github.com/toolazytoname/lodge/internal/shared"
 )
+
+func newJSONRequest(method, target, body string) *http.Request {
+	r := httptest.NewRequest(method, target, strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	return r
+}
 
 func TestJoinServices(t *testing.T) {
 	services := []shared.Service{
@@ -202,8 +209,7 @@ func TestServerAuthGate(t *testing.T) {
 	}
 
 	// 登录
-	body := strings.NewReader(`{"password":"pw"}`)
-	r = httptest.NewRequest("POST", "/api/login", body)
+	r = newJSONRequest("POST", "/api/login", `{"password":"pw"}`)
 	w = httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	if w.Code != http.StatusOK {
@@ -218,6 +224,10 @@ func TestServerAuthGate(t *testing.T) {
 	if setCookie == "" {
 		t.Fatal("登录未下发会话 cookie")
 	}
+	loginCookie := w.Result().Cookies()[0]
+	if !loginCookie.Secure || !loginCookie.HttpOnly || loginCookie.SameSite != http.SameSiteStrictMode {
+		t.Errorf("会话 cookie 缺少安全属性: %+v", loginCookie)
+	}
 
 	// 带 cookie 访问受保护 API → 200
 	r = httptest.NewRequest("GET", "/api/agents", nil)
@@ -229,7 +239,7 @@ func TestServerAuthGate(t *testing.T) {
 	}
 
 	// 错密码登录 → 401
-	r = httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"wrong"}`))
+	r = newJSONRequest("POST", "/api/login", `{"password":"wrong"}`)
 	w = httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	if w.Code != http.StatusUnauthorized {
@@ -253,7 +263,7 @@ func TestLoginRateLimit(t *testing.T) {
 
 	// 阈值内不锁，正常 401；第 threshold+1 次失败触发锁定
 	for i := 0; i < rateLimitThreshold+1; i++ {
-		r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"wrong"}`))
+		r := newJSONRequest("POST", "/api/login", `{"password":"wrong"}`)
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, r)
 		if w.Code != http.StatusUnauthorized {
@@ -262,7 +272,7 @@ func TestLoginRateLimit(t *testing.T) {
 	}
 
 	// 已锁定，即使密码正确也拒绝
-	r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"pw"}`))
+	r := newJSONRequest("POST", "/api/login", `{"password":"pw"}`)
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	if w.Code != http.StatusTooManyRequests {
@@ -278,23 +288,159 @@ func TestLoginRateLimitResetsOnSuccess(t *testing.T) {
 
 	// 若干次失败但不到阈值
 	for i := 0; i < rateLimitThreshold-1; i++ {
-		r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"wrong"}`))
+		r := newJSONRequest("POST", "/api/login", `{"password":"wrong"}`)
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, r)
 	}
 	// 登录成功
-	r := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"pw"}`))
+	r := newJSONRequest("POST", "/api/login", `{"password":"pw"}`)
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("登录应成功，得到 %d", w.Code)
 	}
 	// 成功后失败计数应清零，之后错密码不会立刻被锁
-	r = httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"wrong"}`))
+	r = newJSONRequest("POST", "/api/login", `{"password":"wrong"}`)
 	w = httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("成功登录后失败计数应重置，得到 %d", w.Code)
+	}
+}
+
+func loginSession(t *testing.T, s *Server, password string) (*http.Cookie, string) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, newJSONRequest(http.MethodPost, "/api/login", fmt.Sprintf(`{"password":%q}`, password)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("登录失败: HTTP %d %s", w.Code, w.Body.String())
+	}
+	var cookie *http.Cookie
+	for _, candidate := range w.Result().Cookies() {
+		if candidate.Name == cookieName {
+			cookie = candidate
+			break
+		}
+	}
+	if cookie == nil {
+		t.Fatal("登录未设置会话 cookie")
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/session", nil)
+	r.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("会话查询失败: HTTP %d", w.Code)
+	}
+	var session struct {
+		Authed    bool   `json:"authed"`
+		CSRFToken string `json:"csrfToken"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &session); err != nil {
+		t.Fatal(err)
+	}
+	if !session.Authed || session.CSRFToken == "" {
+		t.Fatalf("会话缺少认证或 CSRF token: %+v", session)
+	}
+	return cookie, session.CSRFToken
+}
+
+func TestAnnotationRequiresCSRFAndValidatesURL(t *testing.T) {
+	store := NewMemStore("")
+	store.SetAgents([]AgentConfig{{ID: "host-a", Name: "host-a", URL: "http://agent"}})
+	s := NewServer(store, "pw")
+	cookie, token := loginSession(t, s, "pw")
+	target := "/api/annotation?agent=host-a&key=systemd:caddy.service"
+
+	request := newJSONRequest(http.MethodPost, target, `{"url":"https://admin.example.test"}`)
+	request.AddCookie(cookie)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, request)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("缺少 CSRF token 应拒绝，得到 HTTP %d", w.Code)
+	}
+
+	request = newJSONRequest(http.MethodPost, target, `{"url":"javascript:alert(1)"}`)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", token)
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, request)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("危险 URL 应拒绝，得到 HTTP %d", w.Code)
+	}
+
+	request = newJSONRequest(http.MethodPost, target, `{"url":"https://admin.example.test","unexpected":true}`)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", token)
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, request)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("未知 JSON 字段应拒绝，得到 HTTP %d", w.Code)
+	}
+
+	request = newJSONRequest(http.MethodPost, target, `{"url":"https://admin.example.test/path"}`)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", token)
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, request)
+	if w.Code != http.StatusOK {
+		t.Fatalf("合法注解应保存，得到 HTTP %d %s", w.Code, w.Body.String())
+	}
+	if got := store.Annotations("host-a")["systemd:caddy.service"].URL; got != "https://admin.example.test/path" {
+		t.Errorf("保存 URL 错误: %q", got)
+	}
+}
+
+func TestAnnotationRejectsUnknownAgentAndOversizedBody(t *testing.T) {
+	store := NewMemStore("")
+	store.SetAgents([]AgentConfig{{ID: "host-a", URL: "http://agent"}})
+	s := NewServer(store, "")
+
+	request := newJSONRequest(http.MethodPost, "/api/annotation?agent=missing&key=port:tcp/80", `{"url":"https://example.test"}`)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, request)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("未知 agent 应返回 404，得到 %d", w.Code)
+	}
+
+	large := `{"notes":"` + strings.Repeat("x", maxAnnotationBodyBytes) + `"}`
+	request = newJSONRequest(http.MethodPost, "/api/annotation?agent=host-a&key=port:tcp/80", large)
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, request)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("超大 body 应返回 413，得到 %d", w.Code)
+	}
+}
+
+func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
+	s := NewServer(NewMemStore(""), "")
+	for _, path := range []string{"/", "/app.css", "/app.js", "/api/session"} {
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s: HTTP %d", path, w.Code)
+		}
+		if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Errorf("GET %s 缺少 nosniff", path)
+		}
+		csp := w.Header().Get("Content-Security-Policy")
+		if csp == "" || strings.Contains(csp, "unsafe-inline") {
+			t.Errorf("GET %s CSP 不严格: %q", path, csp)
+		}
+	}
+
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	html := w.Body.String()
+	if strings.Contains(html, "onclick=") || strings.Contains(html, "<style") {
+		t.Errorf("HTML 不应包含 CSP 无法约束的内联代码")
+	}
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/app.js", nil))
+	js := w.Body.String()
+	if strings.Contains(js, ".innerHTML") || strings.Contains(js, "insertAdjacentHTML") {
+		t.Errorf("前端不得用 HTML 字符串渲染不可信数据")
 	}
 }
 

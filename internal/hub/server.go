@@ -4,15 +4,28 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
+	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/toolazytoname/lodge/internal/shared"
 )
 
-//go:embed web/index.html
+//go:embed web/*
 var webFS embed.FS
+
+const (
+	maxAnnotationBodyBytes = 16 << 10
+	maxAgentIDBytes        = 128
+	maxServiceKeyBytes     = 512
+	maxAliasRunes          = 120
+	maxNotesRunes          = 4000
+	maxURLBytes            = 2048
+)
 
 // Server 是 hub 的 HTTP 服务，给前端提供 API。
 // 设了 password 即对所有 /api/*（登录/会话查询除外）强制会话认证。
@@ -27,19 +40,15 @@ func NewServer(store Store, password string) *Server {
 	s := &Server{store: store, password: password, limiter: newLoginLimiter()}
 	s.mux = http.NewServeMux()
 
-	// 公开路由：登录、会话查询、前端页面。
+	// 公开路由：登录、会话查询、前端静态资源。
 	s.mux.HandleFunc("/api/login", s.handleLogin)
 	s.mux.HandleFunc("/api/logout", s.handleLogout)
 	s.mux.HandleFunc("/api/session", s.handleSession)
-	html, _ := fs.ReadFile(webFS, "web/index.html")
-	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(html)
-	})
+	staticFS, err := fs.Sub(webFS, "web")
+	if err != nil {
+		panic("加载内嵌前端失败: " + err.Error())
+	}
+	s.mux.Handle("/", http.FileServer(http.FS(staticFS)))
 
 	// 受保护路由：需登录。
 	s.mux.HandleFunc("/api/agents", s.auth(s.agents))
@@ -49,7 +58,20 @@ func NewServer(store Store, password string) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	setSecurityHeaders(w)
 	s.mux.ServeHTTP(w, r)
+}
+
+// setSecurityHeaders applies to HTML, assets, and API responses so an error path
+// cannot silently lose the browser security boundary.
+func setSecurityHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'")
+	w.Header().Set("Permissions-Policy", "camera=(), geolocation=(), microphone=()")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
 }
 
 // RunCleanup 后台定期清理登录限速的陈旧记录，ctx 取消时退出。
@@ -64,8 +86,16 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 			writeJSONHub(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
+		if isStateChanging(r.Method) && !s.validCSRF(r) {
+			writeJSONHub(w, http.StatusForbidden, map[string]string{"error": "csrf"})
+			return
+		}
 		h(w, r)
 	}
+}
+
+func isStateChanging(method string) bool {
+	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
 }
 
 // agentsResponse 是 /api/agents 的响应：每台机器的在线状态 + 指标摘要。
@@ -84,6 +114,9 @@ type agentSummary struct {
 }
 
 func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	snaps := s.store.Snapshot()
 	out := make([]agentSummary, 0, len(snaps))
 	for _, sn := range snaps {
@@ -113,6 +146,9 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) services(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	agentID := r.URL.Query().Get("agent")
 	snaps := s.store.Snapshot()
 	hostByID := map[string]string{}
@@ -138,23 +174,111 @@ func (s *Server) services(w http.ResponseWriter, r *http.Request) {
 // annotation POST /api/annotation?agent=<id>&key=<key>
 // body: {alias,url,hidden,notes} —— 设置某服务的注解（点服务直达的 URL 在此）。
 func (s *Server) annotation(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeJSONHub(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST"})
+	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
 	agentID := r.URL.Query().Get("agent")
 	key := r.URL.Query().Get("key")
-	if agentID == "" || key == "" {
+	if agentID == "" || key == "" || len(agentID) > maxAgentIDBytes || len(key) > maxServiceKeyBytes {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "需要 agent 和 key"})
 		return
 	}
+	if !s.hasAgent(agentID) {
+		writeJSONHub(w, http.StatusNotFound, map[string]string{"error": "unknown agent"})
+		return
+	}
+	if !hasJSONContentType(r) {
+		writeJSONHub(w, http.StatusUnsupportedMediaType, map[string]string{"error": "Content-Type 必须是 application/json"})
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxAnnotationBodyBytes)
 	var ann Annotation
-	if err := json.NewDecoder(r.Body).Decode(&ann); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&ann); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeJSONHub(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "body too large"})
+			return
+		}
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "bad json"})
 		return
 	}
-	s.store.SetAnnotation(agentID, key, ann)
+	if err := ensureJSONEOF(dec); err != nil {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "bad json"})
+		return
+	}
+	normalized, err := validateAnnotation(ann)
+	if err != nil {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.store.SetAnnotation(agentID, key, normalized)
 	writeJSONHub(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) hasAgent(id string) bool {
+	for _, agent := range s.store.Agents() {
+		if agent.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method == method {
+		return true
+	}
+	w.Header().Set("Allow", method)
+	writeJSONHub(w, http.StatusMethodNotAllowed, map[string]string{"error": method})
+	return false
+}
+
+func validateAnnotation(ann Annotation) (Annotation, error) {
+	ann.Alias = strings.TrimSpace(ann.Alias)
+	ann.URL = strings.TrimSpace(ann.URL)
+	ann.Notes = strings.TrimSpace(ann.Notes)
+	if !utf8.ValidString(ann.Alias) || !utf8.ValidString(ann.Notes) || !utf8.ValidString(ann.URL) {
+		return Annotation{}, errors.New("annotation must be valid UTF-8")
+	}
+	if utf8.RuneCountInString(ann.Alias) > maxAliasRunes {
+		return Annotation{}, errors.New("alias too long")
+	}
+	if utf8.RuneCountInString(ann.Notes) > maxNotesRunes {
+		return Annotation{}, errors.New("notes too long")
+	}
+	if len(ann.URL) > maxURLBytes {
+		return Annotation{}, errors.New("url too long")
+	}
+	if ann.URL == "" {
+		return ann, nil
+	}
+	u, err := url.Parse(ann.URL)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return Annotation{}, errors.New("url must be an absolute http/https URL without credentials")
+	}
+	ann.URL = u.String()
+	return ann, nil
+}
+
+func ensureJSONEOF(dec *json.Decoder) error {
+	var extra interface{}
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return errors.New("multiple JSON values")
+		}
+		return err
+	}
+	return nil
+}
+
+func hasJSONContentType(r *http.Request) bool {
+	contentType := r.Header.Get("Content-Type")
+	if semi := strings.IndexByte(contentType, ';'); semi >= 0 {
+		contentType = contentType[:semi]
+	}
+	return strings.EqualFold(strings.TrimSpace(contentType), "application/json")
 }
 
 func writeJSONHub(w http.ResponseWriter, code int, v interface{}) {

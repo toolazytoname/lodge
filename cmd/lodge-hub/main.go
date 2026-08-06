@@ -53,7 +53,14 @@ func main() {
 
 	srv := hub.NewServer(store, password)
 	go srv.RunCleanup(ctx)
-	httpSrv := &http.Server{Addr: *addr, Handler: srv}
+	httpSrv := &http.Server{
+		Addr:              *addr,
+		Handler:           srv,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 
 	// 优雅关闭
 	go func() {

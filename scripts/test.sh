@@ -27,6 +27,9 @@ go test -race ./...
 step "deployment scripts"
 bash -n deploy/install-agent.sh
 
+step "browser JavaScript syntax"
+node --check internal/hub/web/app.js
+
 step "quality scorecard schema"
 python3 -m json.tool quality/scorecard.json >/dev/null
 
