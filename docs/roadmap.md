@@ -9,11 +9,11 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 - [x] Local deterministic quality gate
 - [x] GitHub CI on a supported Go toolchain
 - [x] Vulnerability scanning
-- [ ] Verify the first pushed CI run
+- [x] Verify the first pushed CI run
 
 ## M1 — Hub security
 
-- [ ] Tailnet-only management deployment procedure
+- [x] Tailnet-only management deployment procedure
 - [x] Slow password verifier and independent session secret
 - [x] Secure session cookie and CSRF protection
 - [x] Strict URL and annotation validation

@@ -1,0 +1,38 @@
+// Merge these sections into the existing tailnet policy. Replace the operator
+// identity before saving. Grants are additive: remove a broad allow-all rule
+// after verifying these narrow rules, because a narrow rule cannot override it.
+{
+  "groups": {
+    "group:lodge-operators": [
+      "replace-with-your-login@example.com",
+    ],
+  },
+
+  "tagOwners": {
+    "tag:lodge-hub": ["autogroup:admin"],
+    "tag:lodge-agent": ["autogroup:admin"],
+  },
+
+  "grants": [
+    // Operator browsers can reach the private Hub UI.
+    {
+      "src": ["group:lodge-operators"],
+      "dst": ["tag:lodge-hub"],
+      "ip": ["tcp:10000"],
+    },
+
+    // The Hub is the only node allowed to scrape Agent APIs.
+    {
+      "src": ["tag:lodge-hub"],
+      "dst": ["tag:lodge-agent"],
+      "ip": ["tcp:8443"],
+    },
+
+    // Operators retain an SSH recovery path over Tailscale.
+    {
+      "src": ["group:lodge-operators"],
+      "dst": ["tag:lodge-hub", "tag:lodge-agent"],
+      "ip": ["tcp:22"],
+    },
+  ],
+}

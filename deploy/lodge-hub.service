@@ -8,7 +8,8 @@ Wants=network-online.target
 Type=simple
 User=lodge
 Group=lodge
-ExecStart=/usr/local/bin/lodge-hub --addr 127.0.0.1:9102 --config /etc/lodge-hub/config.json --state /etc/lodge-hub/state.json
+UMask=0077
+ExecStart=/usr/local/bin/lodge-hub --addr 127.0.0.1:9102 --config /etc/lodge-hub/config.json --state /etc/lodge-hub/state.json --session-secret /etc/lodge-hub/session-secret
 Restart=on-failure
 RestartSec=5s
 
@@ -17,6 +18,14 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
 ReadWritePaths=/etc/lodge-hub
 
 [Install]

@@ -127,6 +127,6 @@ fi
 echo
 echo "▸ 完成。下一步："
 echo "    1. 读 token：sudo cat $TOKEN_FILE"
-echo "    2. 暴露到 tailnet：sudo tailscale serve --bg --http=8443 http://127.0.0.1:9101"
+echo "    2. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
 echo "    3. 验证：curl -H \"Authorization: Bearer \$(sudo cat $TOKEN_FILE)\" \\"
 echo "              http://\$(hostname).<你的tailnet>.ts.net:8443/v1/ping"

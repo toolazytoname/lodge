@@ -8,6 +8,7 @@ Wants=network-online.target
 Type=simple
 User=lodge
 Group=lodge
+UMask=0077
 
 ExecStart=/usr/local/bin/lodge-agent --addr 127.0.0.1:9101 --token-file /etc/lodge-agent/token
 Restart=on-failure
@@ -24,6 +25,14 @@ RestartSec=5s
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
 # token 落在 /etc/lodge-agent，agent 首次启动时写入；其余路径只读。
 ReadWritePaths=/etc/lodge-agent
 

@@ -69,6 +69,7 @@ quality/            可量化质量基线与目标
 - [架构](docs/architecture.md)
 - [威胁模型](docs/threat-model.md)
 - [Hub 认证配置与迁移](docs/hub-authentication.md)
+- [Tailnet-only 部署](docs/tailnet-deployment.md)
 - [质量门禁](docs/quality-gates.md)
 - [开发与验收](docs/development.md)
 - [实施路线](docs/roadmap.md)

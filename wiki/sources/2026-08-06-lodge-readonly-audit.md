@@ -26,7 +26,7 @@ sources:
 
 - bytedragon 运行 Lodge hub 与 agent。
 - bytebunny、Ali 运行 Lodge agent，并通过 tailnet-only 的 Tailscale Serve 暴露 agent。
-- bytedragon 的 Hub 通过 Tailscale Funnel 公开在互联网：`https://bytedragon.tail7b8be9.ts.net:10000`。
+- 审计时 bytedragon 的 Hub 通过 Tailscale Funnel 公开在互联网；此状态已在下方的 M1 修复记录中收口。
 - Hub 登录密码已设置；agent token 和 Hub 密码仍以明文保存在 root 可读配置中。
 
 ## Lodge 当前看到的资产
@@ -78,6 +78,19 @@ sources:
 7. systemd 发现只覆盖有监听端口的单元；`user@0.service` 会把多个用户进程合并，无法准确回答“具体跑着什么”。
 8. 常见端口自动猜 URL 会给 Tailscale agent 等基础设施生成误导链接，反向代理域名也无法从端口推断。
 9. agent 固定动作尚未被 Hub 转发；未来不能简单开放任意命令或通配 sudoers。
+
+## 2026-08-07 M1 修复记录
+
+- 在保留独立 SSH 恢复连接的前提下，将 bytedragon 的 Hub 10000 从
+  Tailscale Funnel 切换为 tailnet-only HTTPS Serve。
+- 变更前状态保存于服务器的 owner-only
+  `/var/lib/lodge/tailscale-backups/20260806T213623Z-3779055/`。
+- 变更后 `AllowFunnel` 条目数为 0，Serve 精确代理
+  `http://127.0.0.1:9102`，Hub 与 Agent 仍只监听 loopback。
+- 本机 Tailscale 从 Stopped 恢复为 Running 后，可通过 Tailnet 请求
+  `/api/session` 并得到 `{"authed":false}`；公网 Funnel 未恢复。
+- 该记录证明公网管理端点由 1 降为 0；细粒度 grants 仍需按
+  `docs/tailnet-deployment.md` 在管理控制台验证。
 
 ## 外部参考
 

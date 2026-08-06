@@ -25,7 +25,8 @@ step "race detector"
 go test -race ./...
 
 step "deployment scripts"
-bash -n deploy/install-agent.sh
+bash -n deploy/*.sh scripts/*.sh
+bash scripts/test-tailnet-management.sh
 
 step "browser JavaScript syntax"
 node --check internal/hub/web/app.js

@@ -17,11 +17,11 @@
       "id": "public_management_endpoints",
       "dimension": "security",
       "name": "Public management endpoints",
-      "current": 1,
+      "current": 0,
       "target": 0,
       "unit": "endpoints",
       "direction": "decrease",
-      "evidence": "Tailscale Funnel status"
+      "evidence": "Live Tailscale Funnel and Serve status on 2026-08-07"
     },
     {
       "id": "reachable_go_vulnerabilities",
