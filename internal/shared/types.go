@@ -18,7 +18,9 @@ const (
 	ExposureLocal Exposure = "local"
 	// ExposureTailnet 仅 tailnet 内可达（100.64.0.0/10 / fd7a:115c:a1e0::/48）。
 	ExposureTailnet Exposure = "tailnet"
-	// ExposurePublic 绑定全部网卡（0.0.0.0 / :: / *），公网可达。UI 高亮置顶。
+	// ExposurePublic is a legacy wire value for a wildcard bind
+	// (0.0.0.0 / :: / *). It does not prove internet reachability; the Hub
+	// projects it to domain.BindingWildcard and requires separate evidence.
 	ExposurePublic Exposure = "public"
 	// ExposureOther 绑定某个具体的非回环、非 tailnet 地址，需人工判断。
 	ExposureOther Exposure = "other"

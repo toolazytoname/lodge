@@ -31,7 +31,14 @@ The browser remains the product client. No native desktop client is required.
 - **Event**: a meaningful transition derived from observations.
 - **Operation**: a requested, authorized, executed, and audited state change.
 
-Binding and reachability are separate. `0.0.0.0:PORT` means `bound-public`; only an external probe or authoritative firewall/provider evidence can produce `confirmed-public`.
+Binding and reachability are separate. `0.0.0.0:PORT` means `wildcard-bound`;
+only an external probe or authoritative firewall/provider evidence can produce
+confirmed public reachability.
+
+These contracts live in `internal/domain`. Agent `/v1` payloads are wire
+contracts, not database or UI models; `internal/hub/projectObservation`
+translates them and rejects duplicate identities, cross-host references,
+invalid endpoints, and unevidenced reachability claims.
 
 ## Package direction
 
