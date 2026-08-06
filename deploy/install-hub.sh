@@ -209,4 +209,3 @@ rm -f -- "$candidate_binary"
 info "Hub deployment verified"
 info "Rollback bundle: $rollback_directory"
 info "Post-deploy SQLite backup: $post_backup"
-
