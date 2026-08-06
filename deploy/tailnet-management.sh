@@ -151,6 +151,29 @@ raise SystemExit(0 if valid else 1)
   info "PASS: $role is loopback-bound and available through tailnet-only $serve_protocol Serve on $serve_port"
 }
 
+conflicting_serve_flag() {
+  serve_status | python3 -c '
+import json, sys
+serve_port, local_port, mode = sys.argv[1:]
+status = json.load(sys.stdin)
+tcp = status.get("TCP", {}).get(serve_port, {})
+web = status.get("Web", {})
+http_target = "http://127.0.0.1:" + local_port
+tcp_target = "127.0.0.1:" + local_port
+old_http_targets_agent = tcp.get("HTTP") is True and any(
+    key.endswith(":" + serve_port)
+    and any(handler.get("Proxy") == http_target for handler in value.get("Handlers", {}).values())
+    for key, value in web.items()
+)
+if mode == "tcp" and old_http_targets_agent:
+    print("--http")
+elif mode == "web" and tcp.get("TCPForward") == tcp_target:
+    print("--tcp")
+else:
+    raise SystemExit(1)
+' "$serve_port" "$local_port" "$serve_mode"
+}
+
 if [ "$action" = check ]; then
   verify_private_serve
   exit 0
@@ -169,6 +192,10 @@ info "Saved pre-change status to $backup_run"
 if funnel_enabled_on_port; then
   tailscale funnel "$funnel_flag=$serve_port" off
   info "Disabled public Funnel on management port $serve_port"
+fi
+if old_serve_flag="$(conflicting_serve_flag)"; then
+  tailscale serve "$old_serve_flag=$serve_port" off
+  info "Disabled prior Lodge Serve mode on management port $serve_port"
 fi
 case "$serve_mode" in
   web) serve_target="http://127.0.0.1:$local_port" ;;

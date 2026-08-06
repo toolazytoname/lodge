@@ -75,7 +75,9 @@ sudo deploy/tailnet-management.sh apply agent 9101 8443
 
 Every apply writes owner-only pre-change evidence under
 `/var/lib/lodge/tailscale-backups/<UTC>-<pid>/`. It intentionally never restores
-a public Funnel automatically.
+a public Funnel automatically. When an older Lodge Agent route uses HTTP Serve,
+the helper verifies that it points to the expected loopback Agent before
+disabling that exact route and replacing it with TCP forwarding.
 
 ## Verification
 
