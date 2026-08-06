@@ -1,17 +1,27 @@
 {
   "version": 1,
   "measuredAt": "2026-08-07",
-  "scope": "Lodge M0 baseline",
+  "scope": "Lodge live delivery scorecard",
   "metrics": [
     {
       "id": "managed_hosts",
       "dimension": "product",
       "name": "Managed unique hosts",
-      "current": 3,
+      "current": 5,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Sanitized hub snapshot"
+      "evidence": "Live SQLite latest observations: 5 configured and 5 online on 2026-08-07"
+    },
+    {
+      "id": "known_workload_attribution_percent",
+      "dimension": "product",
+      "name": "Known workload attribution",
+      "current": 80.4,
+      "target": 95,
+      "unit": "percent",
+      "direction": "increase",
+      "evidence": "Live latest observations: 41 known of 51 workloads across 5 hosts on 2026-08-07"
     },
     {
       "id": "public_management_endpoints",
@@ -107,11 +117,11 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": null,
+      "current": 14,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "To be measured after history storage"
+      "evidence": "Point-in-time live SQLite measurement across 5 hosts on 2026-08-07"
     },
     {
       "id": "risk_detection_seconds",

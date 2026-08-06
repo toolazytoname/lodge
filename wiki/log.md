@@ -40,3 +40,14 @@
 - SQLite schema 2 完整性为 `ok`；3 台已配置主机首轮写入 3 条观测，第二轮增至 9，删除旧状态并重启后增至 12，3 台最新观测均在线。
 - 旧 `state.json` 的摘要导入记录完成后，从 live 路径删除；其 owner-only 可恢复副本保留在回滚包内。post-deploy 一致性备份为 `/var/lib/lodge-hub/backups/post-deploy-20260806T225040Z-3787473.db`。
 - Tailnet 会话 API 正常、受保护 API 未认证返回 401、Tailscale `AllowFunnel` 保持 0。`history_retention_days` 运行时指标由 0 更新为 30。
+
+## [2026-08-07] deployment | 五台服务器全量纳管
+
+- Hub 先部署安全 Agent upsert CLI，生成 root-only 回滚包和一致性 SQLite 备份；配置继续使用 Argon2id、`lodge:lodge 0600`，未认证 API 返回 401。
+- tencent、banwagong 使用同一枚 Go 1.26.5、CGo-free x86-64 Agent，SHA-256 为 `35f22e2cc8cfd3a04ebc345e3d5402277c3b34972bb6d431a2000a3093bccd64`。
+- 两台 Agent 均以 nologin `lodge` 用户运行，不在特权组，token 为 `0600`；真实服务进程 `NoNewPrivs=0`，固定 sudoers 无越权，服务上下文采集无 sudo 警告。
+- Agent 使用 Tailnet-only TCP Serve `8443 → 127.0.0.1:9101`，Funnel 关闭；原有 tencent Caddy 与 banwagong Xray 公网监听保持运行。
+- token 仅经加密 SSH 管道和 owner-only 暂存文件导入 Hub，未打印、未进入命令参数、本地磁盘、Git 或 SQLite；暂存文件已精确删除。
+- Hub 最新观测为 5/5 在线、51 个 workloads、86 个 endpoints；41 个 workload 已归因，归因率 80.4%，尚未达到 95% 目标。
+- banwagong 既有 `/etc/sudoers.d/hermes-ro` 为 0644 并被 sudo 忽略；Lodge 未修改或启用它，安装器验证没有增加新的 sudoers 诊断。
+- 两个新节点当前 Tailscale `Tags` 为空；管理端点不是公网且仍有 bearer token，但 `tag:lodge-agent` 与负向 grants 需要在 Tailscale 管理面补验，不能宣称已完成最小权限 ACL。

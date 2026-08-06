@@ -3,6 +3,7 @@ type: synthesis
 status: proposed
 sources:
   - "[[2026-08-06-lodge-readonly-audit]]"
+  - "[[2026-08-07-m3-fleet-onboarding]]"
 ---
 
 # Lodge 服务器管理台实施路线
@@ -37,7 +38,7 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 - 使用 SQLite 保存主机、快照、事件、注解和操作审计；给 schema 做版本迁移和备份。
 
 > [!note]
-> 2026-08-07 已完成领域契约、SQLite schema、顺序迁移、Hub 接线、旧 JSON 注解幂等导入、30 天观测裁剪和一致性备份命令；全仓门禁、竞态检测、无 CGo Linux 构建与可达漏洞扫描通过。仓库 M2 已满足验收条件，但 live Hub 尚未部署，因此生产历史保留指标仍保持实测 0 天，待单机可回滚发布后更新。
+> 2026-08-07 已完成领域契约、SQLite schema、顺序迁移、Hub 接线、旧 JSON 注解幂等导入、30 天观测裁剪和一致性备份，并通过事务安装器部署到 live Hub。随后 tencent、banwagong 完成安全纳管，当前 5/5 在线；51 个 workload 中 41 个已归因（80.4%），Compose、完整 systemd 和反向代理路由发现仍是 M3 的未完成项。
 
 ## Phase 2：让异常主动来找人
 
