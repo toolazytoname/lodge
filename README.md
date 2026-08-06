@@ -56,7 +56,9 @@ npm test    # 本地完整质量门禁（format/vet/build/test/race/脚本与文
 cmd/lodge-agent/    agent 入口
 cmd/lodge-hub/      hub 入口
 internal/agent/     采集、服务发现关联、白名单动作
-internal/hub/       API、存储、采集器、认证、登录限速
+internal/domain/    持久化业务模型与不变量
+internal/storage/   SQLite 迁移、历史、备份
+internal/hub/       API、投影、采集器、认证、登录限速
 internal/shared/    共享类型
 internal/hub/web/   前端（内嵌进 hub 二进制）
 deploy/             systemd unit、sudoers 模板、install-agent.sh
@@ -69,6 +71,7 @@ quality/            可量化质量基线与目标
 - [架构](docs/architecture.md)
 - [威胁模型](docs/threat-model.md)
 - [Hub 认证配置与迁移](docs/hub-authentication.md)
+- [持久化、迁移与备份](docs/storage.md)
 - [Tailnet-only 部署](docs/tailnet-deployment.md)
 - [质量门禁](docs/quality-gates.md)
 - [开发与验收](docs/development.md)

@@ -40,6 +40,12 @@ contracts, not database or UI models; `internal/hub/projectObservation`
 translates them and rejects duplicate identities, cross-host references,
 invalid endpoints, and unevidenced reachability claims.
 
+Durable state is stored through `internal/storage` in owner-only SQLite. The
+schema normalizes immutable observations, workload/endpoint children, events,
+annotations, and operation audit records. Agent credentials remain runtime
+configuration rather than durable inventory data. See
+[`docs/storage.md`](storage.md) for migration, backup, and restore invariants.
+
 ## Package direction
 
 The target dependency direction is:

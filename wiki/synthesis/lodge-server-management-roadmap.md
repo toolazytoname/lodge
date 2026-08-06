@@ -36,6 +36,9 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 - 暴露状态改为：`local`、`tailnet`、`bound-public`、`confirmed-public`。Hub 从外部探测确认后才能标记 `confirmed-public`。
 - 使用 SQLite 保存主机、快照、事件、注解和操作审计；给 schema 做版本迁移和备份。
 
+> [!note]
+> 2026-08-07 已完成领域契约、SQLite v1 schema、顺序迁移、历史裁剪和一致性备份的代码底座；全仓门禁、竞态检测、无 CGo Linux 构建与可达漏洞扫描通过。Hub 尚未切换到 SQLite，旧 JSON 状态导入和生产备份命令仍是本阶段后续验收项。
+
 ## Phase 2：让异常主动来找人
 
 - agent 新增安全信号：SSH 成功/失败计数、来源摘要、密码登录事件、Fail2Ban 状态、firewall 状态、failed units、待更新数量、重启需求。

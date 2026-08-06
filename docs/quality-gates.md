@@ -15,7 +15,9 @@ Every commit intended for push must pass `npm test`, which currently enforces:
 - JSON validity of the quality scorecard;
 - whitespace checks.
 
-GitHub CI repeats these checks on Go 1.26 and runs `govulncheck`. Local development remains compatible with the repository's current Go 1.19 minimum until the toolchain upgrade is handled as a separate migration.
+GitHub CI repeats these checks on Go 1.26 and runs `govulncheck`. Local
+development requires Go 1.25.12 or newer, matching the supported floor declared
+in `go.mod`.
 
 ## 2. Runtime targets
 
