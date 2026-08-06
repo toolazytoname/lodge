@@ -31,5 +31,9 @@ process memory. They are deliberately absent from the durable Host schema.
   this can be revisited only after measured load requires it.
 - Moving to another database later requires a new storage adapter and data
   migration, but does not change domain contracts.
-- The Hub integration and legacy JSON import remain separate work in M2; this
-  decision and adapter alone do not claim that production history is enabled.
+- The Hub uses SQLite for every observation and annotation write. Its former
+  JSON state is accepted only as an owner-only, content-addressed annotation
+  import; embedded Agent connection records are ignored and must be removed
+  after the verified rollback window.
+- Persistence code and CI readiness do not prove that the live Hub has been
+  migrated; deployment evidence remains a separate operational transaction.

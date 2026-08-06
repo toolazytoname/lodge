@@ -9,9 +9,11 @@ Type=simple
 User=lodge
 Group=lodge
 UMask=0077
-ExecStart=/usr/local/bin/lodge-hub --addr 127.0.0.1:9102 --config /etc/lodge-hub/config.json --state /etc/lodge-hub/state.json --session-secret /etc/lodge-hub/session-secret
+ExecStart=/usr/local/bin/lodge-hub --addr 127.0.0.1:9102 --config /etc/lodge-hub/config.json --database /var/lib/lodge-hub/lodge.db --state /etc/lodge-hub/state.json --session-secret /etc/lodge-hub/session-secret --history-retention 720h
 Restart=on-failure
 RestartSec=5s
+StateDirectory=lodge-hub
+StateDirectoryMode=0700
 
 # hub 不需要 sudo，所以可以上更严的加固（与 agent 不同）。
 NoNewPrivileges=true
@@ -26,7 +28,7 @@ ProtectKernelModules=true
 ProtectKernelTunables=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictSUIDSGID=true
-ReadWritePaths=/etc/lodge-hub
+ReadWritePaths=/etc/lodge-hub /var/lib/lodge-hub
 
 [Install]
 WantedBy=multi-user.target

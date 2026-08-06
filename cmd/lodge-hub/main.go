@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -20,39 +22,56 @@ import (
 const hubVersion = "0.1.0"
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "lodge-hub:", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	addr := flag.String("addr", "127.0.0.1:9102", "监听地址（只应 127.0.0.1，由 tailscale serve 前置）")
-	configPath := flag.String("config", "/etc/lodge-hub/config.json", "agents 配置文件")
-	statePath := flag.String("state", "/etc/lodge-hub/state.json", "注解/配置快照落盘路径")
+	configPath := flag.String("config", "/etc/lodge-hub/config.json", "agents 私有配置文件")
+	databasePath := flag.String("database", "/var/lib/lodge-hub/lodge.db", "SQLite 数据库路径（必须 0600）")
+	legacyStatePath := flag.String("state", "/etc/lodge-hub/state.json", "旧 JSON 状态，仅用于一次性导入注解；迁移确认后删除")
 	sessionSecretPath := flag.String("session-secret", "/etc/lodge-hub/session-secret", "独立会话签名密钥文件（自动生成，必须 0600）")
 	interval := flag.Duration("interval", 30*time.Second, "采集间隔")
+	historyRetention := flag.Duration("history-retention", 30*24*time.Hour, "观测历史保留期；0 表示不自动裁剪")
+	backupDestination := flag.String("backup", "", "创建一致性 SQLite 备份到新文件并退出")
 	hashPassword := flag.Bool("hash-password", false, "从标准输入读取密码并输出 Argon2id verifier 后退出")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Println("lodge-hub", hubVersion)
-		return
+		return nil
 	}
 	if *hashPassword {
-		if err := printPasswordHash(); err != nil {
-			fmt.Fprintln(os.Stderr, "生成 passwordHash 失败:", err)
-			os.Exit(1)
+		return printPasswordHash()
+	}
+	if *backupDestination != "" {
+		if err := hub.BackupSQLiteDatabase(context.Background(), *databasePath, *backupDestination); err != nil {
+			return fmt.Errorf("备份数据库: %w", err)
 		}
-		return
+		fmt.Printf("SQLite 备份已通过完整性校验：%s\n", *backupDestination)
+		return nil
+	}
+	if *interval <= 0 {
+		return errors.New("interval 必须大于 0")
+	}
+	if *historyRetention < 0 {
+		return errors.New("history-retention 不能为负数")
 	}
 
 	config, err := hub.LoadConfig(*configPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "加载配置失败:", err)
-		os.Exit(1)
+		return fmt.Errorf("加载配置: %w", err)
 	}
 	if len(config.Agents) == 0 {
 		fmt.Fprintf(os.Stderr, "警告：配置 %s 里没有 agent，hub 将空跑\n", *configPath)
 	}
 	passwordHash, legacyPassword, err := hub.ResolvePasswordHash(config)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "加载认证配置失败:", err)
-		os.Exit(1)
+		return fmt.Errorf("加载认证配置: %w", err)
 	}
 	if legacyPassword {
 		fmt.Fprintln(os.Stderr, "警告：配置仍含明文 password；本次仅在内存中转换，请尽快迁移为 passwordHash")
@@ -60,31 +79,38 @@ func main() {
 	if passwordHash == "" {
 		fmt.Fprintln(os.Stderr, "警告：未设 passwordHash，hub 不启用登录认证 —— 仅限受严格 grants 保护的 tailnet")
 	}
-
-	store := hub.NewMemStore(*statePath)
-	store.SetAgents(config.Agents)
-
-	// 采集器后台运行
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	scraper := hub.NewScraper(store, *interval)
-	go scraper.Run(ctx)
-
 	var sessionKey []byte
 	if passwordHash != "" {
 		sessionKey, err = hub.LoadOrCreateSessionKey(*sessionSecretPath)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "加载会话密钥失败:", err)
-			os.Exit(1)
+			return fmt.Errorf("加载会话密钥: %w", err)
 		}
 	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	store, err := hub.OpenSQLiteStore(ctx, *databasePath, config.Agents)
+	if err != nil {
+		return fmt.Errorf("打开持久化存储: %w", err)
+	}
+	defer store.Close()
+	legacyImport, err := store.ImportLegacyState(ctx, *legacyStatePath)
+	if err != nil {
+		return fmt.Errorf("迁移旧状态: %w", err)
+	}
+	if legacyImport.Found {
+		if legacyImport.Performed {
+			fmt.Fprintf(os.Stderr, "已从旧状态导入 %d 条注解，跳过 %d 条未知主机注解；旧 Agent 连接记录未入库\n",
+				legacyImport.ImportedAnnotations, legacyImport.SkippedUnknownHosts)
+		}
+		fmt.Fprintf(os.Stderr, "警告：旧状态 %s 可能仍含 Agent token；验证注解后请安全删除该文件\n", *legacyStatePath)
+	}
+
 	srv, err := hub.NewServerWithAuth(store, passwordHash, sessionKey)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "初始化认证失败:", err)
-		os.Exit(1)
+		return fmt.Errorf("初始化认证: %w", err)
 	}
-	go srv.RunCleanup(ctx)
-	httpSrv := &http.Server{
+	httpServer := &http.Server{
 		Addr:              *addr,
 		Handler:           srv,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -93,21 +119,36 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	// 优雅关闭
-	go func() {
-		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-		<-sig
-		fmt.Fprintln(os.Stderr, "正在关闭…")
-		cancel()
-		_ = httpSrv.Close()
-	}()
-
-	fmt.Fprintf(os.Stderr, "lodge-hub %s 监听 %s，管理 %d 台 agent\n", hubVersion, *addr, len(config.Agents))
-	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		fmt.Fprintln(os.Stderr, "服务退出:", err)
-		os.Exit(1)
+	var background sync.WaitGroup
+	startBackground := func(run func()) {
+		background.Add(1)
+		go func() {
+			defer background.Done()
+			run()
+		}()
 	}
+	scraper := hub.NewScraper(store, *interval)
+	startBackground(func() { scraper.Run(ctx) })
+	startBackground(func() { srv.RunCleanup(ctx) })
+	startBackground(func() { store.RunObservationRetention(ctx, *historyRetention) })
+	startBackground(func() {
+		<-ctx.Done()
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownContext); err != nil {
+			fmt.Fprintln(os.Stderr, "HTTP 优雅关闭失败:", err)
+		}
+	})
+
+	fmt.Fprintf(os.Stderr, "lodge-hub %s 监听 %s，管理 %d 台 agent，历史保留 %s\n",
+		hubVersion, *addr, len(config.Agents), *historyRetention)
+	serveErr := httpServer.ListenAndServe()
+	stop()
+	background.Wait()
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		return fmt.Errorf("HTTP 服务退出: %w", serveErr)
+	}
+	return nil
 }
 
 func printPasswordHash() error {

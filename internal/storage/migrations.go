@@ -155,6 +155,17 @@ CREATE TABLE operations (
 ) STRICT;
 
 CREATE INDEX operations_requested_at_idx ON operations(requested_at DESC);
+		`,
+	},
+	{
+		version: 2,
+		name:    "annotation_import_ledger",
+		sql: `
+CREATE TABLE annotation_imports (
+    id TEXT PRIMARY KEY,
+    imported_at TEXT NOT NULL,
+    imported_count INTEGER NOT NULL CHECK (imported_count >= 0)
+) STRICT;
 `,
 	},
 }

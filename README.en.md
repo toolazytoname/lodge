@@ -21,7 +21,7 @@
 What's running on each of your machines, and what it's exposed to (local only / tailnet only / public) — discovered automatically, not tracked in a spreadsheet that goes stale in a week.
 
 - **agent**: runs on each managed machine under a non-root account, read-only discovery of listening ports/containers/systemd services, executes a small set of whitelisted actions via an exact-match sudoers rule — no arbitrary command execution.
-- **hub**: the central node, polls each Agent's state and serves a unified Web UI. It currently provides password login and login rate limiting. History, alerts, controlled operation proxying, and a vault remain roadmap items and are not security promises until implemented.
+- **hub**: the central node, polls each Agent's state and serves a unified Web UI. It provides password login, login rate limiting, and durable SQLite observation history. History browsing, alerts, controlled operation proxying, and a vault remain roadmap items and are not security promises until implemented.
 
 ## Architecture
 
@@ -37,6 +37,7 @@ The Hub pulls; Agents do not push. All machines share one tailnet. An Agent only
 - **agent never runs as root** — a dedicated system account, never added to the `docker` group (that group is root-equivalent). Privileged operations go through an exact full-command-line allowlist in `/etc/sudoers.d/lodge-agent`; the agent invokes these with a fixed argv via `exec.Command`, never through a shell.
 - **Hub login**: an Argon2id verifier instead of a stored plaintext password, an independent random session-signing key, and `Secure`, `HttpOnly`, `SameSite=Strict` cookies. State-changing requests require a CSRF token. Consecutive login failures trigger exponential-backoff lockout.
 - **Management boundary**: production management endpoints are tailnet-only. Authentication is defense in depth, not permission to expose the console publicly. Controlled operations and a vault remain roadmap work.
+- **Persistence boundary**: Agent URLs and tokens exist only in the owner-private `0600` config and process memory, never SQLite. The database, WAL, and backups are `0600`, and migrations are versioned and checksum-verified.
 
 ## Development
 

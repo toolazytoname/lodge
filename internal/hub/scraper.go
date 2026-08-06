@@ -3,8 +3,10 @@ package hub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -31,7 +33,9 @@ func NewScraper(store Store, interval time.Duration) *Scraper {
 
 // Run 阻塞运行采集循环，直到 ctx 取消。首次立即采集一轮，之后按 interval。
 func (s *Scraper) Run(ctx context.Context) {
-	s.scrapeAll(ctx)
+	if err := s.scrapeAll(ctx); err != nil {
+		log.Printf("lodge hub scrape: %v", err)
+	}
 	t := time.NewTicker(s.interval)
 	defer t.Stop()
 	for {
@@ -39,29 +43,44 @@ func (s *Scraper) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			s.scrapeAll(ctx)
+			if err := s.scrapeAll(ctx); err != nil {
+				log.Printf("lodge hub scrape: %v", err)
+			}
 		}
 	}
 }
 
-func (s *Scraper) scrapeAll(ctx context.Context) {
+func (s *Scraper) scrapeAll(ctx context.Context) error {
 	var wg sync.WaitGroup
+	var errorMu sync.Mutex
+	var scrapeErrors []error
 	for _, a := range s.store.Agents() {
 		wg.Add(1)
 		go func(a AgentConfig) {
 			defer wg.Done()
-			s.scrapeOne(ctx, a)
+			if err := s.scrapeOne(ctx, a); err != nil {
+				errorMu.Lock()
+				scrapeErrors = append(scrapeErrors, err)
+				errorMu.Unlock()
+			}
 		}(a)
 	}
 	wg.Wait()
+	return errors.Join(scrapeErrors...)
 }
 
-func (s *Scraper) scrapeOne(ctx context.Context, a AgentConfig) {
+func (s *Scraper) scrapeOne(ctx context.Context, a AgentConfig) error {
+	observedAt := time.Now().UTC()
 	// ping —— 最轻量，先探活与版本。
 	var ping shared.Ping
 	if err := s.getJSON(ctx, a, "/v1/ping", &ping); err != nil {
-		s.store.Update(a.ID, false, err.Error(), shared.Ping{}, nil, nil)
-		return
+		persistErr := s.store.Update(ctx, a.ID, false, err.Error(), shared.Ping{}, nil, nil, observedAt)
+		return errors.Join(fmt.Errorf("agent %s ping: %w", a.ID, err), persistErr)
+	}
+	if ping.APIVersion != shared.APIVersion {
+		compatibilityErr := fmt.Errorf("agent %s API version %q is incompatible; Hub requires %q", a.ID, ping.APIVersion, shared.APIVersion)
+		persistErr := s.store.Update(ctx, a.ID, false, compatibilityErr.Error(), ping, nil, nil, observedAt)
+		return errors.Join(compatibilityErr, persistErr)
 	}
 
 	// status 与 services 并发拉。
@@ -78,8 +97,9 @@ func (s *Scraper) scrapeOne(ctx context.Context, a AgentConfig) {
 
 	// status/services 任一成功即认为在线；两者都失败才算离线。
 	if se1 != nil && se2 != nil {
-		s.store.Update(a.ID, false, fmt.Sprintf("status: %v; services: %v", se1, se2), ping, nil, nil)
-		return
+		collectionErr := fmt.Errorf("agent %s status and services failed: status: %v; services: %v", a.ID, se1, se2)
+		persistErr := s.store.Update(ctx, a.ID, false, collectionErr.Error(), ping, nil, nil, observedAt)
+		return errors.Join(collectionErr, persistErr)
 	}
 	var stPtr *shared.Status
 	if se1 == nil {
@@ -89,7 +109,13 @@ func (s *Scraper) scrapeOne(ctx context.Context, a AgentConfig) {
 	if se2 != nil {
 		services = nil // 端口维度缺失，但 status 有效
 	}
-	s.store.Update(a.ID, true, "", ping, stPtr, services)
+	if err := s.store.Update(ctx, a.ID, true, "", ping, stPtr, services, observedAt); err != nil {
+		return err
+	}
+	if se1 != nil || se2 != nil {
+		return fmt.Errorf("agent %s partial observation: status: %v; services: %v", a.ID, se1, se2)
+	}
+	return nil
 }
 
 // getJSON 带 Bearer token 请求 agent 并解码。非 2xx 视为失败。

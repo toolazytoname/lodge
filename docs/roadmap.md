@@ -23,9 +23,9 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 ## M2 — Durable domain model
 
 - [x] Host, Workload, Endpoint, Observation, Event, and Operation contracts
-- [ ] SQLite store with ordered migrations and backup procedure
+- [x] SQLite store with ordered migrations and backup procedure
 - [x] Binding versus confirmed reachability model
-- [ ] Compatibility policy and migration tests
+- [x] Compatibility policy and migration tests
 
 ## M3 — Complete inventory
 

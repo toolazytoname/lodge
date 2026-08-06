@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -219,7 +220,11 @@ func (s *Server) annotation(w http.ResponseWriter, r *http.Request) {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	s.store.SetAnnotation(agentID, key, normalized)
+	if err := s.store.SetAnnotation(r.Context(), agentID, key, normalized); err != nil {
+		log.Printf("lodge hub annotation persistence: %v", err)
+		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "annotation persistence failed"})
+		return
+	}
 	writeJSONHub(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

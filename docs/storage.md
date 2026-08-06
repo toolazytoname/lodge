@@ -3,12 +3,12 @@
 ## Scope and current status
 
 `internal/storage` provides the SQLite persistence adapter for Lodge's durable
-domain model. It is implemented and tested, but the Hub still needs to be wired
-to it and the legacy JSON state needs a one-time import before M2 is complete.
-Until that integration lands, production observation history is not yet a
-product capability.
+domain model. The Hub opens `/var/lib/lodge-hub/lodge.db` by default, records
+every complete, partial, and offline observation, and keeps only the latest UI
+projection in memory. The embedded UI does not expose history yet; browsing and
+alerting over these records belongs to M5.
 
-The first schema stores:
+The schema stores:
 
 - Hosts, containing display metadata but no Agent URL, token, password, or SSH
   credential;
@@ -16,6 +16,9 @@ The first schema stores:
 - annotations;
 - event lifecycle records with active-event deduplication;
 - operation audit records.
+
+Schema v2 also records content-addressed legacy annotation imports so restarting
+the Hub cannot duplicate an import.
 
 ## Database invariants
 
@@ -39,15 +42,42 @@ Startup verifies both `PRAGMA user_version` and the migration ledger checksum.
 It refuses a database created by a newer Lodge binary rather than attempting a
 destructive downgrade.
 
+The Hub accepts the Agent API version declared by `shared.APIVersion` only.
+Missing or unknown versions are stored as an explicit offline observation and
+no further endpoints are requested. When a new Agent API is introduced, the Hub
+must explicitly retain the immediately previous version for the documented
+rolling-upgrade window rather than accepting unknown payloads.
+
+## Legacy JSON migration
+
+`--state /etc/lodge-hub/state.json` is now a read-only migration source. If the
+owner-only file exists, Lodge hashes its complete contents and atomically imports
+its annotations once. Agent URLs and tokens in the old `agents` array are never
+decoded into runtime configuration or written to SQLite. Annotations for hosts
+not present in the current private config are counted and skipped.
+
+Startup rejects a symlink, a file larger than 4 MiB, group/world permissions,
+unknown JSON fields, unsafe URLs, and invalid durable identities. Existing
+SQLite annotations win over imported values. After verifying the imported
+annotations and keeping a separate rollback artifact, remove the legacy file;
+it may still contain old Agent tokens.
+
 ## Backup and restore procedure
 
-The storage adapter's `Backup` method creates a consistent standalone database
-with `VACUUM INTO`, refuses to overwrite an existing file, sets mode `0600`, and
-runs `PRAGMA integrity_check` plus a schema-version check before reporting
-success. A deployment command will expose this operation when the Hub switches
-to SQLite.
+The `--backup` command creates a consistent standalone database with `VACUUM
+INTO`, refuses to overwrite an existing file, sets mode `0600`, and runs
+`PRAGMA integrity_check` plus a source/backup schema-version comparison before
+reporting success. It requires an existing initialized source and does not run
+migrations, so it is safe as a pre-upgrade rollback point.
 
-Once integrated, the safe operator flow is:
+```bash
+sudo install -d -o lodge -g lodge -m 0700 /var/lib/lodge-hub/backups
+sudo -u lodge /usr/local/bin/lodge-hub \
+  --database /var/lib/lodge-hub/lodge.db \
+  --backup "/var/lib/lodge-hub/backups/lodge-$(date -u +%Y%m%dT%H%M%SZ).db"
+```
+
+The safe operator flow is:
 
 1. create a timestamped backup on the same host through the Lodge backup command;
 2. verify that it completed and retain the command's integrity-check evidence;
@@ -58,9 +88,27 @@ Once integrated, the safe operator flow is:
 Restore is intentionally offline: stop the Hub, retain the current database as a
 rollback point, place the verified backup at the configured database path with
 owner-only permissions, then start the same or a newer compatible Hub binary.
+Restoring a database created by a newer schema into an older binary is rejected.
 
 ## Retention
 
 `PruneObservations` removes observations older than a supplied UTC cutoff in one
-database operation. Retention scheduling and its production default will be
-added during Hub integration; until then no automatic deletion is implied.
+database operation with workload/endpoint cascade. The Hub runs one sweep at
+startup and every six hours. `--history-retention` defaults to `720h` (30 days);
+`0` explicitly disables automatic observation pruning. Event retention will be
+defined with the event lifecycle in M5.
+
+## First production migration
+
+Repository readiness does not prove that the live Hub has migrated. Roll out one
+Hub at a time:
+
+1. keep a second SSH session and verify the Tailnet-only recovery path;
+2. stop the Hub and retain an owner-only rollback copy of the old binary,
+   systemd unit, config, and `state.json`;
+3. make `config.json` and `state.json` mode `0600` before starting the new binary;
+4. install the new unit, which creates `/var/lib/lodge-hub` with mode `0700`;
+5. start the Hub and confirm the migration log, a successful Agent scrape, UI
+   annotations, and a successful `--backup` command;
+6. verify the Tailnet URL and then remove the legacy state and its rollback copy
+   after the rollback window closes.

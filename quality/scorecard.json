@@ -71,7 +71,7 @@
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Current in-memory store"
+      "evidence": "Live Hub has not yet been migrated; repository default is 30 days after deployment"
     },
     {
       "id": "web_operations",

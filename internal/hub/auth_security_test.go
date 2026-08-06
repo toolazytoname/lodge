@@ -93,13 +93,13 @@ func TestNewServerWithAuthRequiresIndependentSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewServerWithAuth(NewMemStore(""), passwordHash, nil); err == nil {
+	if _, err := NewServerWithAuth(NewMemStore(), passwordHash, nil); err == nil {
 		t.Fatal("authenticated server started without an independent session key")
 	}
 }
 
 func TestLoginRejectsExcessConcurrentPasswordChecks(t *testing.T) {
-	server := newTestServer(t, NewMemStore(""), "pw")
+	server := newTestServer(t, NewMemStore(), "pw")
 	server.authn.verifySlots <- struct{}{}
 	defer func() { <-server.authn.verifySlots }()
 

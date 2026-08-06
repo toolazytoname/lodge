@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -57,15 +55,20 @@ func TestJoinServices(t *testing.T) {
 	}
 }
 
-func TestMemStoreRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "state.json")
-	s := NewMemStore(path)
-	s.SetAgents([]AgentConfig{{ID: "bytedragon", Name: "bytedragon", URL: "http://x", Token: "t"}})
-	s.Update("bytedragon", true, "", shared.Ping{AgentVer: "0.1.0"},
+func TestMemStoreRuntimeProjection(t *testing.T) {
+	s := NewMemStore()
+	ctx := context.Background()
+	if err := s.SetAgents(ctx, []AgentConfig{{ID: "bytedragon", Name: "bytedragon", URL: "http://x", Token: "t"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Update(ctx, "bytedragon", true, "", shared.Ping{AgentVer: "0.1.0"},
 		&shared.Status{Hostname: "dancedragon"},
-		[]shared.Service{{Key: "docker:nginx", MaxExposure: shared.ExposurePublic}})
-	s.SetAnnotation("bytedragon", "docker:nginx", Annotation{Alias: "反代"})
+		[]shared.Service{{Key: "docker:nginx", MaxExposure: shared.ExposurePublic}}, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetAnnotation(ctx, "bytedragon", "docker:nginx", Annotation{Alias: "反代"}); err != nil {
+		t.Fatal(err)
+	}
 
 	// 顺序：Snapshot 按配置顺序
 	sn := s.Snapshot()
@@ -76,18 +79,8 @@ func TestMemStoreRoundTrip(t *testing.T) {
 		t.Errorf("服务丢失")
 	}
 
-	// 重启：重新加载，agents + 注解应在，online 应重置为 false（观测不落盘）
-	s2 := NewMemStore(path)
-	sn2 := s2.Snapshot()
-	if len(sn2) != 1 {
-		t.Fatalf("重启后 agents 应保留，得到 %d", len(sn2))
-	}
-	if sn2[0].Online {
-		t.Error("重启后 online 应为 false（观测快照不落盘）")
-	}
-	ann2 := s2.Annotations("bytedragon")
-	if ann2["docker:nginx"].Alias != "反代" {
-		t.Errorf("注解应持久化，得到 %+v", ann2)
+	if got := s.Annotations("bytedragon")["docker:nginx"].Alias; got != "反代" {
+		t.Errorf("运行时注解错误: %q", got)
 	}
 }
 
@@ -99,7 +92,7 @@ func TestScraperPullsAgent(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(shared.Ping{OK: true, AgentVer: "0.1.0", Hostname: "dancedragon"})
+		json.NewEncoder(w).Encode(shared.Ping{OK: true, AgentVer: "0.1.0", APIVersion: shared.APIVersion, Hostname: "dancedragon"})
 	})
 	mux.HandleFunc("/v1/status", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(shared.Status{Hostname: "dancedragon", Load: shared.Load{CPUs: 2, One: 0.1}})
@@ -112,8 +105,8 @@ func TestScraperPullsAgent(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	store := NewMemStore("")
-	store.SetAgents([]AgentConfig{{ID: "bd", Name: "bd", URL: srv.URL, Token: "tok"}})
+	store := NewMemStore()
+	store.SetAgents(context.Background(), []AgentConfig{{ID: "bd", Name: "bd", URL: srv.URL, Token: "tok"}})
 	sc := NewScraper(store, time.Hour) // interval 大，只手动跑一次
 	sc.scrapeAll(context.Background())
 
@@ -134,8 +127,8 @@ func TestScraperOfflineOnFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	srv.Close()
 
-	store := NewMemStore("")
-	store.SetAgents([]AgentConfig{{ID: "dead", Name: "dead", URL: srv.URL, Token: "t"}})
+	store := NewMemStore()
+	store.SetAgents(context.Background(), []AgentConfig{{ID: "dead", Name: "dead", URL: srv.URL, Token: "t"}})
 	sc := NewScraper(store, time.Hour)
 	sc.scrapeAll(context.Background())
 
@@ -160,8 +153,8 @@ func TestScraperWrongToken(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	store := NewMemStore("")
-	store.SetAgents([]AgentConfig{{ID: "bd", Name: "bd", URL: srv.URL, Token: "wrong"}})
+	store := NewMemStore()
+	store.SetAgents(context.Background(), []AgentConfig{{ID: "bd", Name: "bd", URL: srv.URL, Token: "wrong"}})
 	sc := NewScraper(store, time.Hour)
 	sc.scrapeAll(context.Background())
 
@@ -170,8 +163,32 @@ func TestScraperWrongToken(t *testing.T) {
 	}
 }
 
-// 安抚：测试不写 state 文件时不应残留。
-var _ = os.Remove
+func TestScraperRejectsIncompatibleAgentAPI(t *testing.T) {
+	statusRequested := false
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/ping", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(shared.Ping{OK: true, APIVersion: "v999"})
+	})
+	mux.HandleFunc("/v1/status", func(w http.ResponseWriter, r *http.Request) {
+		statusRequested = true
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	store := NewMemStore()
+	store.SetAgents(context.Background(), []AgentConfig{{ID: "future", Name: "future", URL: server.URL, Token: "token"}})
+	scraper := NewScraper(store, time.Hour)
+	if err := scraper.scrapeAll(context.Background()); err == nil || !strings.Contains(err.Error(), "incompatible") {
+		t.Fatalf("incompatible Agent API was not reported: %v", err)
+	}
+	snapshot := store.Snapshot()[0]
+	if snapshot.Online || !strings.Contains(snapshot.LastError, "requires") {
+		t.Fatalf("incompatible Agent should be explicitly offline: %+v", snapshot)
+	}
+	if statusRequested {
+		t.Fatal("Hub should not request other endpoints after incompatible ping")
+	}
+}
 
 func TestGuessURL(t *testing.T) {
 	host := "bytedragon.weichao.site"
@@ -240,7 +257,7 @@ func TestAuthCookieRoundTrip(t *testing.T) {
 }
 
 func TestServerAuthGate(t *testing.T) {
-	store := NewMemStore("")
+	store := NewMemStore()
 	s := newTestServer(t, store, "pw") // 启用认证
 
 	// 未登录访问受保护 API → 401
@@ -292,7 +309,7 @@ func TestServerAuthGate(t *testing.T) {
 
 func TestServerNoPasswordIsOpen(t *testing.T) {
 	// 未设 password（仅 tailnet 模式）→ /api/agents 直接放行
-	s := newTestServer(t, NewMemStore(""), "")
+	s := newTestServer(t, NewMemStore(), "")
 	r := httptest.NewRequest("GET", "/api/agents", nil)
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
@@ -302,7 +319,7 @@ func TestServerNoPasswordIsOpen(t *testing.T) {
 }
 
 func TestLoginRateLimit(t *testing.T) {
-	s := newTestServer(t, NewMemStore(""), "pw")
+	s := newTestServer(t, NewMemStore(), "pw")
 
 	// 阈值内不锁，正常 401；第 threshold+1 次失败触发锁定
 	for i := 0; i < rateLimitThreshold+1; i++ {
@@ -327,7 +344,7 @@ func TestLoginRateLimit(t *testing.T) {
 }
 
 func TestLoginRateLimitResetsOnSuccess(t *testing.T) {
-	s := newTestServer(t, NewMemStore(""), "pw")
+	s := newTestServer(t, NewMemStore(), "pw")
 
 	// 若干次失败但不到阈值
 	for i := 0; i < rateLimitThreshold-1; i++ {
@@ -390,8 +407,8 @@ func loginSession(t *testing.T, s *Server, password string) (*http.Cookie, strin
 }
 
 func TestAnnotationRequiresCSRFAndValidatesURL(t *testing.T) {
-	store := NewMemStore("")
-	store.SetAgents([]AgentConfig{{ID: "host-a", Name: "host-a", URL: "http://agent"}})
+	store := NewMemStore()
+	store.SetAgents(context.Background(), []AgentConfig{{ID: "host-a", Name: "host-a", URL: "http://agent"}})
 	s := newTestServer(t, store, "pw")
 	cookie, token := loginSession(t, s, "pw")
 	target := "/api/annotation?agent=host-a&key=systemd:caddy.service"
@@ -436,8 +453,8 @@ func TestAnnotationRequiresCSRFAndValidatesURL(t *testing.T) {
 }
 
 func TestAnnotationRejectsUnknownAgentAndOversizedBody(t *testing.T) {
-	store := NewMemStore("")
-	store.SetAgents([]AgentConfig{{ID: "host-a", URL: "http://agent"}})
+	store := NewMemStore()
+	store.SetAgents(context.Background(), []AgentConfig{{ID: "host-a", URL: "http://agent"}})
 	s := newTestServer(t, store, "")
 
 	request := newJSONRequest(http.MethodPost, "/api/annotation?agent=missing&key=port:tcp/80", `{"url":"https://example.test"}`)
@@ -457,7 +474,7 @@ func TestAnnotationRejectsUnknownAgentAndOversizedBody(t *testing.T) {
 }
 
 func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
-	s := newTestServer(t, NewMemStore(""), "")
+	s := newTestServer(t, NewMemStore(), "")
 	for _, path := range []string{"/", "/app.css", "/app.js", "/api/session"} {
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))

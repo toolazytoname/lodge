@@ -38,3 +38,21 @@ func TestObservationRejectsCrossHostReferences(t *testing.T) {
 		t.Fatal("cross-host workload should be rejected")
 	}
 }
+
+func TestAnnotationRequiresSafeDurableIdentityAndURL(t *testing.T) {
+	annotation := Annotation{
+		HostID: "host-a", WorkloadKey: "systemd:caddy.service",
+		URL: "https://admin.example.test/path", UpdatedAt: time.Now().UTC(),
+	}
+	if err := annotation.Validate(); err != nil {
+		t.Fatalf("valid annotation was rejected: %v", err)
+	}
+	annotation.URL = "https://user:password@example.test"
+	if err := annotation.Validate(); err == nil {
+		t.Fatal("URL credentials should be rejected")
+	}
+	annotation.URL = "javascript:alert(1)"
+	if err := annotation.Validate(); err == nil {
+		t.Fatal("non-http annotation URL should be rejected")
+	}
+}

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -126,6 +127,144 @@ func TestMigrationPlanMustBeContiguousAndComplete(t *testing.T) {
 	}
 	if err := validateMigrationPlan(migrations, currentSchemaVersion); err != nil {
 		t.Fatalf("repository migration plan is invalid: %v", err)
+	}
+}
+
+func createVersionOneDatabase(t *testing.T, path string) {
+	t.Helper()
+	if err := prepareDatabasePath(path); err != nil {
+		t.Fatal(err)
+	}
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(migrations[0].sql); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (1, ?, ?, ?)",
+		migrations[0].name, migrations[0].checksum(), formatTime(time.Now()),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("PRAGMA user_version = 1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+INSERT INTO hosts(id, name, created_at, updated_at) VALUES ('host-a', 'Host A', ?, ?)`,
+		formatTime(time.Now()), formatTime(time.Now())); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSQLiteUpgradesVersionOneAndPreservesData(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	createVersionOneDatabase(t, path)
+
+	store, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var version int
+	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != currentSchemaVersion {
+		t.Fatalf("schema version = %d, want %d", version, currentSchemaVersion)
+	}
+	hosts, err := store.Hosts(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hosts) != 1 || hosts[0].ID != "host-a" {
+		t.Fatalf("v1 host was not preserved: %+v", hosts)
+	}
+}
+
+func TestBackupSQLiteFileRequiresExistingSourceAndDoesNotMigrateIt(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "missing.db")
+	if _, err := BackupSQLiteFile(context.Background(), missing, filepath.Join(dir, "missing-backup.db")); err == nil {
+		t.Fatal("missing backup source should be rejected")
+	}
+	if _, err := os.Stat(missing); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("backup created a missing source: %v", err)
+	}
+
+	source := filepath.Join(dir, "v1.db")
+	destination := filepath.Join(dir, "v1-backup.db")
+	createVersionOneDatabase(t, source)
+	version, err := BackupSQLiteFile(context.Background(), source, destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version != 1 {
+		t.Fatalf("reported source version = %d, want 1", version)
+	}
+	for _, path := range []string{source, destination} {
+		dsn, err := sqliteDSN(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		db, err := sql.Open("sqlite", dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got int
+		if err := db.QueryRow("PRAGMA user_version").Scan(&got); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if got != 1 {
+			t.Fatalf("%s schema was changed during backup: version=%d", filepath.Base(path), got)
+		}
+	}
+}
+
+func TestSQLiteAnnotationsAndIdempotentImport(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	durable := domain.Annotation{HostID: "host-a", WorkloadKey: "docker:web", Alias: "Durable", UpdatedAt: now}
+	if err := store.UpsertAnnotation(ctx, durable); err != nil {
+		t.Fatal(err)
+	}
+	legacy := []domain.Annotation{
+		{HostID: "host-a", WorkloadKey: "docker:web", Alias: "Legacy", UpdatedAt: now.Add(-time.Hour)},
+		{HostID: "host-a", WorkloadKey: "systemd:caddy.service", URL: "https://admin.example.test", UpdatedAt: now},
+	}
+	performed, count, err := store.ImportAnnotations(ctx, "sha256:test", legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !performed || count != 1 {
+		t.Fatalf("import result: performed=%v count=%d", performed, count)
+	}
+	performed, count, err = store.ImportAnnotations(ctx, "sha256:test", legacy)
+	if err != nil || performed || count != 0 {
+		t.Fatalf("repeat import was not idempotent: performed=%v count=%d err=%v", performed, count, err)
+	}
+	loaded, err := store.Annotations(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded) != 2 || loaded[0].Alias != "Durable" || loaded[1].URL != "https://admin.example.test" {
+		t.Fatalf("annotation merge mismatch: %+v", loaded)
 	}
 }
 

@@ -5,9 +5,11 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 type HostID string
@@ -127,6 +129,18 @@ type Observation struct {
 	Workloads    []Workload `json:"workloads"`
 	Endpoints    []Endpoint `json:"endpoints"`
 	Warnings     []string   `json:"warnings,omitempty"`
+}
+
+// Annotation is user-maintained metadata joined to an observed Workload. It
+// never replaces discovery data and is durable independently of observations.
+type Annotation struct {
+	HostID      HostID    `json:"hostId"`
+	WorkloadKey string    `json:"workloadKey"`
+	Alias       string    `json:"alias,omitempty"`
+	URL         string    `json:"url,omitempty"`
+	Hidden      bool      `json:"hidden,omitempty"`
+	Notes       string    `json:"notes,omitempty"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type Severity string
@@ -264,6 +278,37 @@ func (o Observation) Validate() error {
 		}
 		if endpoint.Reachability == ReachabilityUnknown && (endpoint.ReachabilitySource != "" || endpoint.ReachabilityCheckedAt != nil) {
 			return fmt.Errorf("endpoint %q has evidence but unknown reachability", endpoint.Key)
+		}
+	}
+	return nil
+}
+
+func (a Annotation) Validate() error {
+	if err := validateIdentifier("host id", string(a.HostID), 128); err != nil {
+		return err
+	}
+	if err := validateIdentifier("workload key", a.WorkloadKey, 512); err != nil {
+		return err
+	}
+	if a.UpdatedAt.IsZero() {
+		return errors.New("annotation update time must not be zero")
+	}
+	if !utf8.ValidString(a.Alias) || !utf8.ValidString(a.URL) || !utf8.ValidString(a.Notes) {
+		return errors.New("annotation must be valid UTF-8")
+	}
+	if utf8.RuneCountInString(a.Alias) > 120 {
+		return errors.New("annotation alias exceeds 120 characters")
+	}
+	if len(a.URL) > 2048 {
+		return errors.New("annotation URL exceeds 2048 bytes")
+	}
+	if utf8.RuneCountInString(a.Notes) > 4000 {
+		return errors.New("annotation notes exceed 4000 characters")
+	}
+	if a.URL != "" {
+		parsed, err := url.Parse(a.URL)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil {
+			return errors.New("annotation URL must be absolute http/https without credentials")
 		}
 	}
 	return nil

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 1
+	currentSchemaVersion = 2
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -222,6 +222,111 @@ func (s *SQLite) Hosts(ctx context.Context) ([]domain.Host, error) {
 		hosts = append(hosts, host)
 	}
 	return hosts, rows.Err()
+}
+
+func (s *SQLite) Annotations(ctx context.Context, hostID domain.HostID) ([]domain.Annotation, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT workload_key, alias, url, hidden, notes, updated_at
+FROM annotations WHERE host_id = ? ORDER BY workload_key`, string(hostID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var annotations []domain.Annotation
+	for rows.Next() {
+		annotation := domain.Annotation{HostID: hostID}
+		var hidden int
+		var updatedAt string
+		if err := rows.Scan(&annotation.WorkloadKey, &annotation.Alias, &annotation.URL, &hidden, &annotation.Notes, &updatedAt); err != nil {
+			return nil, err
+		}
+		annotation.Hidden = hidden == 1
+		annotation.UpdatedAt, err = parseTime(updatedAt)
+		if err != nil {
+			return nil, err
+		}
+		if err := annotation.Validate(); err != nil {
+			return nil, fmt.Errorf("stored annotation %s/%s is invalid: %w", hostID, annotation.WorkloadKey, err)
+		}
+		annotations = append(annotations, annotation)
+	}
+	return annotations, rows.Err()
+}
+
+func (s *SQLite) UpsertAnnotation(ctx context.Context, annotation domain.Annotation) error {
+	if err := annotation.Validate(); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO annotations(host_id, workload_key, alias, url, hidden, notes, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(host_id, workload_key) DO UPDATE SET
+    alias = excluded.alias,
+    url = excluded.url,
+    hidden = excluded.hidden,
+    notes = excluded.notes,
+    updated_at = excluded.updated_at`,
+		string(annotation.HostID), annotation.WorkloadKey, annotation.Alias, annotation.URL,
+		boolInt(annotation.Hidden), annotation.Notes, formatTime(annotation.UpdatedAt),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert annotation %s/%s: %w", annotation.HostID, annotation.WorkloadKey, err)
+	}
+	return nil
+}
+
+// ImportAnnotations atomically imports legacy annotations exactly once per
+// opaque import ID. Existing durable annotations win over imported values.
+func (s *SQLite) ImportAnnotations(ctx context.Context, importID string, annotations []domain.Annotation) (bool, int64, error) {
+	if importID == "" || len(importID) > 128 {
+		return false, 0, errors.New("annotation import ID must be between 1 and 128 bytes")
+	}
+	for _, annotation := range annotations {
+		if err := annotation.Validate(); err != nil {
+			return false, 0, err
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, 0, err
+	}
+	defer tx.Rollback()
+	var exists int
+	err = tx.QueryRowContext(ctx, "SELECT 1 FROM annotation_imports WHERE id = ?", importID).Scan(&exists)
+	if err == nil {
+		return false, 0, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, 0, err
+	}
+	var imported int64
+	for _, annotation := range annotations {
+		result, err := tx.ExecContext(ctx, `
+INSERT INTO annotations(host_id, workload_key, alias, url, hidden, notes, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(host_id, workload_key) DO NOTHING`,
+			string(annotation.HostID), annotation.WorkloadKey, annotation.Alias, annotation.URL,
+			boolInt(annotation.Hidden), annotation.Notes, formatTime(annotation.UpdatedAt),
+		)
+		if err != nil {
+			return false, 0, fmt.Errorf("import annotation %s/%s: %w", annotation.HostID, annotation.WorkloadKey, err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return false, 0, err
+		}
+		imported += rows
+	}
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO annotation_imports(id, imported_at, imported_count) VALUES (?, ?, ?)",
+		importID, formatTime(time.Now()), imported,
+	); err != nil {
+		return false, 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, 0, err
+	}
+	return true, imported, nil
 }
 
 func (s *SQLite) RecordObservation(ctx context.Context, observation domain.Observation) (int64, error) {
@@ -477,6 +582,56 @@ func (s *SQLite) PruneObservations(ctx context.Context, before time.Time) (int64
 // Backup creates a transactionally consistent standalone database. Directly
 // copying the main file is unsafe while WAL mode is active.
 func (s *SQLite) Backup(ctx context.Context, destination string) error {
+	return backupSQLite(ctx, s.db, destination, currentSchemaVersion)
+}
+
+// BackupSQLiteFile backs up an existing database without running migrations on
+// the source. This preserves a true pre-upgrade rollback point.
+func BackupSQLiteFile(ctx context.Context, source, destination string) (int, error) {
+	if source == "" || source == ":memory:" {
+		return 0, errors.New("backup source must be an existing file path")
+	}
+	if _, err := os.Lstat(source); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, fmt.Errorf("backup source does not exist: %s", source)
+		}
+		return 0, err
+	}
+	if err := prepareDatabasePath(source); err != nil {
+		return 0, err
+	}
+	dsn, err := sqliteDSN(source)
+	if err != nil {
+		return 0, err
+	}
+	database, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return 0, err
+	}
+	defer database.Close()
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	store := &SQLite{db: database, path: source}
+	if err := store.configure(ctx); err != nil {
+		return 0, err
+	}
+	if err := secureDatabaseFiles(source); err != nil {
+		return 0, err
+	}
+	var sourceVersion int
+	if err := database.QueryRowContext(ctx, "PRAGMA user_version").Scan(&sourceVersion); err != nil {
+		return 0, fmt.Errorf("read source schema version: %w", err)
+	}
+	if sourceVersion < 1 {
+		return 0, errors.New("backup source is not an initialized Lodge database")
+	}
+	if err := backupSQLite(ctx, database, destination, sourceVersion); err != nil {
+		return 0, err
+	}
+	return sourceVersion, nil
+}
+
+func backupSQLite(ctx context.Context, database *sql.DB, destination string, expectedVersion int) error {
 	if destination == "" || destination == ":memory:" {
 		return errors.New("backup destination must be a file path")
 	}
@@ -492,7 +647,7 @@ func (s *SQLite) Backup(ctx context.Context, destination string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", absDestination); err != nil {
+	if _, err := database.ExecContext(ctx, "VACUUM INTO ?", absDestination); err != nil {
 		_ = os.Remove(destination)
 		return fmt.Errorf("backup sqlite: %w", err)
 	}
@@ -525,8 +680,8 @@ func (s *SQLite) Backup(ctx context.Context, destination string) error {
 	if err := backupDB.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("read backup schema version: %w", err)
 	}
-	if version != currentSchemaVersion {
-		return fmt.Errorf("backup schema check failed: version=%d", version)
+	if version != expectedVersion {
+		return fmt.Errorf("backup schema check failed: version=%d, source=%d", version, expectedVersion)
 	}
 	backupComplete = true
 	return nil

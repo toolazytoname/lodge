@@ -14,7 +14,7 @@
 - a malicious Web origin targeting an authenticated browser;
 - a compromised workload on one managed host;
 - a compromised tailnet device that should not reach management services;
-- an attacker who obtains the Hub state/config file;
+- an attacker who obtains the Hub config, legacy state, database, or backup;
 - accidental operator actions.
 
 ## Required controls
@@ -54,7 +54,25 @@
 - Secrets never appear in API payloads, logs, operation output, screenshots, or Git.
 - Config files containing Agent credentials are mode `0600` and owned only by
   the dedicated Hub service account (or delivered as systemd credentials).
+- Agent URLs and bearer tokens exist only in the private config and process
+  memory. They are excluded from the SQLite schema and legacy imports, with
+  regression tests scanning the database, WAL, and SHM files for sentinel
+  credentials.
+- A migrated JSON state file may still contain historical Agent tokens. It is
+  owner-only, read only as an explicit migration source, and removed after the
+  verified rollback window.
 - Vault functionality is not claimed until its browser cryptography, recovery model, and compromise boundaries are independently documented and tested.
+
+### Persistence and recovery
+
+- SQLite database, WAL, SHM, and backup files are mode `0600`; symlinks and
+  broader existing permissions are rejected.
+- Ordered migrations are transactional and checksum-verified. A binary refuses
+  a newer schema or a modified migration ledger.
+- Backups use SQLite's consistency mechanism, never a main-file-only copy in WAL
+  mode, and must pass integrity and source-version checks.
+- Observation retention defaults to 30 days and runs with foreign-key cascades;
+  a failed write or retention sweep is logged instead of silently ignored.
 
 ## Release review
 
