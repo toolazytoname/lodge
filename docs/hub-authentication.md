@@ -46,8 +46,18 @@ Because the salt changes on every restart, existing browser sessions expire.
 Migration procedure:
 
 1. Back up `/etc/lodge-hub/config.json` with owner-only permissions.
-2. Generate a verifier with the command above.
-3. Replace `password` with `passwordHash`; never configure both.
+2. Ensure the file and its containing directory are owned by the Hub service
+   account and the file is mode `0600`.
+3. Run the built-in atomic migration without printing the password or verifier:
+
+   ```bash
+   sudo -u lodge lodge-hub --config /etc/lodge-hub/config.json \
+     --migrate-config-password
+   ```
+
+   The command writes and fsyncs an owner-only temporary file in the same
+   directory, refuses a concurrent config change, and atomically replaces the
+   original. Running it again is a no-op.
 4. Restart `lodge-hub` and verify that the plaintext migration warning is gone.
 5. Confirm `/etc/lodge-hub/session-secret` exists with mode `0600`, then test
    login and logout from a tailnet browser.

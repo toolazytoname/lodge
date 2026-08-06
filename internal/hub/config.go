@@ -3,9 +3,11 @@ package hub
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -94,4 +96,73 @@ func ResolvePasswordHash(config Config) (string, bool, error) {
 	}
 	hash, err := HashPassword(config.Password)
 	return hash, true, err
+}
+
+// MigrateConfigPassword replaces the legacy plaintext password with an
+// Argon2id verifier in one owner-only atomic rename. It never prints or returns
+// either credential and refuses to overwrite a concurrently changed file.
+func MigrateConfigPassword(path string) (bool, error) {
+	original, err := os.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	config, err := LoadConfig(path)
+	if err != nil {
+		return false, err
+	}
+	if config.Password == "" {
+		return false, nil
+	}
+	passwordHash, err := HashPassword(config.Password)
+	if err != nil {
+		return false, err
+	}
+	config.Password = ""
+	config.PasswordHash = passwordHash
+	encoded, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return false, err
+	}
+	encoded = append(encoded, '\n')
+	directory := filepath.Dir(path)
+	temporary, err := os.CreateTemp(directory, ".config-migration-*")
+	if err != nil {
+		return false, fmt.Errorf("create config migration file: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0o600); err != nil {
+		_ = temporary.Close()
+		return false, err
+	}
+	if _, err := temporary.Write(encoded); err != nil {
+		_ = temporary.Close()
+		return false, err
+	}
+	if err := temporary.Sync(); err != nil {
+		_ = temporary.Close()
+		return false, err
+	}
+	if err := temporary.Close(); err != nil {
+		return false, err
+	}
+	current, err := os.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	if !os.SameFile(original, current) || original.Size() != current.Size() || !original.ModTime().Equal(current.ModTime()) {
+		return false, errors.New("hub config changed during password migration")
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		return false, err
+	}
+	directoryHandle, err := os.Open(directory)
+	if err != nil {
+		return false, err
+	}
+	defer directoryHandle.Close()
+	if err := directoryHandle.Sync(); err != nil {
+		return false, err
+	}
+	return true, nil
 }

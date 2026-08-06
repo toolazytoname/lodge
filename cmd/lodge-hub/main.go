@@ -37,6 +37,7 @@ func run() error {
 	interval := flag.Duration("interval", 30*time.Second, "采集间隔")
 	historyRetention := flag.Duration("history-retention", 30*24*time.Hour, "观测历史保留期；0 表示不自动裁剪")
 	backupDestination := flag.String("backup", "", "创建一致性 SQLite 备份到新文件并退出")
+	migrateConfigPassword := flag.Bool("migrate-config-password", false, "将 config 中旧明文 password 原子迁移为 Argon2id 后退出")
 	hashPassword := flag.Bool("hash-password", false, "从标准输入读取密码并输出 Argon2id verifier 后退出")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
@@ -47,6 +48,18 @@ func run() error {
 	}
 	if *hashPassword {
 		return printPasswordHash()
+	}
+	if *migrateConfigPassword {
+		migrated, err := hub.MigrateConfigPassword(*configPath)
+		if err != nil {
+			return fmt.Errorf("迁移配置密码: %w", err)
+		}
+		if migrated {
+			fmt.Println("Hub 配置密码已原子迁移为 Argon2id verifier")
+		} else {
+			fmt.Println("Hub 配置无需明文密码迁移")
+		}
+		return nil
 	}
 	if *backupDestination != "" {
 		if err := hub.BackupSQLiteDatabase(context.Background(), *databasePath, *backupDestination); err != nil {

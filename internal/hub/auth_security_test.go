@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -137,6 +138,56 @@ func TestLoadConfigAndLegacyPasswordMigration(t *testing.T) {
 	resolved, legacy, err = ResolvePasswordHash(legacyConfig)
 	if err != nil || !legacy || !VerifyPassword(resolved, legacyConfig.Password) {
 		t.Fatalf("legacy password migration failed: legacy=%v err=%v", legacy, err)
+	}
+}
+
+func TestMigrateConfigPasswordIsAtomicOwnerOnlyAndIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	const plaintext = "legacy password must disappear"
+	body := `{"_comment":"preserve","password":` + strconv.Quote(plaintext) + `,"agents":[{"id":"host-a","url":"http://agent","token":"secret"}]}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	migrated, err := MigrateConfigPassword(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !migrated {
+		t.Fatal("plaintext config was not migrated")
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(contents), plaintext) || strings.Contains(string(contents), `"password"`) {
+		t.Fatal("plaintext password remained in migrated config")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("migrated config mode = %04o, want 0600", info.Mode().Perm())
+	}
+	config, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Comment != "preserve" || !VerifyPassword(config.PasswordHash, plaintext) || config.Agents[0].Token != "secret" {
+		t.Fatal("migration did not preserve config or verifier semantics")
+	}
+	before := append([]byte(nil), contents...)
+	migrated, err = MigrateConfigPassword(path)
+	if err != nil || migrated {
+		t.Fatalf("repeat migration: migrated=%v err=%v", migrated, err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("idempotent migration rewrote an already migrated config")
 	}
 }
 
