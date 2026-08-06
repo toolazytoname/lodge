@@ -38,6 +38,7 @@ fi
 [ -f "$BIN_SRC" ] || err "找不到 agent 二进制：$BIN_SRC（用 ./install-agent.sh /path/to/lodge-agent 指定）"
 [ -x "$BIN_SRC" ] || chmod +x "$BIN_SRC"
 command -v systemctl >/dev/null || err "未发现 systemd，本脚本仅支持 systemd 系统"
+command -v python3 >/dev/null || err "未发现 python3，无法执行服务进程验收"
 [ -f "$UNIT_SRC" ] || err "找不到 unit 文件：$UNIT_SRC"
 
 echo "▸ 安装 lodge-agent"
@@ -123,11 +124,56 @@ else
   err "服务启动失败，查 journal：journalctl -u lodge-agent -n 30 --no-pager"
 fi
 
+# 验证真实服务进程，而不是只相信 systemctl 的配置投影。部分沙箱指令会令
+# /proc/MainPID/status 出现 NoNewPrivs=1，却仍显示 NoNewPrivileges=no。
+MAIN_PID="$(systemctl show lodge-agent -p MainPID --value)"
+[ -n "$MAIN_PID" ] && [ "$MAIN_PID" -gt 0 ] || err "无法取得 lodge-agent MainPID"
+NO_NEW_PRIVS="$(awk '/^NoNewPrivs:/ { print $2 }' "/proc/$MAIN_PID/status")"
+[ "$NO_NEW_PRIVS" = 0 ] || err "服务进程 NoNewPrivs=$NO_NEW_PRIVS，sudo 白名单必然失效"
+info "服务进程 NoNewPrivs=0（允许固定 sudo 白名单）✓"
+
 # ── 验证采集（非 root 跑一次，证明降权真实有效）──────────
 if sudo -u lodge "$INSTALL_DIR/lodge-agent" --check >/dev/null 2>&1; then
-  info "lodge 账号 --check 通过（采集无需 root）✓"
+  info "lodge 账号 --check 通过（采集无需直接 root）✓"
 else
-  echo "  ! lodge --check 有 warning（可能 sudoers/docker 未就绪），详见：sudo -u lodge $INSTALL_DIR/lodge-agent --check"
+  err "lodge --check 失败；拒绝留下无法采集的服务"
+fi
+
+# 请求真实 systemd 服务，让 Agent 在自身沙箱里执行采集。token 仅由 lodge
+# 进程从 owner-only 文件读取，不进入命令参数或输出。
+if sudo -u lodge python3 - "$TOKEN_FILE" <<'PY'
+import json
+import sys
+import urllib.request
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    token = stream.read().strip()
+
+payloads = {}
+for path in ("/v1/status", "/v1/services"):
+    request = urllib.request.Request(
+        "http://127.0.0.1:9101" + path,
+        headers={"Authorization": "Bearer " + token},
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        payloads[path] = json.load(response)
+
+warnings = payloads["/v1/status"].get("warnings", []) + payloads["/v1/services"].get("warnings", [])
+privilege_warnings = [
+    warning for warning in warnings
+    if "sudo" in warning.lower() or "no new privileges" in warning.lower()
+]
+services = payloads["/v1/services"].get("services", [])
+if privilege_warnings:
+    raise SystemExit("service-context collection has privilege warnings")
+if not services:
+    raise SystemExit("service-context collection found no services")
+print(f"  服务进程采集通过：services={len(services)} warnings={len(warnings)} ✓")
+PY
+then
+  :
+else
+  err "真实服务进程采集验收失败"
 fi
 
 # ── 越权验证：lodge 不能 docker run 提权 ──────────────────

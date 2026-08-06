@@ -15,24 +15,17 @@ Restart=on-failure
 RestartSec=5s
 
 # --- 加固 ---
-# 注意：这里刻意【不】设 NoNewPrivileges=true，也【不】设 CapabilityBoundingSet=。
-# agent 靠 sudo（setuid-root）执行 sudoers 白名单命令，sudo 切到 root 需要
-# CAP_SETGID/CAP_SETUID 处于 bounding set 内。NoNewPrivileges 会禁止 execve 获
-# setuid 特权、CapabilityBoundingSet= 会掏空 bounding set —— 任一都会让 sudo
-# 报 "unable to change to root gid: Operation not permitted"，整个白名单瘫痪。
-# 因此本服务的特权边界 = /etc/sudoers.d/lodge-agent 的逐条精确匹配，
-# 而非这两类 systemd 限制。这是 sudoers 设计的固有取舍。
+# Agent 靠 sudo（setuid-root）执行逐命令白名单，因此内核 NoNewPrivs 必须为 0。
+# 除显式 NoNewPrivileges 外，多种 systemd 沙箱指令也会隐式令实际进程进入
+# NoNewPrivs=1，即使 `systemctl show NoNewPrivileges` 仍显示 no。不要在这里加入
+# CapabilityBoundingSet、PrivateDevices、ProtectClock/Kernel*、
+# RestrictAddressFamilies、RestrictSUIDSGID 或其他 seccomp/capability 过滤；安装器
+# 会从 /proc/MainPID 验证真实标志，并通过服务 API 验证 sudo 白名单确实可用。
+# 特权边界是 /etc/sudoers.d/lodge-agent 的固定 argv，而不是任意命令执行。
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-PrivateDevices=true
-ProtectClock=true
 ProtectControlGroups=true
-ProtectKernelLogs=true
-ProtectKernelModules=true
-ProtectKernelTunables=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-RestrictSUIDSGID=true
 # token 落在 /etc/lodge-agent，agent 首次启动时写入；其余路径只读。
 ReadWritePaths=/etc/lodge-agent
 
