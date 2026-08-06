@@ -36,14 +36,18 @@ case "$role" in
   hub)
     default_local_port=9102
     default_serve_port=10000
+    serve_mode=web
     serve_protocol=HTTPS
     serve_flag=--https
+    funnel_flag=--https
     ;;
   agent)
     default_local_port=9101
     default_serve_port=8443
-    serve_protocol=HTTP
-    serve_flag=--http
+    serve_mode=tcp
+    serve_protocol=TCP
+    serve_flag=--tcp
+    funnel_flag=--tcp
     ;;
   *) usage ;;
 esac
@@ -125,7 +129,7 @@ verify_private_serve() {
   fi
   if ! serve_status | python3 -c '
 import json, sys
-serve_port, local_port, protocol = sys.argv[1:]
+serve_port, local_port, mode, protocol = sys.argv[1:]
 status = json.load(sys.stdin)
 expected = "http://127.0.0.1:" + local_port
 tcp = status.get("TCP", {}).get(serve_port, {})
@@ -135,8 +139,13 @@ proxy_matches = any(
     and any(handler.get("Proxy") == expected for handler in value.get("Handlers", {}).values())
     for key, value in web.items()
 )
-raise SystemExit(0 if tcp.get(protocol) is True and proxy_matches else 1)
-' "$serve_port" "$local_port" "$serve_protocol"; then
+valid = (
+    tcp.get(protocol) is True and proxy_matches
+    if mode == "web"
+    else tcp.get("TCPForward") == "127.0.0.1:" + local_port
+)
+raise SystemExit(0 if valid else 1)
+' "$serve_port" "$local_port" "$serve_mode" "$serve_protocol"; then
     fail "Tailscale Serve $serve_protocol $serve_port does not proxy to 127.0.0.1:$local_port"
   fi
   info "PASS: $role is loopback-bound and available through tailnet-only $serve_protocol Serve on $serve_port"
@@ -158,10 +167,14 @@ tailscale version >"$backup_run/tailscale-version.txt"
 info "Saved pre-change status to $backup_run"
 
 if funnel_enabled_on_port; then
-  tailscale funnel --https="$serve_port" off
+  tailscale funnel "$funnel_flag=$serve_port" off
   info "Disabled public Funnel on management port $serve_port"
 fi
-tailscale serve --bg --yes "$serve_flag=$serve_port" "http://127.0.0.1:$local_port"
+case "$serve_mode" in
+  web) serve_target="http://127.0.0.1:$local_port" ;;
+  tcp) serve_target="tcp://127.0.0.1:$local_port" ;;
+esac
+tailscale serve --bg --yes "$serve_flag=$serve_port" "$serve_target"
 verify_private_serve
 
 info "Recovery: keep SSH open; if browser access fails, inspect grants and rerun this command."

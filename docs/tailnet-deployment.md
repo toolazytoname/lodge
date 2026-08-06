@@ -19,8 +19,10 @@ and [grants syntax](https://tailscale.com/docs/reference/syntax/grants).
 
 The Go processes still bind only to loopback: Hub `127.0.0.1:9102` and Agent
 `127.0.0.1:9101`. Tailscale terminates HTTPS for the browser-facing Hub. The
-Hub-to-Agent hop uses HTTP Serve inside Tailscale's authenticated, encrypted
-tunnel; it is not internet plaintext.
+Hub-to-Agent hop uses a raw TCP Serve forward inside Tailscale's authenticated,
+encrypted tunnel; Lodge still speaks HTTP to the loopback Agent, but it is not
+internet plaintext. TCP forwarding also works with a Tailscale IP when the Hub
+does not use MagicDNS and does not depend on an HTTP `Host` routing rule.
 
 ## Access policy
 
@@ -36,7 +38,7 @@ flat.
 Required positive checks:
 
 - an operator device can reach Hub HTTPS 10000 and SSH 22;
-- the Hub can reach every Agent on Tailnet HTTP 8443;
+- the Hub can reach every Agent on Tailnet TCP 8443 and receive Agent HTTP 401;
 - an operator can reach server SSH 22.
 
 Required negative checks:
@@ -59,8 +61,8 @@ sudo deploy/tailnet-management.sh check hub
 # and verify the resulting private route.
 sudo deploy/tailnet-management.sh apply hub
 
-# Run on each Agent after Lodge is listening locally. Agent Serve uses HTTP
-# inside the encrypted tailnet so it remains compatible with Hub Agent URLs.
+# Run on each Agent after Lodge is listening locally. Agent Serve uses raw TCP
+# forwarding inside the encrypted tailnet so IP-based Hub URLs remain reliable.
 sudo deploy/tailnet-management.sh apply agent
 ```
 

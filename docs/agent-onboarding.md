@@ -41,13 +41,15 @@ sudo -u lodge /usr/local/bin/lodge-hub \
   --config /etc/lodge-hub/config.json \
   --upsert-agent tencent \
   --agent-name Tencent \
-  --agent-url http://tencent.example-tailnet.ts.net:8443 \
+  --agent-url http://100.71.151.6:8443 \
   --agent-public-host 43.143.252.243 \
   < /etc/lodge-hub/.tencent-token-import
 ```
 
-The example tailnet DNS name is a placeholder; obtain the real name from
-Tailscale status. `--agent-url` accepts only an HTTP(S) base URL with no
+The example address is a placeholder; obtain the real Tailscale IPv4 address
+from Tailscale status. A MagicDNS name is also valid when the Hub resolves it.
+The TCP Serve forward deliberately supports either addressing form.
+`--agent-url` accepts only an HTTP(S) base URL with no
 credentials, query, fragment, or application path. `--agent-public-host` is
 optional and accepts a DNS name or IP without a port.
 
