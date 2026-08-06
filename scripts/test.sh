@@ -1,12 +1,36 @@
 #!/usr/bin/env bash
-# Lodge pre-commit gate.
+# Lodge local/CI quality gate. Keep this deterministic and side-effect free.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "[test] go build"
+step() { printf '\n[quality] %s\n' "$1"; }
+
+step "format"
+unformatted="$(find cmd internal -type f -name '*.go' -exec gofmt -l {} +)"
+if [ -n "$unformatted" ]; then
+  printf 'Go files need gofmt:\n%s\n' "$unformatted" >&2
+  exit 1
+fi
+
+step "vet"
+go vet ./...
+
+step "build"
 go build ./...
 
-echo "[test] go test"
+step "unit tests"
 go test ./...
 
-echo "[test] PASS — all gates green"
+step "race detector"
+go test -race ./...
+
+step "deployment scripts"
+bash -n deploy/install-agent.sh
+
+step "quality scorecard schema"
+python3 -m json.tool quality/scorecard.json >/dev/null
+
+step "whitespace"
+git diff --check
+
+printf '\n[quality] PASS — all gates green\n'

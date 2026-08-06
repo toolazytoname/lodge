@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "measuredAt": "2026-08-07",
+  "scope": "Lodge M0 baseline",
+  "metrics": [
+    {
+      "id": "managed_hosts",
+      "dimension": "product",
+      "name": "Managed unique hosts",
+      "current": 3,
+      "target": 5,
+      "unit": "hosts",
+      "direction": "increase",
+      "evidence": "Sanitized hub snapshot"
+    },
+    {
+      "id": "public_management_endpoints",
+      "dimension": "security",
+      "name": "Public management endpoints",
+      "current": 1,
+      "target": 0,
+      "unit": "endpoints",
+      "direction": "decrease",
+      "evidence": "Tailscale Funnel status"
+    },
+    {
+      "id": "ssh_password_disabled_hosts",
+      "dimension": "security",
+      "name": "Hosts with SSH password authentication disabled",
+      "current": 0,
+      "target": 5,
+      "unit": "hosts",
+      "direction": "increase",
+      "evidence": "Effective sshd configuration audit"
+    },
+    {
+      "id": "ssh_root_disabled_hosts",
+      "dimension": "security",
+      "name": "Hosts with remote root login disabled",
+      "current": 0,
+      "target": 5,
+      "unit": "hosts",
+      "direction": "increase",
+      "evidence": "Effective sshd configuration audit"
+    },
+    {
+      "id": "history_retention_days",
+      "dimension": "reliability",
+      "name": "Observation and event history retention",
+      "current": 0,
+      "target": 30,
+      "unit": "days",
+      "direction": "increase",
+      "evidence": "Current in-memory store"
+    },
+    {
+      "id": "web_operations",
+      "dimension": "operations",
+      "name": "Audited operations available from the Web UI",
+      "current": 0,
+      "target": 3,
+      "unit": "operations",
+      "direction": "increase",
+      "evidence": "Hub routes and embedded Web UI"
+    },
+    {
+      "id": "critical_e2e_scenarios",
+      "dimension": "engineering",
+      "name": "Automated critical end-to-end scenarios",
+      "current": 0,
+      "target": 12,
+      "unit": "scenarios",
+      "direction": "increase",
+      "evidence": "Repository test inventory"
+    },
+    {
+      "id": "incorrect_feature_claims",
+      "dimension": "documentation",
+      "name": "Known README feature claims not implemented",
+      "current": 0,
+      "target": 0,
+      "unit": "claims",
+      "direction": "decrease",
+      "evidence": "README corrected in M0"
+    },
+    {
+      "id": "agent_freshness_seconds",
+      "dimension": "reliability",
+      "name": "Maximum normal agent observation age",
+      "current": null,
+      "target": 60,
+      "unit": "seconds",
+      "direction": "decrease",
+      "evidence": "To be measured after history storage"
+    },
+    {
+      "id": "risk_detection_seconds",
+      "dimension": "security",
+      "name": "Maximum new-listener and SSH-spike detection latency",
+      "current": null,
+      "target": 90,
+      "unit": "seconds",
+      "direction": "decrease",
+      "evidence": "To be measured after alerting milestone"
+    }
+  ]
+}

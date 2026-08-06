@@ -21,7 +21,7 @@
 每台自己维护的服务器上跑着什么服务、暴露到哪里（只本机可访问 / 只 tailnet 内可访问 / 公网可达），一目了然——而不是靠手工表格，一周后就过时。
 
 - **agent**：部署在每台被管机器上，非 root 账号运行，只读采集端口/容器/systemd 服务，通过 sudoers 精确白名单执行少数几个受限动作，不支持任意命令执行。
-- **hub**：中心节点，定期拉取各 agent 的状态，提供 Web 界面统一查看；密码登录 + 登录限速；vault 端到端加密（主密码派生密钥，密文才落盘）。
+- **hub**：中心节点，定期拉取各 agent 的状态，提供 Web 界面统一查看；当前使用密码登录 + 登录限速。历史、告警、受控操作代理与 vault 仍在路线图中，未完成前不作为安全承诺。
 
 ## 架构
 
@@ -36,7 +36,7 @@ hub 主动拉取（非 agent 推送），机器都在同一个 tailnet 里；age
 
 - **agent 绝不以 root 运行**，专用系统账号，不加入 `docker` 组（docker 组等价 root）。特权操作走 `/etc/sudoers.d/lodge-agent` 的完整命令行精确匹配白名单，agent 内部用固定 argv 经 `exec.Command` 执行，不经 shell。
 - **hub 登录**：常数时间密码比较 + HMAC 签名会话 cookie；连续登录失败按指数退避锁定（IP 分桶 + 全局兜底桶）。
-- **vault 端到端加密**：主密码只在浏览器内派生密钥，hub 数据库里只有密文。
+- **管理面边界**：当前认证是过渡实现。生产管理面应只在 Tailnet 内开放；密码慢哈希、独立会话密钥、CSRF 防护和 vault 威胁模型列入安全里程碑。
 
 ## 开发
 
@@ -45,7 +45,7 @@ go build ./...
 GOOS=linux GOARCH=amd64 go build -o dist/lodge-agent ./cmd/lodge-agent
 GOOS=linux GOARCH=amd64 go build -o dist/lodge-hub ./cmd/lodge-hub
 
-npm test    # go build + go test
+npm test    # 本地完整质量门禁（format/vet/build/test/race/脚本与文档数据检查）
 ```
 
 ## 目录结构
@@ -58,7 +58,17 @@ internal/hub/       API、存储、采集器、认证、登录限速
 internal/shared/    共享类型
 internal/hub/web/   前端（内嵌进 hub 二进制）
 deploy/             systemd unit、sudoers 模板、install-agent.sh
+docs/               架构、威胁模型、质量门禁与开发规范
+quality/            可量化质量基线与目标
 ```
+
+## 工程规范
+
+- [架构](docs/architecture.md)
+- [威胁模型](docs/threat-model.md)
+- [质量门禁](docs/quality-gates.md)
+- [开发与验收](docs/development.md)
+- [实施路线](docs/roadmap.md)
 
 ## 贡献
 
