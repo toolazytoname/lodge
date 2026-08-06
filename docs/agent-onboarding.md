@@ -17,7 +17,8 @@ each server:
 3. run `deploy/install-agent.sh`, then confirm the `lodge` account has no
    privileged groups, the service is active, `--check` succeeds, and the token
    is owner-only; the installer validates both the generated sudoers candidate
-   and the complete host policy, restores the prior Lodge policy on failure,
+   and the complete host policy, restores the prior Lodge policy on any new
+   error (without silently enabling unrelated invalid host policy),
    checks the real service process has `NoNewPrivs=0`, and requires discovery
    through the authenticated service API to return assets without sudo errors;
 4. run `deploy/tailnet-management.sh apply agent`, verify Tailscale Funnel is

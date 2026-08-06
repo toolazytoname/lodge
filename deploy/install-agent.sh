@@ -39,6 +39,8 @@ fi
 [ -x "$BIN_SRC" ] || chmod +x "$BIN_SRC"
 command -v systemctl >/dev/null || err "未发现 systemd，本脚本仅支持 systemd 系统"
 command -v python3 >/dev/null || err "未发现 python3，无法执行服务进程验收"
+command -v visudo >/dev/null || err "未发现 visudo，无法验证 sudoers 策略"
+command -v cmp >/dev/null || err "未发现 cmp，无法比较 sudoers 安全基线"
 [ -f "$UNIT_SRC" ] || err "找不到 unit 文件：$UNIT_SRC"
 
 echo "▸ 安装 lodge-agent"
@@ -80,34 +82,50 @@ fi
 SUDOERS_FILE="/etc/sudoers.d/lodge-agent"
 TMP_SUDOERS="$(mktemp)"
 SUDOERS_BACKUP="$(mktemp)"
+SUDOERS_BASELINE="$(mktemp)"
+SUDOERS_BASELINE_ERRORS="$(mktemp)"
+SUDOERS_AFTER="$(mktemp)"
+SUDOERS_AFTER_ERRORS="$(mktemp)"
 SUDOERS_EXISTED=0
+SUDOERS_BASELINE_CLEAN=0
+if visudo -c >"$SUDOERS_BASELINE" 2>&1; then
+  SUDOERS_BASELINE_CLEAN=1
+fi
+grep -v ': parsed OK$' "$SUDOERS_BASELINE" >"$SUDOERS_BASELINE_ERRORS" || true
 if ! "$INSTALL_DIR/lodge-agent" --print-sudoers > "$TMP_SUDOERS"; then
-  rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
+  rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP" "$SUDOERS_BASELINE" \
+    "$SUDOERS_BASELINE_ERRORS" "$SUDOERS_AFTER" "$SUDOERS_AFTER_ERRORS"
   err "生成 sudoers 失败（agent --print-sudoers 报错，多半是本机缺 docker/ss 等命令）"
 fi
 # 先用 visudo 校验语法，再落地，避免坏 sudoers 卡死系统
-if command -v visudo >/dev/null; then
-  if ! visudo -cf "$TMP_SUDOERS" >/dev/null; then
-    rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
-    err "visudo 校验失败，未写入 sudoers"
-  fi
+if ! visudo -cf "$TMP_SUDOERS" >/dev/null; then
+  rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP" "$SUDOERS_BASELINE" \
+    "$SUDOERS_BASELINE_ERRORS" "$SUDOERS_AFTER" "$SUDOERS_AFTER_ERRORS"
+  err "visudo 校验失败，未写入 sudoers"
 fi
 if [ -f "$SUDOERS_FILE" ]; then
   cp -p -- "$SUDOERS_FILE" "$SUDOERS_BACKUP"
   SUDOERS_EXISTED=1
 fi
 install -m 0440 -o root -g root "$TMP_SUDOERS" "$SUDOERS_FILE"
-if command -v visudo >/dev/null && ! visudo -c >/dev/null; then
-  if [ "$SUDOERS_EXISTED" -eq 1 ]; then
-    install -m 0440 -o root -g root "$SUDOERS_BACKUP" "$SUDOERS_FILE"
+if ! visudo -c >"$SUDOERS_AFTER" 2>&1; then
+  grep -v ': parsed OK$' "$SUDOERS_AFTER" >"$SUDOERS_AFTER_ERRORS" || true
+  if [ "$SUDOERS_BASELINE_CLEAN" -eq 0 ] && cmp -s "$SUDOERS_BASELINE_ERRORS" "$SUDOERS_AFTER_ERRORS"; then
+    info "警告：主机原有 sudoers 基线不干净；Lodge 未增加新错误，请另行修复既有策略"
   else
-    rm -f -- "$SUDOERS_FILE"
+    if [ "$SUDOERS_EXISTED" -eq 1 ]; then
+      install -m 0440 -o root -g root "$SUDOERS_BACKUP" "$SUDOERS_FILE"
+    else
+      rm -f -- "$SUDOERS_FILE"
+    fi
+    rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP" "$SUDOERS_BASELINE" \
+      "$SUDOERS_BASELINE_ERRORS" "$SUDOERS_AFTER" "$SUDOERS_AFTER_ERRORS"
+    err "完整 sudoers 策略出现新增错误，已恢复安装前 Lodge 策略"
   fi
-  rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
-  err "完整 sudoers 策略校验失败，已恢复安装前策略"
 fi
-rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP"
-info "sudoers → $SUDOERS_FILE（候选文件与完整策略均经 visudo 校验）"
+rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP" "$SUDOERS_BASELINE" \
+  "$SUDOERS_BASELINE_ERRORS" "$SUDOERS_AFTER" "$SUDOERS_AFTER_ERRORS"
+info "sudoers → $SUDOERS_FILE（候选合法，完整策略未增加错误）"
 
 # ── 5. systemd unit ───────────────────────────────────────
 install -m 0644 "$UNIT_SRC" "$UNIT_DST"

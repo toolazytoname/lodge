@@ -7,9 +7,10 @@ bash -n "$script"
 
 required_patterns=(
   'visudo -cf "$TMP_SUDOERS"'
-  'visudo -c >/dev/null'
+  'visudo -c >"$SUDOERS_AFTER" 2>&1'
   'install -m 0440 -o root -g root "$SUDOERS_BACKUP" "$SUDOERS_FILE"'
-  '完整 sudoers 策略校验失败，已恢复安装前策略'
+  'cmp -s "$SUDOERS_BASELINE_ERRORS" "$SUDOERS_AFTER_ERRORS"'
+  '完整 sudoers 策略出现新增错误，已恢复安装前 Lodge 策略'
   'NO_NEW_PRIVS="$(awk'
   '服务进程采集通过：services='
   'docs/agent-onboarding.md'
@@ -33,6 +34,19 @@ done
 
 if grep -F 'sudo cat /etc/lodge-agent/token' "$script" >/dev/null; then
   printf 'install-agent must not tell operators to print the bearer token\n' >&2
+  exit 1
+fi
+
+test_dir="$(mktemp -d)"
+trap 'find "$test_dir" -depth -delete' EXIT
+printf '/etc/sudoers.d/legacy: bad permissions\n/etc/sudoers: parsed OK\n' >"$test_dir/before"
+printf '/etc/sudoers.d/legacy: bad permissions\n/etc/sudoers: parsed OK\n/etc/sudoers.d/lodge-agent: parsed OK\n' >"$test_dir/after"
+grep -v ': parsed OK$' "$test_dir/before" >"$test_dir/before-errors"
+grep -v ': parsed OK$' "$test_dir/after" >"$test_dir/after-errors"
+cmp -s "$test_dir/before-errors" "$test_dir/after-errors"
+printf '/etc/sudoers.d/new: syntax error\n' >>"$test_dir/after-errors"
+if cmp -s "$test_dir/before-errors" "$test_dir/after-errors"; then
+  printf 'sudoers baseline comparison accepted a new error\n' >&2
   exit 1
 fi
 
