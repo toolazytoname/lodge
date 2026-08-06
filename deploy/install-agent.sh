@@ -126,7 +126,6 @@ fi
 
 echo
 echo "▸ 完成。下一步："
-echo "    1. 读 token：sudo cat $TOKEN_FILE"
+echo "    1. 按 docs/agent-onboarding.md 将 owner-only token 安全导入 Hub（不要打印或放进命令参数）"
 echo "    2. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
-echo "    3. 验证：curl -H \"Authorization: Bearer \$(sudo cat $TOKEN_FILE)\" \\"
-echo "              http://\$(hostname).<你的tailnet>.ts.net:8443/v1/ping"
+echo "    3. 从 Hub 验证 tailnet 路由和采集状态"

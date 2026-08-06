@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -38,9 +39,26 @@ func run() error {
 	historyRetention := flag.Duration("history-retention", 30*24*time.Hour, "观测历史保留期；0 表示不自动裁剪")
 	backupDestination := flag.String("backup", "", "创建一致性 SQLite 备份到新文件并退出")
 	migrateConfigPassword := flag.Bool("migrate-config-password", false, "将 config 中旧明文 password 原子迁移为 Argon2id 后退出")
+	upsertAgent := flag.String("upsert-agent", "", "从标准输入读取 token，原子添加或更新指定 Agent 后退出")
+	agentName := flag.String("agent-name", "", "与 --upsert-agent 配合使用的展示名称；默认等于 ID")
+	agentURL := flag.String("agent-url", "", "与 --upsert-agent 配合使用的 tailnet Agent base URL")
+	agentPublicHost := flag.String("agent-public-host", "", "与 --upsert-agent 配合使用的无端口公网域名或 IP（可选）")
 	hashPassword := flag.Bool("hash-password", false, "从标准输入读取密码并输出 Argon2id verifier 后退出")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
+
+	if *upsertAgent == "" && (*agentName != "" || *agentURL != "" || *agentPublicHost != "") {
+		return errors.New("agent-name、agent-url 和 agent-public-host 必须与 --upsert-agent 一起使用")
+	}
+	specialModes := 0
+	for _, selected := range []bool{*showVersion, *hashPassword, *migrateConfigPassword, *upsertAgent != "", *backupDestination != ""} {
+		if selected {
+			specialModes++
+		}
+	}
+	if specialModes > 1 {
+		return errors.New("version、hash-password、migrate-config-password、upsert-agent 和 backup 只能选择一个")
+	}
 
 	if *showVersion {
 		fmt.Println("lodge-hub", hubVersion)
@@ -58,6 +76,28 @@ func run() error {
 			fmt.Println("Hub 配置密码已原子迁移为 Argon2id verifier")
 		} else {
 			fmt.Println("Hub 配置无需明文密码迁移")
+		}
+		return nil
+	}
+	if *upsertAgent != "" {
+		token, err := readAgentToken(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("读取 Agent token: %w", err)
+		}
+		changed, err := hub.UpsertAgentConfig(*configPath, hub.AgentConfig{
+			ID:         *upsertAgent,
+			Name:       *agentName,
+			URL:        *agentURL,
+			Token:      token,
+			PublicHost: *agentPublicHost,
+		})
+		if err != nil {
+			return fmt.Errorf("更新 Agent 配置: %w", err)
+		}
+		if changed {
+			fmt.Printf("Agent %s 已原子写入 Hub 配置\n", *upsertAgent)
+		} else {
+			fmt.Printf("Agent %s 的 Hub 配置无需更新\n", *upsertAgent)
 		}
 		return nil
 	}
@@ -162,6 +202,27 @@ func run() error {
 		return fmt.Errorf("HTTP 服务退出: %w", serveErr)
 	}
 	return nil
+}
+
+func readAgentToken(input *os.File) (string, error) {
+	info, err := input.Stat()
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeCharDevice != 0 {
+		return "", errors.New("为避免 token 回显，请通过标准输入重定向 owner-only token 文件")
+	}
+	const maxTokenBytes = 4096
+	contents, err := io.ReadAll(io.LimitReader(input, maxTokenBytes+3))
+	if err != nil {
+		return "", err
+	}
+	contents = bytes.TrimSuffix(contents, []byte{'\n'})
+	contents = bytes.TrimSuffix(contents, []byte{'\r'})
+	if len(contents) == 0 || len(contents) > maxTokenBytes {
+		return "", fmt.Errorf("token 必须为 1..%d 字节", maxTokenBytes)
+	}
+	return string(contents), nil
 }
 
 func printPasswordHash() error {

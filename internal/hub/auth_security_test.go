@@ -191,6 +191,100 @@ func TestMigrateConfigPasswordIsAtomicOwnerOnlyAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestUpsertAgentConfigIsAtomicOwnerOnlyAndIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	passwordHash, err := HashPassword("correct horse battery staple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := `{"_comment":"preserve","_comment_agents":"also preserve","passwordHash":` + strconv.Quote(passwordHash) + `,"agents":[{"id":"host-a","name":"A","url":"http://agent-a:9101","token":"secret-a"}]}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	added, err := UpsertAgentConfig(path, AgentConfig{
+		ID: "host-b", URL: "http://agent-b:9101/", Token: "secret-b", PublicHost: "host-b.example",
+	})
+	if err != nil || !added {
+		t.Fatalf("add Agent: added=%v err=%v", added, err)
+	}
+	config, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Comment != "preserve" || config.CommentAgents != "also preserve" || config.PasswordHash != passwordHash {
+		t.Fatal("upsert did not preserve unrelated owner configuration")
+	}
+	if len(config.Agents) != 2 || config.Agents[0].ID != "host-a" || config.Agents[1].Name != "host-b" || config.Agents[1].URL != "http://agent-b:9101" {
+		t.Fatalf("Agent was not appended and normalized: %+v", config.Agents)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("updated config mode = %04o, want 0600", info.Mode().Perm())
+	}
+
+	updated := config.Agents[0]
+	updated.Name = "A updated"
+	changed, err := UpsertAgentConfig(path, updated)
+	if err != nil || !changed {
+		t.Fatalf("update Agent: changed=%v err=%v", changed, err)
+	}
+	config, err = LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(config.Agents) != 2 || config.Agents[0].Name != "A updated" || config.Agents[1].ID != "host-b" {
+		t.Fatalf("update changed Agent order or wrong entry: %+v", config.Agents)
+	}
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err = UpsertAgentConfig(path, config.Agents[0])
+	if err != nil || changed {
+		t.Fatalf("idempotent upsert: changed=%v err=%v", changed, err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("idempotent upsert rewrote an unchanged config")
+	}
+}
+
+func TestUpsertAgentConfigRejectsUnsafeInputWithoutModifyingFile(t *testing.T) {
+	unsafe := []AgentConfig{
+		{ID: "host\nline", URL: "http://agent:9101", Token: "secret"},
+		{ID: "host", URL: "http://agent:9101/admin", Token: "secret"},
+		{ID: "host", URL: "http://agent:9101", Token: "secret\n"},
+		{ID: "host", URL: "http://agent:9101", Token: "secret", PublicHost: "example.com:443"},
+	}
+	for index, agent := range unsafe {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.json")
+		const original = `{"agents":[]}`
+		if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if changed, err := UpsertAgentConfig(path, agent); err == nil || changed {
+			t.Fatalf("unsafe Agent %d accepted: changed=%v err=%v", index, changed, err)
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(contents) != original {
+			t.Fatalf("unsafe Agent %d modified config", index)
+		}
+	}
+}
+
 func TestLoadConfigRejectsAmbiguousOrUnsafeInput(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
@@ -200,6 +294,10 @@ func TestLoadConfigRejectsAmbiguousOrUnsafeInput(t *testing.T) {
 		`{"agents":[{"id":"duplicate","url":"http://host-a","token":"a"},{"id":"duplicate","url":"http://host-b","token":"b"}]}`,
 		`{"agents":[{"id":"host-a","url":"file:///etc/passwd","token":"a"}]}`,
 		`{"agents":[{"id":"host-a","url":"http://user:pass@host-a","token":"a"}]}`,
+		`{"agents":[{"id":"host-a","url":"http://host-a/admin","token":"a"}]}`,
+		`{"agents":[{"id":"host-a\nline","url":"http://host-a","token":"a"}]}`,
+		`{"agents":[{"id":"host-a","url":"http://host-a","token":"a\n"}]}`,
+		`{"agents":[{"id":"host-a","url":"http://host-a","token":"a","publicHost":"example.com:443"}]}`,
 		`{"agents":[{"id":"host-a","url":"http://host-a"}]}`,
 	}
 	for _, body := range cases {

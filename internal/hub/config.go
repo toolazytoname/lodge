@@ -9,6 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Config is the owner-private Hub configuration. Password is accepted only for
@@ -45,43 +48,76 @@ func LoadConfig(path string) (Config, error) {
 	if err := ensureJSONEOF(decoder); err != nil {
 		return Config{}, fmt.Errorf("解析 hub 配置: %w", err)
 	}
+	if err := normalizeConfig(&config); err != nil {
+		return Config{}, err
+	}
+	return config, nil
+}
+
+func normalizeConfig(config *Config) error {
 	if config.Password != "" && config.PasswordHash != "" {
-		return Config{}, fmt.Errorf("password 与 passwordHash 不能同时配置")
+		return fmt.Errorf("password 与 passwordHash 不能同时配置")
 	}
 	if config.PasswordHash != "" {
 		if err := validatePasswordHash(config.PasswordHash); err != nil {
-			return Config{}, fmt.Errorf("passwordHash: %w", err)
+			return fmt.Errorf("passwordHash: %w", err)
 		}
 	}
 	knownIDs := make(map[string]struct{}, len(config.Agents))
 	for i := range config.Agents {
 		agent := &config.Agents[i]
+		if !utf8.ValidString(agent.ID) || !utf8.ValidString(agent.Name) || !utf8.ValidString(agent.URL) || !utf8.ValidString(agent.Token) || !utf8.ValidString(agent.PublicHost) {
+			return fmt.Errorf("第 %d 个 agent 配置不是有效 UTF-8", i+1)
+		}
+		if containsControl(agent.ID) || containsControl(agent.Name) || containsControl(agent.URL) || containsControl(agent.Token) || containsControl(agent.PublicHost) {
+			return fmt.Errorf("第 %d 个 agent 配置包含控制字符", i+1)
+		}
 		agent.ID = strings.TrimSpace(agent.ID)
 		agent.Name = strings.TrimSpace(agent.Name)
-		agent.URL = strings.TrimRight(strings.TrimSpace(agent.URL), "/")
-		if agent.ID == "" || len(agent.ID) > maxAgentIDBytes {
-			return Config{}, fmt.Errorf("第 %d 个 agent 缺 id", i+1)
+		agent.URL = strings.TrimSpace(agent.URL)
+		agent.PublicHost = strings.TrimSpace(agent.PublicHost)
+		if agent.ID == "" || len(agent.ID) > maxAgentIDBytes || !utf8.ValidString(agent.ID) {
+			return fmt.Errorf("第 %d 个 agent 的 id 无效", i+1)
 		}
 		if _, duplicate := knownIDs[agent.ID]; duplicate {
-			return Config{}, fmt.Errorf("agent id 重复: %s", agent.ID)
+			return fmt.Errorf("agent id 重复: %s", agent.ID)
 		}
 		knownIDs[agent.ID] = struct{}{}
 		if agent.URL == "" {
-			return Config{}, fmt.Errorf("agent %s 缺 url", agent.ID)
+			return fmt.Errorf("agent %s 缺 url", agent.ID)
 		}
 		parsedURL, err := url.Parse(agent.URL)
-		if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
-			return Config{}, fmt.Errorf("agent %s 的 url 必须是无凭据、查询或片段的 http/https 地址", agent.ID)
+		if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.User != nil || (parsedURL.Path != "" && parsedURL.Path != "/") || parsedURL.RawPath != "" || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+			return fmt.Errorf("agent %s 的 url 必须是无凭据、路径、查询或片段的 http/https base URL", agent.ID)
 		}
-		if strings.TrimSpace(agent.Token) == "" {
-			return Config{}, fmt.Errorf("agent %s 缺 token", agent.ID)
+		parsedURL.Path = ""
+		agent.URL = parsedURL.String()
+		if agent.Token == "" || len(agent.Token) > 4096 || !utf8.ValidString(agent.Token) {
+			return fmt.Errorf("agent %s 的 token 无效", agent.ID)
 		}
-		agent.Token = strings.TrimSpace(agent.Token)
 		if agent.Name == "" {
 			agent.Name = agent.ID
 		}
+		if len(agent.Name) > 256 || !utf8.ValidString(agent.Name) {
+			return fmt.Errorf("agent %s 的 name 无效", agent.ID)
+		}
+		if agent.PublicHost != "" {
+			parsedHost, err := url.Parse("//" + agent.PublicHost)
+			if err != nil || parsedHost.Host != agent.PublicHost || parsedHost.Hostname() == "" || parsedHost.User != nil || parsedHost.Port() != "" || parsedHost.Path != "" || parsedHost.RawQuery != "" || parsedHost.Fragment != "" {
+				return fmt.Errorf("agent %s 的 publicHost 必须是无端口的域名或 IP", agent.ID)
+			}
+		}
 	}
-	return config, nil
+	return nil
+}
+
+func containsControl(value string) bool {
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolvePasswordHash converts a legacy plaintext config only in memory. The
@@ -119,50 +155,100 @@ func MigrateConfigPassword(path string) (bool, error) {
 	}
 	config.Password = ""
 	config.PasswordHash = passwordHash
-	encoded, err := json.MarshalIndent(config, "", "  ")
+	if err := writeConfigAtomically(path, original, config); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// UpsertAgentConfig adds or replaces one Agent without exposing its bearer
+// token through command-line arguments or process output.
+func UpsertAgentConfig(path string, agent AgentConfig) (bool, error) {
+	original, err := os.Lstat(path)
 	if err != nil {
 		return false, err
+	}
+	config, err := LoadConfig(path)
+	if err != nil {
+		return false, err
+	}
+	single := Config{Agents: []AgentConfig{agent}}
+	if err := normalizeConfig(&single); err != nil {
+		return false, err
+	}
+	agent = single.Agents[0]
+	config.Agents = append([]AgentConfig(nil), config.Agents...)
+	for index := range config.Agents {
+		if config.Agents[index].ID != agent.ID {
+			continue
+		}
+		if config.Agents[index] == agent {
+			return false, nil
+		}
+		config.Agents[index] = agent
+		if err := writeConfigAtomically(path, original, config); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	config.Agents = append(config.Agents, agent)
+	if err := writeConfigAtomically(path, original, config); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func writeConfigAtomically(path string, original os.FileInfo, config Config) error {
+	encoded, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
 	}
 	encoded = append(encoded, '\n')
 	directory := filepath.Dir(path)
 	temporary, err := os.CreateTemp(directory, ".config-migration-*")
 	if err != nil {
-		return false, fmt.Errorf("create config migration file: %w", err)
+		return fmt.Errorf("create config migration file: %w", err)
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
 	if err := temporary.Chmod(0o600); err != nil {
 		_ = temporary.Close()
-		return false, err
+		return err
+	}
+	if stat, ok := original.Sys().(*syscall.Stat_t); ok {
+		if err := temporary.Chown(int(stat.Uid), int(stat.Gid)); err != nil {
+			_ = temporary.Close()
+			return fmt.Errorf("preserve config ownership: %w", err)
+		}
 	}
 	if _, err := temporary.Write(encoded); err != nil {
 		_ = temporary.Close()
-		return false, err
+		return err
 	}
 	if err := temporary.Sync(); err != nil {
 		_ = temporary.Close()
-		return false, err
+		return err
 	}
 	if err := temporary.Close(); err != nil {
-		return false, err
+		return err
 	}
 	current, err := os.Lstat(path)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if !os.SameFile(original, current) || original.Size() != current.Size() || !original.ModTime().Equal(current.ModTime()) {
-		return false, errors.New("hub config changed during password migration")
+		return errors.New("hub config changed during atomic update")
 	}
 	if err := os.Rename(temporaryPath, path); err != nil {
-		return false, err
+		return err
 	}
 	directoryHandle, err := os.Open(directory)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer directoryHandle.Close()
 	if err := directoryHandle.Sync(); err != nil {
-		return false, err
+		return err
 	}
-	return true, nil
+	return nil
 }
