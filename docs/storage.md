@@ -112,3 +112,15 @@ Hub at a time:
    annotations, and a successful `--backup` command;
 6. verify the Tailnet URL and then remove the legacy state and its rollback copy
    after the rollback window closes.
+
+`deploy/install-hub.sh` implements this as a single-host transaction. It takes
+an expected artifact SHA-256, stops only the Hub, creates an owner-only rollback
+bundle, runs the in-process password migration, installs the binary and unit,
+then verifies loopback HTTP, protected file ownership, SQLite integrity/schema,
+credential-free Host columns, and a live post-deploy backup. Its `EXIT` trap
+restores the old binary, unit, config, optional state/session, and database when
+any acceptance check fails.
+
+```bash
+sudo deploy/install-hub.sh apply /tmp/lodge-hub <expected-sha256>
+```
