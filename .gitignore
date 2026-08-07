@@ -44,6 +44,8 @@ server.log
 
 # Test artifacts (Playwright screenshots / cache)
 .playwright-mcp/
+playwright-report/
+test-results/
 lodge-*.png
 scripts/.last-failure.png
 

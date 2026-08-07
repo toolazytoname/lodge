@@ -14,6 +14,8 @@ Every commit intended for push must pass `npm test`, which currently enforces:
 - shell syntax for deployment scripts;
 - generated TypeScript API-contract drift, strict browser compilation, and
   embedded CSS source drift;
+- responsive Chromium end-to-end behavior and committed visual baselines at
+  390, 1280, and 1920 pixel widths;
 - JSON validity of the quality scorecard;
 - whitespace checks.
 
@@ -56,7 +58,7 @@ Each core page is reviewed from 1 to 5 for:
 - density and relevance;
 - owner preference.
 
-No category may be below 4 for a milestone to be considered visually accepted. Core flows must work at 390px mobile width and at desktop widths from 1280px through 1920px.
+No category may be below 4 for a milestone to be considered visually accepted. Core flows must work at 390px mobile width and at desktop widths from 1280px through 1920px. Deterministic screenshots enforce gross layout and visual-token drift; human review still decides whether an intentional design change is good.
 
 Architecture is accepted through change scenarios: adding a collector, notification channel, storage implementation, authentication method, or workload kind must not require unrelated packages to change.
 

@@ -33,6 +33,9 @@ bash scripts/test-install-agent.sh
 step "generated TypeScript Web contract and build"
 npm run check:web
 
+step "responsive Web end-to-end and visual regression"
+npm run test:web:e2e
+
 step "quality scorecard schema"
 python3 -m json.tool quality/scorecard.json >/dev/null
 

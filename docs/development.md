@@ -12,6 +12,7 @@ Install the build dependency once after checkout:
 
 ```bash
 npm ci
+npx playwright install chromium
 ```
 
 ## Local checks
@@ -32,6 +33,15 @@ The command regenerates `frontend/src/api.generated.d.ts` from Go, compiles
 `frontend/src/app.ts`, and installs `frontend/src/app.css`. `npm test`
 independently regenerates into a temporary directory and fails if JavaScript or
 CSS embedded in the Hub is stale.
+
+Responsive browser acceptance and visual regression can also be run directly:
+
+```bash
+npm run test:web:e2e
+```
+
+Fixture modes and the intentional screenshot-update workflow are documented in
+[`web-console.md`](web-console.md).
 
 ## Delivery workflow
 

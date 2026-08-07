@@ -93,3 +93,10 @@
 - 建立 Overview、Hosts、Services、Security、Operations 信息架构；后两者明确标注 M5/M6 能力边界。
 - 在 5 主机、55 服务脱敏 live fixture 上验收搜索、筛选、失败优先级、Web 快速入口与服务配置对话框。
 - 1280 宽度无横向溢出、console error 为 0；390/1920 与异常状态自动化证据留给下一切片。
+
+## [2026-08-08] implementation | M4 响应式与异常状态门禁
+
+- 新增完全虚构的 5 主机/55 服务 fixture 和固定时间、locale、时区的 Chromium 矩阵，不把真实资产写入测试。
+- 自动覆盖 390/1280/1920、empty、offline、partial failure、total error、搜索和安全注解输入，共 9 个关键场景。
+- 提交 5 张视觉基线；`npm test` 与 CI 安装浏览器并阻断行为或截图漂移，失败时保留 7 天 trace/screenshot/diff。
+- 全错误显示 `N/A` 而不是误导性的 0；只有成功返回空数组才表示没有资产。

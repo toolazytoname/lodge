@@ -7,9 +7,12 @@
     "build:web": "bash scripts/build-web.sh",
     "check:web": "bash scripts/check-web.sh",
     "generate:web-types": "go run ./cmd/lodge-web-types",
-    "test": "bash scripts/test.sh"
+    "test": "bash scripts/test.sh",
+    "test:web:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.13.3",
     "typescript": "6.0.3"
   }
 }

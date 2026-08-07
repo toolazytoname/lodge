@@ -38,8 +38,20 @@ jobs:
       - name: Install frontend build dependencies
         run: npm ci
 
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
+
       - name: Run quality gates
         run: bash scripts/test.sh
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-${{ github.run_id }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Scan Go dependencies and standard library
         run: |

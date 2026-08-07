@@ -40,3 +40,11 @@ CI 新增 Node 24 与 `npm ci`，本地和 CI 的 `npm test` 现在都验证 Go 
 Security 只汇总当前公网监听、Web 链接、待归因与离线节点；登录失败来源与历史告警明确标为 M5。Operations 只展示当前资产同步和 Agent 版本；重启、部署、回滚明确标为 M6 且保持只读。这样用户能看到完整信息架构，但不会把路线图能力误认为已经可用。
 
 使用 1280 宽度、5 主机、55 服务的脱敏 live fixture 进行浏览器验收：五个页面均可切换；服务目录为 55/55；搜索 `certbot` 得到 1/55；四个 failed unit 具有最高风险视觉优先级；配置对话框打开后焦点进入首字段，`ssh://example.com` 被 URL 边界拒绝；页面 scroll width 等于 client width；console error 为 0。390 与 1920 宽度以及 loading/empty/offline/partial failure 的自动 fixture 仍是下一切片，因此相关路线图门禁尚未勾选。
+
+## 响应式、异常状态与视觉门禁
+
+2026-08-08 建立完全虚构且可重复的 5 主机/55 服务 fixture，不使用 live 主机名、IP 或 URL。浏览器矩阵固定时间、`zh-CN` locale、上海时区和 Chromium，覆盖 390、1280、1920 三种宽度；reference screenshots 包括移动服务目录、桌面服务目录、宽屏 Overview、离线 Overview 和全错误 Overview。
+
+首次全错误不再显示会被误解为真实资产的 0/0，而是四项 `N/A` 和明确的“数据暂不可用”；首次 services 部分失败仍保留成功的 5 台主机信息，服务指标和目录只标记对应数据不可用；成功返回空数组才显示“尚未纳管”。离线 fixture 显示 4/5 并将连接超时提升为首屏风险信号。
+
+端到端门禁当前包含 4 个测试、9 个关键场景和 5 张视觉基线：55 项密度、失败优先级、搜索、dialog 焦点、非法协议拒绝、五页移动导航、三宽度无横向溢出、empty/offline/partial/error 语义均通过。测试与配置也经过 strict TypeScript；fixture server 通过 Node 语法检查。M4 的页面、响应式、状态与视觉回归路线项完成，但注册 Web 链接主动可达率仍未测量，M4 整体继续保持 in-progress。

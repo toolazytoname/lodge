@@ -10,4 +10,6 @@ trap 'rm -rf -- "$build_dir"' EXIT
 ./node_modules/.bin/tsc -p frontend/tsconfig.json --outDir "$build_dir"
 cmp "$build_dir/app.js" internal/hub/web/app.js
 cmp frontend/src/app.css internal/hub/web/app.css
+./node_modules/.bin/tsc -p frontend/tests/tsconfig.json
 node --check internal/hub/web/app.js
+node --check scripts/web-fixture-server.mjs

@@ -77,6 +77,7 @@ quality/            可量化质量基线与目标
 - [Tailnet-only 部署](docs/tailnet-deployment.md)
 - [Agent 安全纳管](docs/agent-onboarding.md)
 - [质量门禁](docs/quality-gates.md)
+- [Web 控制台与浏览器验收](docs/web-console.md)
 - [开发与验收](docs/development.md)
 - [实施路线](docs/roadmap.md)
 

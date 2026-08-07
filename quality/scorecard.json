@@ -117,11 +117,21 @@
       "id": "critical_e2e_scenarios",
       "dimension": "engineering",
       "name": "Automated critical end-to-end scenarios",
-      "current": 0,
+      "current": 9,
       "target": 12,
       "unit": "scenarios",
       "direction": "increase",
-      "evidence": "Repository test inventory"
+      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, 390/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
+    },
+    {
+      "id": "web_visual_regression_widths",
+      "dimension": "engineering",
+      "name": "Web visual regression viewport widths",
+      "current": 3,
+      "target": 3,
+      "unit": "widths",
+      "direction": "increase",
+      "evidence": "Deterministic committed Chromium screenshots at 390, 1280, and 1920 pixels"
     },
     {
       "id": "incorrect_feature_claims",

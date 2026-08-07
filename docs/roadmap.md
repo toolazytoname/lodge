@@ -41,8 +41,9 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 
 - [x] TypeScript frontend with generated API types
 - [x] Overview, Hosts, Services, Security, and Operations navigation and page boundaries
-- [ ] Responsive, accessible loading/empty/offline/error states
-- [ ] End-to-end and visual regression tests
+- [x] Responsive, accessible loading/empty/offline/error states
+- [x] End-to-end and visual regression tests
+- [ ] Active reachability measurement for registered Web links
 
 ## M5 — History and alerts
 

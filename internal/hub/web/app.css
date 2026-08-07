@@ -1235,6 +1235,10 @@ textarea:focus-visible {
   color: #6ea994;
 }
 
+.empty-state.error {
+  color: var(--critical);
+}
+
 .empty-state.loading {
   animation: pulse 1.5s ease-in-out infinite;
 }

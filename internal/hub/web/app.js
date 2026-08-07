@@ -246,7 +246,10 @@ async function refresh() {
     renderAll();
     updateConnectionState(failures.length > 0);
     if (failures.length) {
-        setNotice(`部分数据更新失败，页面保留最近一次成功结果。${failures.join("；")}`);
+        const noUsableData = !state.agentsLoaded && !state.servicesLoaded;
+        setNotice(noUsableData
+            ? `控制台数据加载失败，请检查 Hub 状态后重试。${failures.join("；")}`
+            : `部分数据更新失败，页面保留最近一次成功结果。${failures.join("；")}`);
     }
     else {
         setNotice(null);
@@ -283,6 +286,15 @@ function updateConnectionState(partialFailure) {
     const online = state.agents.filter((agent) => agent.online).length;
     const total = state.agents.length;
     const dot = byID("connectionDot");
+    if (!state.agentsLoaded) {
+        dot.className = "status-dot offline";
+        byID("connectionText").textContent = "主机同步失败";
+        byID("updated").textContent = `尝试于 ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`;
+        const fleetStatus = byID("fleetStatus");
+        fleetStatus.textContent = "主机数据暂不可用";
+        fleetStatus.className = "fleet-status attention";
+        return;
+    }
     dot.className = `status-dot ${partialFailure ? "warning" : online === total && total > 0 ? "online" : "offline"}`;
     byID("connectionText").textContent = partialFailure
         ? "部分同步失败"
@@ -366,15 +378,34 @@ function renderOverview() {
     const attentionCount = state.agents.length - onlineHosts + failedServices + unidentified + pressureHosts;
     const targets = allWebTargets();
     replaceChildren(byID("overviewMetrics"), [
-        metricCard("在线主机", `${onlineHosts}/${state.agents.length}`, "Agent 实时连接", onlineHosts === state.agents.length ? "good" : "critical"),
-        metricCard("工作负载", entries.length, "已发现并归因的服务"),
-        metricCard("Web 入口", targets.length, "已发现的 http(s) 链接", "accent"),
-        metricCard("需要关注", attentionCount, attentionCount ? "离线、失败或资源压力" : "当前没有高优先级信号", attentionCount ? "warning" : "good"),
+        state.agentsLoaded
+            ? metricCard("在线主机", `${onlineHosts}/${state.agents.length}`, "Agent 实时连接", onlineHosts === state.agents.length ? "good" : "critical")
+            : metricCard("在线主机", "N/A", "主机数据暂不可用", "critical"),
+        state.servicesLoaded
+            ? metricCard("工作负载", entries.length, "已发现并归因的服务")
+            : metricCard("工作负载", "N/A", "服务数据暂不可用", "critical"),
+        state.servicesLoaded
+            ? metricCard("Web 入口", targets.length, "已发现的 http(s) 链接", "accent")
+            : metricCard("Web 入口", "N/A", "服务数据暂不可用", "critical"),
+        state.agentsLoaded || state.servicesLoaded
+            ? metricCard("需要关注", attentionCount, attentionCount ? "离线、失败或资源压力" : "当前没有高优先级信号", attentionCount ? "warning" : "good")
+            : metricCard("需要关注", "N/A", "等待数据恢复", "critical"),
     ]);
-    renderRiskSignals();
-    renderQuickLinks(targets);
-    const previewCards = state.agents.slice(0, 6).map((agent) => hostCard(agent, false));
-    replaceChildren(byID("hostPreview"), previewCards.length ? previewCards : [emptyState("尚未纳管主机。")]);
+    if (state.agentsLoaded || state.servicesLoaded)
+        renderRiskSignals();
+    else
+        replaceChildren(byID("riskSignals"), [emptyState("风险信号暂时不可用，请刷新重试。", "error")]);
+    if (state.servicesLoaded)
+        renderQuickLinks(targets);
+    else
+        replaceChildren(byID("quickLinks"), [emptyState("Web 入口数据暂时不可用。", "error")]);
+    if (state.agentsLoaded) {
+        const previewCards = state.agents.slice(0, 6).map((agent) => hostCard(agent, false));
+        replaceChildren(byID("hostPreview"), previewCards.length ? previewCards : [emptyState("尚未纳管主机。")]);
+    }
+    else {
+        replaceChildren(byID("hostPreview"), [emptyState("主机数据暂时不可用。", "error")]);
+    }
 }
 function collectSignals() {
     const signals = [];
@@ -515,6 +546,10 @@ function hostCard(agent, expanded) {
     return card;
 }
 function renderHosts() {
+    if (!state.agentsLoaded) {
+        replaceChildren(byID("hostDirectory"), [emptyState("主机数据暂时不可用，请刷新重试。", "error")]);
+        return;
+    }
     const sorted = [...state.agents].sort((left, right) => Number(right.online) - Number(left.online));
     const cards = sorted.map((agent) => hostCard(agent, true));
     replaceChildren(byID("hostDirectory"), cards.length ? cards : [emptyState("尚未纳管主机。")]);
@@ -579,6 +614,11 @@ function filteredServices() {
     });
 }
 function renderServices() {
+    if (!state.servicesLoaded) {
+        byID("serviceResultCount").textContent = "N/A";
+        replaceChildren(byID("serviceDirectory"), [emptyState("服务数据暂时不可用，请刷新重试。", "error")]);
+        return;
+    }
     const entries = filteredServices();
     byID("serviceResultCount").textContent = `${entries.length} / ${allServiceEntries().length} 项`;
     if (!entries.length) {
@@ -658,11 +698,23 @@ function renderSecurity() {
     const unknown = entries.filter((entry) => entry.service.unidentified).length;
     const offline = state.agents.filter((agent) => !agent.online).length;
     replaceChildren(byID("securityMetrics"), [
-        metricCard("公网服务", publicEntries.length, "监听暴露范围为公网", publicEntries.length ? "warning" : "good"),
-        metricCard("公网 Web", publicWithWeb.length, "发现 http(s) 链接"),
-        metricCard("待归因", unknown, "来源尚未确认", unknown ? "warning" : "good"),
-        metricCard("离线节点", offline, "无法取得实时状态", offline ? "critical" : "good"),
+        state.servicesLoaded
+            ? metricCard("公网服务", publicEntries.length, "监听暴露范围为公网", publicEntries.length ? "warning" : "good")
+            : metricCard("公网服务", "N/A", "服务数据暂不可用", "critical"),
+        state.servicesLoaded
+            ? metricCard("公网 Web", publicWithWeb.length, "发现 http(s) 链接")
+            : metricCard("公网 Web", "N/A", "服务数据暂不可用", "critical"),
+        state.servicesLoaded
+            ? metricCard("待归因", unknown, "来源尚未确认", unknown ? "warning" : "good")
+            : metricCard("待归因", "N/A", "服务数据暂不可用", "critical"),
+        state.agentsLoaded
+            ? metricCard("离线节点", offline, "无法取得实时状态", offline ? "critical" : "good")
+            : metricCard("离线节点", "N/A", "主机数据暂不可用", "critical"),
     ]);
+    if (!state.servicesLoaded) {
+        replaceChildren(byID("publicSurface"), [emptyState("公网暴露面数据暂时不可用。", "error")]);
+        return;
+    }
     if (!publicEntries.length) {
         replaceChildren(byID("publicSurface"), [emptyState("当前没有检测到公网监听服务。", "success")]);
         return;
@@ -683,6 +735,10 @@ function renderSecurity() {
     replaceChildren(byID("publicSurface"), rows);
 }
 function renderOperations() {
+    if (!state.agentsLoaded) {
+        replaceChildren(byID("syncSummary"), [emptyState("资产同步状态暂时不可用。", "error")]);
+        return;
+    }
     if (!state.agents.length) {
         replaceChildren(byID("syncSummary"), [emptyState("尚未纳管主机。")]);
         return;
