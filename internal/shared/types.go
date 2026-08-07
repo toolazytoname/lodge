@@ -50,16 +50,17 @@ type Ping struct {
 
 // Status 是 GET /v1/status 的响应：一台机器的系统快照。
 type Status struct {
-	Hostname    string          `json:"hostname"`
-	Kernel      string          `json:"kernel"`
-	OS          string          `json:"os"`
-	UptimeSec   int64           `json:"uptimeSec"`
-	CollectedAt string          `json:"collectedAt"` // RFC3339
-	Load        Load            `json:"load"`
-	Memory      Memory          `json:"memory"`
-	Disks       []Disk          `json:"disks"`
-	Docker      *DockerSummary  `json:"docker,omitempty"` // nil 表示本机没有 docker 或采集失败
-	SSH         *SSHAuthSummary `json:"ssh,omitempty"`
+	Hostname    string           `json:"hostname"`
+	Kernel      string           `json:"kernel"`
+	OS          string           `json:"os"`
+	UptimeSec   int64            `json:"uptimeSec"`
+	CollectedAt string           `json:"collectedAt"` // RFC3339
+	Load        Load             `json:"load"`
+	Memory      Memory           `json:"memory"`
+	Disks       []Disk           `json:"disks"`
+	Docker      *DockerSummary   `json:"docker,omitempty"` // nil 表示本机没有 docker 或采集失败
+	SSH         *SSHAuthSummary  `json:"ssh,omitempty"`
+	Security    *SecurityPosture `json:"security,omitempty"`
 	// Warnings 记录部分采集失败的原因。单项失败不应让整个 status 失败 ——
 	// 半份数据远比一个 500 有用。
 	Warnings []string `json:"warnings,omitempty"`
@@ -80,6 +81,33 @@ type SSHAuthSource struct {
 	Address string `json:"address"`
 	Count   int    `json:"count"`
 }
+
+// SecurityPosture is a bounded, current-only SSH access baseline. It contains
+// no user names, keys, firewall rules, command output, or network addresses.
+// The Agent's root-only collector converts effective local configuration to
+// these enums before it crosses the privilege boundary.
+type SecurityPosture struct {
+	SSHListener                SecuritySetting `json:"sshListener"`
+	SSHPasswordAuthentication  SecuritySetting `json:"sshPasswordAuthentication"`
+	SSHRootLogin               SecuritySetting `json:"sshRootLogin"`
+	SSHPublicKeyAuthentication SecuritySetting `json:"sshPublicKeyAuthentication"`
+	Firewall                   SecuritySetting `json:"firewall"`
+	Fail2Ban                   SecuritySetting `json:"fail2ban"`
+	Tailscale                  SecuritySetting `json:"tailscale"`
+}
+
+// SecuritySetting is intentionally a small closed vocabulary. Unknown means
+// a collector could not prove the setting; unavailable means the local control
+// is not installed. Neither value must be rendered as a safe state.
+type SecuritySetting string
+
+const (
+	SecurityEnabled     SecuritySetting = "enabled"
+	SecurityDisabled    SecuritySetting = "disabled"
+	SecurityRestricted  SecuritySetting = "restricted"
+	SecurityUnavailable SecuritySetting = "unavailable"
+	SecurityUnknown     SecuritySetting = "unknown"
+)
 
 type ActionKind string
 

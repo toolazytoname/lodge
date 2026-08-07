@@ -243,3 +243,9 @@
 - 五台主机的只读有效配置均为 wildcard SSH 监听、`PasswordAuthentication yes`、`PermitRootLogin yes`、public-key enabled、`MaxAuthTries 6` 与 `LoginGraceTime 120`；因此 Tailnet 已运行不等于公网 SSH 已关闭。
 - bytebunny、bytedragon、Ali 的 UFW inactive 且没有 active Fail2Ban；tencent 两者 active；banwagong 仅 UFW active。该证据不能推断云安全组或互联网实际可达性。
 - 新增逐主机的 non-root key 管理员、独立 Tailnet 新会话、保留 console/recovery、`sshd -t`+reload、云边界和 firewall 回滚证据门禁。尚未修改任何 SSH、用户、防火墙、Fail2Ban、云规则或密码，M8 保持进行中。
+
+## [2026-08-08] implementation | M8 实时 SSH 防护姿态
+
+- Agent 0.8.0 新增无参数 root-only `--collect-security-posture`。它仅执行固定本机检查，在 root 内压缩为 SSH listener/password/root/public-key、UFW、Fail2Ban、Tailscale 七个 closed enum；不输出账户、密钥、规则、地址、原始输出、云侧状态或可达性结论。
+- Hub 只在实时 host snapshot 暴露该姿态，避免重启后把历史 SSH 配置冒充当前结论；Security 页面独立呈现 5 台主机的风险/未知/离线状态，并明确不推断云安全组或公网实际可达性。
+- 固定 helper argv、闭合词表、API 不泄露规则/命令、390/1280 安全页面和完整质量门禁均有回归验证。M8 仍待逐机管理员/recovery 证明与现场收口。

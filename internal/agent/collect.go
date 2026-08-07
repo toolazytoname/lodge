@@ -211,5 +211,13 @@ func CollectStatus() shared.Status {
 		s.Warnings = append(s.Warnings, sshWarning)
 	}
 
+	security, securityWarning := collectSecurityPosture()
+	if security != nil {
+		s.Security = security
+	}
+	if securityWarning != "" {
+		s.Warnings = append(s.Warnings, securityWarning)
+	}
+
 	return s
 }

@@ -24,6 +24,9 @@ type AgentSummary struct {
 	DiskUsedPct  int     `json:"diskUsedPct,omitempty"`
 	ServiceCount int     `json:"serviceCount"`
 	PublicCount  int     `json:"publicCount"`
+	// Security is the current, privacy-minimized host posture. It is a live
+	// snapshot rather than a claim about cloud security groups or Internet reachability.
+	Security *shared.SecurityPosture `json:"security,omitempty"`
 }
 
 // ServiceAgent keeps /api/services from repeating the full status and raw

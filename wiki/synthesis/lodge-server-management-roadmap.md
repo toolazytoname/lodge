@@ -100,6 +100,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 首个证据切片：重新只读检查五台主机有效 SSH 配置，全部仍是 wildcard `:22`、密码认证开启、root 远程登录开启；bytebunny、bytedragon、Ali 还没有 active UFW/Fail2Ban 双层防护。Tailnet 五机均 running，但不等于公网 SSH 已关闭。仓库已固化每台独立恢复路径、非 root key 管理员、Tailnet 新会话、`sshd -t`+reload、云边界回滚的收口门禁；尚未做会导致锁死的批量变更。下一步必须先确认每台的 console/recovery 和可用管理员 key，再逐机执行。
 
+> 2026-08-08 M8 实时可见性切片：Agent 0.8.0 通过第五个无参数 root-only helper 把 effective SSH listener/password/root/public-key、UFW、Fail2Ban、Tailscale 压缩为七项 closed enum；不带出用户、密钥、规则、地址、命令输出或云安全组。Hub 只把它作为当前 snapshot，Security 页面明确显示未知/未安装而不把它们涂绿；桌面与手机视觉验收通过。现场 SSH 收口仍等待逐机 recovery 和独立管理员 key 验证。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

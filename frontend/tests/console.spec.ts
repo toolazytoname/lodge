@@ -101,6 +101,9 @@ test.describe("Lodge Web console", () => {
     await page.goto("/?fixture=normal#security");
 
     await expect(page.getByRole("heading", { name: "最近观测趋势" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "SSH 与防护基线" })).toBeVisible();
+    await expect(page.locator("#accessPosture .security-posture-card")).toHaveCount(5);
+    await expect(page.locator("#accessPosture")).toContainText("密码登录");
     await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(4);
     await expect(page.locator("#historySummary")).toContainText("100.0% 在线");
     await expect(page.locator("#historySummary")).toContainText("120 个观测点");

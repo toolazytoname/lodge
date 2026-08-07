@@ -112,6 +112,12 @@
   source IP/count pairs. It never emits usernames, accepted logins, ports,
   arbitrary log fields, or raw log text. The helper is an exact sudoers
   self-invocation with no dynamic args.
+- The root-only security-posture collector has no caller input and runs only
+  fixed local status commands. It reduces their output inside root to a closed
+  enum for SSH listener/password/root/public-key posture plus UFW, Fail2Ban and
+  Tailscale. It excludes users, keys, rule bodies, addresses, command output,
+  cloud-edge policy and reachability claims; absent/unknown values are never
+  treated as protective controls.
 - Controlled log output is limited, UTF-8 normalized, stripped of control
   characters, and redacted for common credential patterns. Because arbitrary
   workload text can still be sensitive, log lines are transient authenticated

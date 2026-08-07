@@ -349,6 +349,10 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 			if d := rootDisk(sn.Status.Disks); d != nil && d.TotalBytes > 0 {
 				sum.DiskUsedPct = int(d.UsedBytes * 100 / d.TotalBytes)
 			}
+			if sn.Status.Security != nil {
+				posture := *sn.Status.Security
+				sum.Security = &posture
+			}
 		}
 		out = append(out, sum)
 	}

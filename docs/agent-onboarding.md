@@ -81,6 +81,16 @@ recognizes failed password/public-key/keyboard-interactive and maximum-attempt
 records. It does not accept a unit, time window, filter, or file path argument
 from `lodge`.
 
+A fifth exact self-invocation, `--collect-security-posture`, evaluates only
+fixed local commands for the effective OpenSSH settings, SSH listener shape,
+UFW, Fail2Ban, and Tailscale runtime state. It accepts no argument. Before the
+result leaves root it is reduced to the closed values `enabled`, `disabled`,
+`restricted`, `unavailable`, or `unknown`; it never emits users, authorized
+keys, firewall rules, network addresses, command paths, raw output, cloud
+security-group state, or a claim that wildcard SSH is Internet reachable.
+`unknown` and `unavailable` are deliberately not safe states. This is a current
+runtime posture, not a durable historical configuration record.
+
 Controlled operations use two additional exact self-invocations. The read-only
 `--list-actions` helper projects `/etc/lodge-agent/actions.json`; the write
 entry `--execute-action` reads one bounded JSON action ID from standard input.

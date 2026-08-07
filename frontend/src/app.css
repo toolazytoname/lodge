@@ -1233,6 +1233,116 @@ textarea:focus-visible {
   gap: 16px;
 }
 
+.panel-caption {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--subtle);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.security-posture-panel {
+  padding: 18px;
+}
+
+.security-posture-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.security-posture-card {
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  padding: 12px;
+}
+
+.security-posture-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.security-posture-heading strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.posture-host-state,
+.posture-setting {
+  border-radius: 999px;
+  font: 600 8px var(--font-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.posture-host-state {
+  color: var(--subtle);
+}
+
+.posture-host-state.online {
+  color: var(--accent);
+}
+
+.security-posture-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.security-posture-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.security-posture-item dt {
+  overflow: hidden;
+  color: var(--subtle);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.security-posture-item dd {
+  margin: 0;
+  padding: 2px 5px;
+  background: rgb(255 255 255 / 3%);
+  color: var(--subtle);
+}
+
+.posture-setting.good {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.posture-setting.warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.posture-setting.critical {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
+
+.posture-note {
+  margin: 0;
+  color: var(--subtle);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .history-panel {
   padding: 18px;
 }
@@ -2490,6 +2600,15 @@ textarea:focus-visible {
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .security-posture-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-caption {
+    max-width: 26ch;
+    font-size: 9px;
   }
 
   .metric-card {

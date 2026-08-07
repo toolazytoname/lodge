@@ -21,6 +21,7 @@ func main() {
 	collectComposeMetadata := flag.Bool("collect-compose-metadata", false, "以 JSONL 输出校验后的 Compose 身份并退出（仅供精确 sudoers 调用）")
 	collectProxyRoutes := flag.Bool("collect-proxy-routes", false, "以 JSONL 输出脱敏的 Caddy/Nginx 路由并退出（仅供精确 sudoers 调用）")
 	collectSSHAuth := flag.Bool("collect-ssh-auth", false, "输出最近 SSH 认证失败来源聚合并退出（仅供精确 sudoers 调用）")
+	collectSecurityPosture := flag.Bool("collect-security-posture", false, "输出脱敏 SSH 与本机防护姿态并退出（仅供精确 sudoers 调用）")
 	listActions := flag.Bool("list-actions", false, "列出 root 策略批准的受控动作并退出（仅供精确 sudoers 调用）")
 	executeAction := flag.Bool("execute-action", false, "从标准输入执行一个 root 策略批准的动作并退出（仅供精确 sudoers 调用）")
 	listDeployments := flag.Bool("list-deployments", false, "列出 root 策略批准的声明式部署并退出（仅供精确 sudoers 调用）")
@@ -31,7 +32,7 @@ func main() {
 	modeCount := 0
 	for _, enabled := range []bool{
 		*check, *printSudoers, *collectProcessOrigins, *collectComposeMetadata,
-		*collectProxyRoutes, *collectSSHAuth, *listActions, *executeAction,
+		*collectProxyRoutes, *collectSSHAuth, *collectSecurityPosture, *listActions, *executeAction,
 		*listDeployments, *executeDeployment, *showVersion,
 	} {
 		if enabled {
@@ -76,6 +77,12 @@ func main() {
 	case *collectSSHAuth:
 		if err := agent.WriteSSHAuthSummary(os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "采集 SSH 认证失败摘要失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *collectSecurityPosture:
+		if err := agent.WriteSecurityPosture(os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "采集 SSH 与防护姿态失败:", err)
 			os.Exit(1)
 		}
 		return

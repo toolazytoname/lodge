@@ -18,6 +18,14 @@ const hostDefinitions = [
   { id: "harbor", name: "Harbor", cpus: 2, load1: 0.08, memUsedPct: 65, diskUsedPct: 35 },
 ];
 
+const securityPostures = [
+  { sshListener: "enabled", sshPasswordAuthentication: "enabled", sshRootLogin: "enabled", sshPublicKeyAuthentication: "enabled", firewall: "disabled", fail2ban: "unavailable", tailscale: "enabled" },
+  { sshListener: "enabled", sshPasswordAuthentication: "enabled", sshRootLogin: "restricted", sshPublicKeyAuthentication: "enabled", firewall: "enabled", fail2ban: "enabled", tailscale: "enabled" },
+  { sshListener: "restricted", sshPasswordAuthentication: "disabled", sshRootLogin: "disabled", sshPublicKeyAuthentication: "enabled", firewall: "enabled", fail2ban: "enabled", tailscale: "enabled" },
+  { sshListener: "enabled", sshPasswordAuthentication: "enabled", sshRootLogin: "enabled", sshPublicKeyAuthentication: "enabled", firewall: "disabled", fail2ban: "unavailable", tailscale: "enabled" },
+  { sshListener: "unknown", sshPasswordAuthentication: "unknown", sshRootLogin: "unknown", sshPublicKeyAuthentication: "enabled", firewall: "unavailable", fail2ban: "unknown", tailscale: "enabled" },
+];
+
 function makeService(host, hostIndex, serviceIndex) {
   const publicService = serviceIndex === 0 || serviceIndex === 3 || (hostIndex > 2 && serviceIndex === 7);
   const tailnetService = !publicService && serviceIndex % 4 === 1;
@@ -89,6 +97,7 @@ function buildFixture(mode) {
     diskUsedPct: hostDefinitions[index].diskUsedPct,
     serviceCount: group.services.length,
     publicCount: group.services.filter((service) => service.maxExposure === "public").length,
+    ...(group.agent.online ? { security: securityPostures[index] } : {}),
   }));
   return { agents, groups };
 }

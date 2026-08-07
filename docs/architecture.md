@@ -53,6 +53,9 @@ remain available to internal rule evaluation without multiplying browser data.
 - **Observation**: an immutable collection result at a point in time.
 - **SSHAuthObservation**: a bounded rolling failure count with canonical source
   IP/count pairs; no usernames, successful login records, or raw authentication-log data.
+- **Security posture**: a current-only, privacy-minimized Agent snapshot of
+  effective SSH controls and local UFW/Fail2Ban/Tailscale state. It uses a
+  closed enum and does not assert cloud-edge policy or Internet reachability.
 - **Event**: one deduplicated incident derived from observations, with an
   `active` → `acknowledged` → `resolved` lifecycle. Acknowledgement records
   operator awareness; only later observation truth resolves it.
@@ -109,6 +112,13 @@ failure as recovery. A fixed root-owned Agent helper reads a bounded,
 full-window authentication-log tail or bounded journal fallback and emits only
 the minimal aggregate before the non-root process or Hub sees it. See
 [ADR 0009](adr/0009-privacy-minimized-ssh-failure-monitoring.md).
+
+The independently collected security posture is intentionally current-only in
+the runtime snapshot, rather than a new durable Observation field. This avoids
+mistaking a historical firewall/SSH setting for the current access decision
+after a Hub restart; the next successful Agent scrape is the source of truth.
+The Security page labels missing, unavailable and unknown data plainly and
+never infers cloud security-group policy from host-local information.
 
 Configured event transitions also create notification outbox rows in that same
 transaction. A separate worker leases due rows and calls the Webhook adapter;

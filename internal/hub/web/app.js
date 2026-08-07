@@ -1143,6 +1143,7 @@ function renderSecurity() {
             : metricCard("严重进行中", "N/A", "事件数据暂不可用", "critical"),
     ]);
     renderEvents();
+    renderAccessPosture();
     if (!state.servicesLoaded) {
         replaceChildren(byID("publicSurface"), [emptyState("公网暴露面数据暂时不可用。", "error")]);
         renderHistory();
@@ -1168,6 +1169,78 @@ function renderSecurity() {
     });
     replaceChildren(byID("publicSurface"), rows);
     renderHistory();
+}
+const securityPostureLabels = {
+    sshListener: "SSH 监听",
+    sshPasswordAuthentication: "密码登录",
+    sshRootLogin: "Root 远程登录",
+    sshPublicKeyAuthentication: "密钥登录",
+    firewall: "UFW",
+    fail2ban: "Fail2Ban",
+    tailscale: "Tailscale",
+};
+function postureSettingLabel(field, value) {
+    if (field === "sshListener") {
+        if (value === "enabled")
+            return "通配监听";
+        if (value === "restricted")
+            return "受限监听";
+        if (value === "disabled")
+            return "未监听";
+    }
+    if (value === "enabled")
+        return "开启";
+    if (value === "disabled")
+        return "关闭";
+    if (value === "restricted")
+        return "受限";
+    if (value === "unavailable")
+        return "未安装";
+    return "未知";
+}
+function postureTone(field, value) {
+    if (field === "sshPasswordAuthentication" || field === "sshRootLogin" || field === "sshListener") {
+        if (value === "enabled")
+            return "critical";
+        if (value === "disabled" || value === "restricted")
+            return "good";
+        return "warning";
+    }
+    if (field === "sshPublicKeyAuthentication" || field === "tailscale") {
+        return value === "enabled" ? "good" : "warning";
+    }
+    return value === "enabled" ? "good" : "warning";
+}
+function renderAccessPosture() {
+    const container = byID("accessPosture");
+    if (!state.agentsLoaded) {
+        replaceChildren(container, [emptyState("主机数据暂时不可用，无法判断 SSH 防护基线。", "error")]);
+        return;
+    }
+    const cards = state.agents.map((agent) => {
+        const card = element("article", "security-posture-card");
+        const heading = element("div", "security-posture-heading");
+        heading.append(element("strong", "", agent.name), element("span", `posture-host-state ${agent.online ? "online" : "offline"}`, agent.online ? "当前在线" : "离线"));
+        card.append(heading);
+        if (!agent.online) {
+            card.append(element("p", "posture-note", "主机离线，保留的状态可能已过期。"));
+            return card;
+        }
+        if (!agent.security) {
+            card.append(element("p", "posture-note", "Agent 尚未提供防护基线；未知不代表安全。"));
+            return card;
+        }
+        const list = element("dl", "security-posture-list");
+        Object.keys(securityPostureLabels).forEach((field) => {
+            const item = element("div", "security-posture-item");
+            item.append(element("dt", "", securityPostureLabels[field]));
+            item.append(element("dd", `posture-setting ${postureTone(field, agent.security[field])}`, postureSettingLabel(field, agent.security[field])));
+            list.append(item);
+        });
+        card.append(list);
+        return card;
+    });
+    replaceChildren(container, cards.length ? cards : [emptyState("尚未纳管主机。")]);
 }
 function syncActionAgentSelect() {
     const select = byID("actionAgent");

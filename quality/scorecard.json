@@ -94,6 +94,16 @@
       "evidence": "Effective sshd configuration audit"
     },
     {
+      "id": "current_security_posture_controls",
+      "dimension": "security",
+      "name": "Current Security-page access posture controls",
+      "current": 7,
+      "target": 7,
+      "unit": "controls",
+      "direction": "increase",
+      "evidence": "Agent 0.8.0 fixed root-only collector and Hub/Web regression tests cover SSH listener, password/root/public-key authentication, UFW, Fail2Ban, and Tailscale as privacy-minimized current-only enums"
+    },
+    {
       "id": "history_retention_days",
       "dimension": "reliability",
       "name": "Observation history retention",

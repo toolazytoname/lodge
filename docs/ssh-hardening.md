@@ -16,6 +16,8 @@ The following is an effective `sshd -T` and local-service snapshot, collected wi
 
 All five effective configurations also report public-key authentication enabled, `MaxAuthTries 6`, and `LoginGraceTime 120`. Every host therefore still accepts password attempts on a wildcard SSH listener. Tailscale is available on all five, but availability alone does not remove the public listener.
 
+Agent 0.8.0 adds a current-only Security-page projection for the same bounded facts: wildcard/restricted SSH listener, password/root/public-key posture, UFW, Fail2Ban, and Tailscale. The root helper returns only a small fixed vocabulary; it does not retain keys, users, firewall rules, addresses, raw command output, or cloud-edge policy. `unknown`/`unavailable` are deliberately visible as uncertain, and the panel cannot prove whether port 22 is Internet reachable.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates

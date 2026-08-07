@@ -98,6 +98,32 @@ func TestMemStoreRuntimeProjection(t *testing.T) {
 	}
 }
 
+func TestAgentsExposeOnlyBoundedSecurityPosture(t *testing.T) {
+	store := NewMemStore()
+	ctx := context.Background()
+	if err := store.SetAgents(ctx, []AgentConfig{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	posture := &shared.SecurityPosture{
+		SSHListener: shared.SecurityEnabled, SSHPasswordAuthentication: shared.SecurityEnabled,
+		SSHRootLogin: shared.SecurityEnabled, SSHPublicKeyAuthentication: shared.SecurityEnabled,
+		Firewall: shared.SecurityDisabled, Fail2Ban: shared.SecurityUnavailable, Tailscale: shared.SecurityEnabled,
+	}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, &shared.Status{Security: posture}, nil, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, store, "")
+	request := httptest.NewRequest(http.MethodGet, "/api/agents", nil)
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("agents response = %d: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"sshPasswordAuthentication":"enabled"`) || strings.Contains(response.Body.String(), `"command"`) || strings.Contains(response.Body.String(), `"rule"`) {
+		t.Fatalf("agents response leaked or lost security posture: %s", response.Body.String())
+	}
+}
+
 func TestScraperPullsAgent(t *testing.T) {
 	// 假 agent：返回 ping + status + services。
 	mux := http.NewServeMux()

@@ -8,12 +8,13 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.7.0"
+const AgentVersion = "0.8.0"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 var composeMetadataCommand = []string{"/usr/local/bin/lodge-agent", "--collect-compose-metadata"}
 var proxyRoutesCommand = []string{"/usr/local/bin/lodge-agent", "--collect-proxy-routes"}
 var sshAuthCommand = []string{"/usr/local/bin/lodge-agent", "--collect-ssh-auth"}
+var securityPostureCommand = []string{"/usr/local/bin/lodge-agent", "--collect-security-posture"}
 var listActionsCommand = []string{"/usr/local/bin/lodge-agent", "--list-actions"}
 var executeActionCommand = []string{"/usr/local/bin/lodge-agent", "--execute-action"}
 var listDeploymentsCommand = []string{"/usr/local/bin/lodge-agent", "--list-deployments"}
@@ -47,6 +48,7 @@ var privilegedRead = []PrivCommand{
 	{Argv: composeMetadataCommand, Desc: "输出校验后的 Compose project/service 身份"},
 	{Argv: proxyRoutesCommand, Desc: "输出脱敏的 Caddy/Nginx Web 路由"},
 	{Argv: sshAuthCommand, Desc: "输出最近 SSH 认证失败的来源 IP 聚合"},
+	{Argv: securityPostureCommand, Desc: "输出脱敏 SSH 与本机防护姿态"},
 	{Argv: listActionsCommand, Desc: "列出 root 策略批准的受控动作"},
 	{Argv: listDeploymentsCommand, Desc: "列出 root 策略批准的声明式部署"},
 	{Argv: []string{"ss", "-tlnpH"}, Desc: "监听套接字（含 PID，需 root 才能跨用户）"},

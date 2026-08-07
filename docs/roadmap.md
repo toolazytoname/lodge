@@ -136,6 +136,7 @@ not be forced onto the current stack.
 
 - [x] Read-only five-host effective SSH, listener, firewall, Fail2Ban, and Tailscale baseline
 - [x] Lockout-safe per-host rollout and acceptance runbook
+- [x] Current privacy-minimized SSH/firewall/Fail2Ban/Tailnet posture in the Security page
 - [ ] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
 - [ ] Disable SSH password, keyboard-interactive, and root remote login one host at a time
 - [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate

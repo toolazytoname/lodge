@@ -24,3 +24,7 @@ This confirms a material shared-password/root-SSH exposure. It does **not** prov
 The correct next production transaction is a per-host SSH hardening rollout, not an automatic bulk change. Before disabling the existing route it needs a known cloud-console/recovery path and a separately proven `lodge-admin` tailnet key session. The proposed initial profile disables password, keyboard-interactive and root login while retaining public-key auth, and lowers the first-attempt limits to 3/30 seconds. Only then may public 22 be removed or allowlisted at the provider edge.
 
 The full gates, rollout order, rollback evidence and acceptance record are in [SSH hardening rollout](../../docs/ssh-hardening.md). M8 remains in progress. This does not alter M7's separate decision: current business services still provide zero stateless v1 deployment targets.
+
+## Current posture implementation
+
+Agent `0.8.0` adds a fifth exact root self-invocation, `--collect-security-posture`. It has no caller input and reduces fixed local OpenSSH/listener/UFW/Fail2Ban/Tailscale checks to seven closed enum fields before data crosses root. Users, keys, firewall rules, addresses, raw command output and cloud edge evidence are excluded. Hub exposes this only in its live runtime host summary; it intentionally does not write a potentially stale SSH setting into historical observations. Security UI covers normal, unavailable, unknown and offline states across desktop and mobile visual acceptance.

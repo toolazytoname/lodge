@@ -72,6 +72,7 @@ export interface AgentSummary {
   diskUsedPct?: number;
   serviceCount: number;
   publicCount: number;
+  security?: SecurityPosture;
 }
 
 export interface AnnotationInput {
@@ -194,6 +195,18 @@ export interface ProxyRoute {
 export interface RouteView extends ProxyRoute {
   url?: string;
 }
+
+export interface SecurityPosture {
+  sshListener: SecuritySetting;
+  sshPasswordAuthentication: SecuritySetting;
+  sshRootLogin: SecuritySetting;
+  sshPublicKeyAuthentication: SecuritySetting;
+  firewall: SecuritySetting;
+  fail2ban: SecuritySetting;
+  tailscale: SecuritySetting;
+}
+
+export type SecuritySetting = string;
 
 export interface Service {
   key: string;
