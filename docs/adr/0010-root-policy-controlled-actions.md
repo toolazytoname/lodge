@@ -21,7 +21,7 @@ two disruptive operations concurrently.
 The generated sudoers policy has exactly two action-related self-invocations:
 
 - `lodge-agent --list-actions`, a read-only projection; and
-- `lodge-agent --execute-action`, the only write entry.
+- `lodge-agent --execute-action`, the only action write entry.
 
 Both command lines are exact and accept no positional arguments. The write
 helper reads one bounded JSON object from standard input containing only a

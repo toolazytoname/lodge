@@ -93,7 +93,15 @@ interrupted operation. M6 is complete.
 
 ## M7 — Declarative deployment
 
-- [ ] Versioned stack definition and preflight
-- [ ] Immutable image reference and health checks
-- [ ] Backup and rollback point
+- [x] Versioned stack definition and Agent-side preflight
+- [x] Immutable image reference and health checks
+- [x] Persistent immutable rollback point
 - [ ] Failed-deployment rollback and audit trail
+
+Agent `0.7.0` now implements the host transaction: missing root policy disables
+all deployments, version 1 rejects stateful stacks and mutable tags, Compose
+paths must be root-owned, and fixed no-shell execution captures a persistent
+immutable rollback point. Candidate failure reapplies and verifies the previous
+image. M7 remains incomplete until the Hub performs asynchronous, non-retried
+execution with durable `succeeded`/`rolled_back`/`failed` audit and the Web UI
+requires exact confirmation.

@@ -140,6 +140,53 @@ type ActionExecutionResult struct {
 	ErrorKind   string     `json:"errorKind,omitempty"`
 }
 
+type DeploymentKind string
+
+const (
+	DeploymentDeploy   DeploymentKind = "deploy"
+	DeploymentRollback DeploymentKind = "rollback"
+)
+
+// DeploymentDefinition is a root-policy-approved immutable release or
+// rollback capability. Compose paths, environment files, commands, and health
+// implementation details never cross the Agent boundary.
+type DeploymentDefinition struct {
+	ID                string         `json:"id"`
+	StackKey          string         `json:"stackKey"`
+	StackLabel        string         `json:"stackLabel"`
+	Kind              DeploymentKind `json:"kind"`
+	ReleaseID         string         `json:"releaseId"`
+	ReleaseLabel      string         `json:"releaseLabel"`
+	Image             string         `json:"image"`
+	CurrentReleaseID  string         `json:"currentReleaseId,omitempty"`
+	PreviousReleaseID string         `json:"previousReleaseId,omitempty"`
+	Description       string         `json:"description"`
+	Confirmation      string         `json:"confirmation"`
+	Risk              ActionRisk     `json:"risk"`
+}
+
+type DeploymentsResponse struct {
+	Deployments []DeploymentDefinition `json:"deployments"`
+}
+
+type DeploymentExecutionRequest struct {
+	ID string `json:"id"`
+}
+
+// DeploymentExecutionResult is deliberately metadata-only. Docker/Compose
+// output, configuration, environment, and raw health responses remain on-host.
+type DeploymentExecutionResult struct {
+	OK                bool           `json:"ok"`
+	ActionID          string         `json:"actionId"`
+	StackKey          string         `json:"stackKey"`
+	Kind              DeploymentKind `json:"kind"`
+	ReleaseID         string         `json:"releaseId"`
+	PreviousReleaseID string         `json:"previousReleaseId,omitempty"`
+	Summary           string         `json:"summary,omitempty"`
+	RollbackPerformed bool           `json:"rollbackPerformed,omitempty"`
+	ErrorKind         string         `json:"errorKind,omitempty"`
+}
+
 // Load 是 /proc/loadavg 的三个平均负载。
 type Load struct {
 	One     float64 `json:"one"`

@@ -39,7 +39,7 @@ remain available to internal rule evaluation without multiplying browser data.
 
 1. **Browser to Hub**: human authentication, CSRF protection, output encoding, and operation confirmation.
 2. **Hub to Agent**: Tailscale network identity plus a per-agent credential until application capabilities replace it.
-3. **Agent to root operations**: root-owned policy and exact typed actions; no shell input and no docker group membership.
+3. **Agent to root operations**: root-owned action/deployment policy and exact typed capabilities; no shell input and no docker group membership.
 4. **Hub storage**: annotations, history, events, sessions, and audit data; never plaintext server passwords or agent credentials in API responses or logs.
 
 ## Domain model
@@ -57,6 +57,8 @@ remain available to internal rule evaluation without multiplying browser data.
   `active` → `acknowledged` → `resolved` lifecycle. Acknowledgement records
   operator awareness; only later observation truth resolves it.
 - **Operation**: a requested, authorized, executed, and audited state change.
+- **Deployment release**: a root-policy-approved immutable image for one
+  stateless Compose service, with current/previous verified state.
 
 Agent actions are capabilities derived from a root-owned per-host policy, not
 commands supplied by the Hub. The non-root Agent exposes typed definitions and
@@ -74,6 +76,13 @@ restart, any remaining `requested`/`running` record becomes failed with
 `hub_restarted`; an uncertain remote action is never replayed. Recent logs are
 returned only in the immediate authenticated response and excluded from the
 audit database. The browser exposes this contract through the Operations page.
+
+Declarative deployments reuse the capability boundary but have a distinct
+host-local transaction. The root policy fixes Compose paths, service, immutable
+image digests, and health checks; the Hub will select only a release ID. Root
+captures an immutable rollback point, applies one generated override, verifies
+health, and restores the prior image on failure. Version 1 rejects stateful
+services. See [ADR 0011](adr/0011-root-policy-declarative-deployments.md).
 
 Binding and reachability are separate. `0.0.0.0:PORT` means `wildcard-bound`;
 only an external probe or authoritative firewall/provider evidence can produce

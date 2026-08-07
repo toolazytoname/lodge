@@ -114,6 +114,16 @@
       "evidence": "Hub 0.7.0 and five Agent 0.6.0 hosts expose approved start, stop, restart, and logs; live start and logs reached durable success, a bounded log overflow failed closed without retry, and returned log samples were absent from SQLite/WAL/SHM"
     },
     {
+      "id": "declarative_deployment_safety_controls",
+      "dimension": "operations",
+      "name": "Agent declarative deployment safety controls",
+      "current": 8,
+      "target": 8,
+      "unit": "controls",
+      "direction": "increase",
+      "evidence": "Agent 0.7.0 automated policy/contract/executor tests cover root policy, no shell, stateless-only, immutable digest, root-owned Compose paths, bounded local health, persistent rollback state, and verified automatic rollback"
+    },
+    {
       "id": "event_rule_kinds",
       "dimension": "security",
       "name": "Implemented observation event rule kinds",

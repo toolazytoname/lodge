@@ -21,7 +21,8 @@ each server:
    error (without silently enabling unrelated invalid host policy),
    checks the real service process has `NoNewPrivs=0`, and requires discovery
    through the authenticated service API to return assets, a valid SSH failure
-   summary, and a typed controlled-action list without sudo errors;
+   summary, typed controlled-action and declarative-deployment lists without
+   sudo errors;
 4. run `deploy/tailnet-management.sh apply agent`, verify Tailscale Funnel is
    disabled, and test port 8443 from the Hub;
 5. transfer the token as an owner-only file, atomically add it to the Hub
@@ -81,19 +82,38 @@ records. It does not accept a unit, time window, filter, or file path argument
 from `lodge`.
 
 Controlled operations use two additional exact self-invocations. The read-only
-`--list-actions` helper projects `/etc/lodge-agent/actions.json`; the sole write
-entry, `--execute-action`, reads one bounded JSON action ID from standard input.
+`--list-actions` helper projects `/etc/lodge-agent/actions.json`; the write
+entry `--execute-action` reads one bounded JSON action ID from standard input.
 Neither accepts a target, command, path, or action as an argv value. The root
 helper resolves the ID against the policy and maps only approved systemd units
 or Docker containers to internally fixed start/stop/restart/log argv arrays.
+
+Declarative deployments add an exact read-only `--list-deployments` projection
+and exact write `--execute-deployment` helper. The latter reads only one bounded
+deployment ID from standard input. `/etc/lodge-agent/deployments.json` may
+register only explicitly stateless Compose services, immutable sha256 image
+references, and Docker or loopback HTTP health checks. The Hub cannot supply a
+Compose file, path, service, image, environment, command, health URL, or backup
+procedure. Root validates the entire Compose path chain, captures the running
+immutable image as the first rollback point, changes one service with fixed argv,
+and automatically reapplies and verifies the old image when deployment fails.
+State and the generated override live in root-only
+`/var/lib/lodge-agent/deployments`; the service has a systemd writable mount for
+that exact directory but Unix mode `0700` prevents the `lodge` account from
+entering it. See [ADR 0011](adr/0011-root-policy-declarative-deployments.md).
 
 The installer makes `/etc/lodge-agent` root-owned mode `0750` with group
 `lodge`, preserves or creates the token as `lodge:lodge` mode `0600`, and leaves
 the directory read-only to the service. If `actions.json` exists, installation
 requires it to be a regular, non-symlink, `root:root` mode `0600` file and
-validates it before restarting. If it is absent, the action list is empty. To
+validates it before restarting. `deployments.json` has the same owner, mode,
+type, parent-directory, and fail-closed rules; its configured Compose paths and
+existing rollback state must also validate. If either policy is absent, its
+capability list is empty. To
 enable a reviewed policy, start from `deploy/agent-actions.example.json`, then
 install it with exact ownership and mode before rerunning the Agent installer.
+For deployment policy, start from `deploy/agent-deployments.example.json` and
+follow [`docs/declarative-deployments.md`](declarative-deployments.md).
 Never make the directory writable by `lodge`: file ownership alone does not
 prevent a writable-directory rename replacement.
 
@@ -144,4 +164,7 @@ Enrollment is complete only when all of these are true:
 - the authenticated Agent actions response is typed; an absent policy returns
   an empty list, and direct legacy write commands plus extra helper argv are
   rejected by sudo;
+- the authenticated deployment response is typed and contains no host paths or
+  Compose data; absent policy is empty, dynamic helper argv is rejected, and any
+  enabled stack has a tested immutable rollback point;
 - deployment/checksum/backup or recovery evidence is recorded without secrets.

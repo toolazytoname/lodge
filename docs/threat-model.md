@@ -122,6 +122,21 @@
   disabled), not the reversible session cookie. Durable records contain action,
   host, target, lifecycle timestamps, bounded summary, and error category; they
   exclude Agent credentials, commands, raw errors, and log lines.
+- Deployment policy is a regular, non-symlink, root-owned mode `0600` file and
+  accepts only explicitly stateless Compose services, immutable sha256 image
+  references, and Docker or exact loopback HTTP health checks. Compose project,
+  file, optional `.env`, and their full path chain must be root-owned and not
+  group/world writable; the browser and Hub cannot submit any of them.
+- The deployment helper is one exact argv with a bounded stdin ID. It uses fixed
+  Docker/Compose argv without a shell, changes only the registered service with
+  `--no-deps`, bounds command output/time, and never emits Compose/environment,
+  Docker output, health response, or raw errors. It shares the action lock.
+- Current/previous immutable release and generated override are one canonical
+  root-only file. A mismatch fails closed. Candidate state is synced and renamed
+  only after health succeeds; candidate failure reapplies and verifies the
+  pre-operation image. Failed recovery is explicitly `rollback_failed` and is
+  never hidden or automatically replayed. Stateful deployment remains disabled
+  until a dedicated backup/restore adapter is designed and tested.
 
 ### Secrets
 

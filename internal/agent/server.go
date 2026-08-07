@@ -17,16 +17,19 @@ import (
 // Server 是 lodge-agent 的 HTTP 服务。只应监听 127.0.0.1，由 tailscale serve
 // 套 TLS 暴露到 tailnet —— 绝不直接监听 0.0.0.0。
 type Server struct {
-	token          string
-	limiter        *failureLimiter
-	mux            *http.ServeMux
-	actionMu       sync.Mutex
-	actionsHandler http.Handler
+	token              string
+	limiter            *failureLimiter
+	mux                *http.ServeMux
+	actionMu           sync.Mutex
+	actionsHandler     http.Handler
+	deploymentsHandler http.Handler
 }
 
 var (
-	listApprovedActions       = collectApprovedActionDefinitions
-	executeApprovedActionByID = executeApprovedActionDefinition
+	listApprovedActions           = collectApprovedActionDefinitions
+	executeApprovedActionByID     = executeApprovedActionDefinition
+	listApprovedDeployments       = collectApprovedDeploymentDefinitions
+	executeApprovedDeploymentByID = executeApprovedDeploymentDefinition
 )
 
 // NewServer 构造一个挂好路由的 agent 服务。
@@ -44,6 +47,9 @@ func NewServer(token string) *Server {
 	s.actionsHandler = s.handle(s.actions)
 	s.mux.Handle("/v1/actions", s.actionsHandler)
 	s.mux.Handle("/v1/actions/", s.actionsHandler)
+	s.deploymentsHandler = s.handle(s.deployments)
+	s.mux.Handle("/v1/deployments", s.deploymentsHandler)
+	s.mux.Handle("/v1/deployments/", s.deploymentsHandler)
 	return s
 }
 
@@ -55,6 +61,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// normalized into an executable capability.
 	if r.URL.Path == "/v1/actions" || strings.HasPrefix(r.URL.Path, "/v1/actions/") {
 		s.actionsHandler.ServeHTTP(w, r)
+		return
+	}
+	if r.URL.Path == "/v1/deployments" || strings.HasPrefix(r.URL.Path, "/v1/deployments/") {
+		s.deploymentsHandler.ServeHTTP(w, r)
 		return
 	}
 	s.mux.ServeHTTP(w, r)
@@ -163,6 +173,65 @@ func (s *Server) actions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) deployments(w http.ResponseWriter, r *http.Request) {
+	if r.URL.RawQuery != "" {
+		writeErr(w, http.StatusBadRequest, "query_not_allowed")
+		return
+	}
+	suffix := strings.TrimPrefix(r.URL.Path, "/v1/deployments")
+	if suffix == "" || suffix == "/" {
+		if r.Method != http.MethodGet {
+			writeErr(w, http.StatusMethodNotAllowed, "GET 列出部署")
+			return
+		}
+		response, err := listApprovedDeployments()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "deployment_policy_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, response)
+		return
+	}
+	if !strings.HasPrefix(suffix, "/") || strings.Contains(suffix[1:], "/") {
+		writeErr(w, http.StatusNotFound, "deployment_not_found")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST 执行部署")
+		return
+	}
+	if !requestBodyIsEmpty(r.Body) {
+		writeErr(w, http.StatusBadRequest, "request_body_must_be_empty")
+		return
+	}
+	response, err := listApprovedDeployments()
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "deployment_policy_unavailable")
+		return
+	}
+	definition, found := findDeploymentDefinition(response.Deployments, suffix[1:])
+	if !found {
+		writeErr(w, http.StatusNotFound, "deployment_not_found")
+		return
+	}
+	// 普通动作和部署共享一把本机锁：不能在 Compose 切换期间重启同一服务。
+	if !s.actionMu.TryLock() {
+		writeErr(w, http.StatusConflict, "action_in_progress")
+		return
+	}
+	defer s.actionMu.Unlock()
+	result, err := executeApprovedDeploymentByID(definition)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "deployment_execution_unavailable")
+		return
+	}
+	if !result.OK {
+		writeJSON(w, http.StatusBadGateway, result)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func collectApprovedActionDefinitions() (shared.ActionsResponse, error) {
 	stdout, _, err := runPrivileged(listActionsCommand)
 	if err != nil {
@@ -181,6 +250,26 @@ func executeApprovedActionDefinition(definition shared.ActionDefinition) (shared
 		return shared.ActionExecutionResult{}, errors.New("action execution helper failed")
 	}
 	return decodeActionExecutionResult(stdout, definition)
+}
+
+func collectApprovedDeploymentDefinitions() (shared.DeploymentsResponse, error) {
+	stdout, _, err := runPrivileged(listDeploymentsCommand)
+	if err != nil {
+		return shared.DeploymentsResponse{}, errors.New("deployment policy helper failed")
+	}
+	return decodeDeploymentsResponse(stdout)
+}
+
+func executeApprovedDeploymentDefinition(definition shared.DeploymentDefinition) (shared.DeploymentExecutionResult, error) {
+	request, err := json.Marshal(shared.DeploymentExecutionRequest{ID: definition.ID})
+	if err != nil {
+		return shared.DeploymentExecutionResult{}, errors.New("deployment request encoding failed")
+	}
+	stdout, _, err := runPrivilegedInput(executeDeploymentCommand, request)
+	if err != nil {
+		return shared.DeploymentExecutionResult{}, errors.New("deployment execution helper failed")
+	}
+	return decodeDeploymentExecutionResult(stdout, definition)
 }
 
 func requestBodyIsEmpty(body io.Reader) bool {

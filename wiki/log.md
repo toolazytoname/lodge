@@ -211,3 +211,10 @@
 - SHA-256 `d68357c9...a94a44b` 的 Hub 0.7.0 事务上线，保留发布前回滚包和发布后一致性备份；schema 7、owner-only 文件、未认证 401、Tailnet-only Serve 与嵌入 Operations 资源全部通过。
 - live Caddy log 因超过 64 KiB 安全失败且不重试；Caddy 幂等 start 成功并验证 running→running；Redis log 成功返回 200 行，实际样本不在 DB/WAL/SHM。三条审计为 2 succeeded/1 failed/0 interrupted，均使用伪匿名会话身份。
 - 终验为 5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified、最大观测年龄 24.6 秒。M6 完成，进入 M7 声明式部署。
+
+## [2026-08-08] implementation | M7 Agent 声明式部署事务
+
+- Agent 0.7.0 新增 root-only 声明式部署策略；缺失即空清单，版本 1 仅允许无状态单 Compose service 与 immutable sha256 release。
+- root 预登记路径、service、health 和 release；Hub/HTTP 只能选择 ID，不能提交 Compose、环境、路径、镜像、命令或公网健康 URL。
+- 首次变更捕获运行镜像 RepoDigest；canonical override 同时保存 current/previous，fsync 后原子提交，失败则重新应用旧镜像并验证健康。
+- 量化安全控制达到 8/8；Hub 异步审计、Web 确认与 production 空策略滚动仍待完成，M7 保持进行中。

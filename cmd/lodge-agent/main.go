@@ -23,13 +23,16 @@ func main() {
 	collectSSHAuth := flag.Bool("collect-ssh-auth", false, "输出最近 SSH 认证失败来源聚合并退出（仅供精确 sudoers 调用）")
 	listActions := flag.Bool("list-actions", false, "列出 root 策略批准的受控动作并退出（仅供精确 sudoers 调用）")
 	executeAction := flag.Bool("execute-action", false, "从标准输入执行一个 root 策略批准的动作并退出（仅供精确 sudoers 调用）")
+	listDeployments := flag.Bool("list-deployments", false, "列出 root 策略批准的声明式部署并退出（仅供精确 sudoers 调用）")
+	executeDeployment := flag.Bool("execute-deployment", false, "从标准输入执行一个 root 策略批准的声明式部署并退出（仅供精确 sudoers 调用）")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
 
 	modeCount := 0
 	for _, enabled := range []bool{
 		*check, *printSudoers, *collectProcessOrigins, *collectComposeMetadata,
-		*collectProxyRoutes, *collectSSHAuth, *listActions, *executeAction, *showVersion,
+		*collectProxyRoutes, *collectSSHAuth, *listActions, *executeAction,
+		*listDeployments, *executeDeployment, *showVersion,
 	} {
 		if enabled {
 			modeCount++
@@ -85,6 +88,18 @@ func main() {
 	case *executeAction:
 		if err := agent.ExecutePolicyAction(os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "执行受控动作失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *listDeployments:
+		if err := agent.WriteDeploymentDefinitions(os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "读取声明式部署策略失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *executeDeployment:
+		if err := agent.ExecutePolicyDeployment(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "执行声明式部署失败:", err)
 			os.Exit(1)
 		}
 		return

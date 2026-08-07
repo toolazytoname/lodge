@@ -23,6 +23,8 @@ UNIT_DST="/etc/systemd/system/lodge-agent.service"
 CONF_DIR="/etc/lodge-agent"
 TOKEN_FILE="$CONF_DIR/token"
 ACTION_POLICY_FILE="$CONF_DIR/actions.json"
+DEPLOYMENT_POLICY_FILE="$CONF_DIR/deployments.json"
+DEPLOYMENT_STATE_DIR="/var/lib/lodge-agent/deployments"
 
 err()  { echo "✗ $*" >&2; exit 1; }
 info() { echo "  $*"; }
@@ -114,6 +116,23 @@ if [ -e "$ACTION_POLICY_FILE" ] || [ -L "$ACTION_POLICY_FILE" ]; then
   info "root-only 动作策略已验证 ✓"
 else
   info "未配置动作策略：所有写操作保持禁用（fail closed）✓"
+fi
+
+# 声明式部署策略与动作策略采用同一 fail-closed 规则。状态目录仅 root 可进入，
+# lodge 服务账号只能通过固定 sudo helper 请求一次已登记的部署。
+install -d -o root -g root -m 0700 "$DEPLOYMENT_STATE_DIR"
+if [ -e "$DEPLOYMENT_POLICY_FILE" ] || [ -L "$DEPLOYMENT_POLICY_FILE" ]; then
+  [ -f "$DEPLOYMENT_POLICY_FILE" ] && [ ! -L "$DEPLOYMENT_POLICY_FILE" ] \
+    || err "部署策略必须是普通文件且不能是符号链接：$DEPLOYMENT_POLICY_FILE"
+  [ "$(stat -c '%u' "$DEPLOYMENT_POLICY_FILE")" = 0 ] \
+    || err "部署策略必须归 root 所有：$DEPLOYMENT_POLICY_FILE"
+  [ "$(stat -c '%a' "$DEPLOYMENT_POLICY_FILE")" = 600 ] \
+    || err "部署策略权限必须精确为 0600：$DEPLOYMENT_POLICY_FILE"
+  "$INSTALL_DIR/lodge-agent" --list-deployments >/dev/null \
+    || err "部署策略格式、宿主路径或现有回滚状态无效：$DEPLOYMENT_POLICY_FILE"
+  info "root-only 声明式部署策略与回滚状态已验证 ✓"
+else
+  info "未配置部署策略：所有部署与回滚保持禁用（fail closed）✓"
 fi
 
 # ── 4. sudoers（从二进制生成，单一真相来源）──────────────
@@ -208,7 +227,7 @@ with open(sys.argv[1], encoding="utf-8") as stream:
     token = stream.read().strip()
 
 payloads = {}
-for path in ("/v1/status", "/v1/services", "/v1/actions"):
+for path in ("/v1/status", "/v1/services", "/v1/actions", "/v1/deployments"):
     request = urllib.request.Request(
         "http://127.0.0.1:9101" + path,
         headers={"Authorization": "Bearer " + token},
@@ -224,6 +243,7 @@ privilege_warnings = [
 services = payloads["/v1/services"].get("services", [])
 ssh = payloads["/v1/status"].get("ssh")
 actions = payloads["/v1/actions"].get("actions")
+deployments = payloads["/v1/deployments"].get("deployments")
 if privilege_warnings:
     raise SystemExit("service-context collection has privilege warnings")
 if not services:
@@ -232,7 +252,9 @@ if not isinstance(ssh, dict) or not isinstance(ssh.get("failedTotal"), int) or n
     raise SystemExit("service-context SSH authentication summary is missing or invalid")
 if not isinstance(actions, list):
     raise SystemExit("service-context controlled action list is missing or invalid")
-print(f"  服务进程采集通过：services={len(services)} warnings={len(warnings)} ssh_failures={ssh['failedTotal']} actions={len(actions)} ✓")
+if not isinstance(deployments, list):
+    raise SystemExit("service-context declarative deployment list is missing or invalid")
+print(f"  服务进程采集通过：services={len(services)} warnings={len(warnings)} ssh_failures={ssh['failedTotal']} actions={len(actions)} deployments={len(deployments)} ✓")
 PY
 then
   :
@@ -246,7 +268,8 @@ if sudo -u lodge sudo -n docker run --rm hello-world >/dev/null 2>&1 \
    || sudo -u lodge sudo -n docker system prune -f >/dev/null 2>&1 \
    || sudo -u lodge sudo -n journalctl --vacuum-time=7d >/dev/null 2>&1 \
    || sudo -u lodge sudo -n systemctl restart caddy >/dev/null 2>&1 \
-   || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-action restart:systemd:caddy.service >/dev/null 2>&1; then
+   || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-action restart:systemd:caddy.service >/dev/null 2>&1 \
+   || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-deployment deploy:gateway:latest >/dev/null 2>&1; then
   err "安全验证失败：lodge 命中了未批准命令、旧直连写操作或动态参数"
 else
   info "越权验证：任意命令、旧直连写操作与动态参数均被拒绝 ✓"
@@ -256,5 +279,6 @@ echo
 echo "▸ 完成。下一步："
 echo "    1. 按 docs/agent-onboarding.md 将 owner-only token 安全导入 Hub（不要打印或放进命令参数）"
 echo "    2. 如需受控动作，审阅 deploy/agent-actions.example.json 后以 root:root 0600 安装为 $ACTION_POLICY_FILE"
-echo "    3. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
-echo "    4. 从 Hub 验证 tailnet 路由、采集状态和动作清单"
+echo "    3. 如需声明式部署，审阅 deploy/agent-deployments.example.json 后以 root:root 0600 安装为 $DEPLOYMENT_POLICY_FILE"
+echo "    4. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
+echo "    5. 从 Hub 验证 tailnet 路由、采集状态、动作与部署清单"

@@ -28,9 +28,9 @@ func runPrivileged(argv []string) (stdout []byte, stderr []byte, err error) {
 	return runPrivilegedInput(argv, nil)
 }
 
-// runPrivilegedInput is reserved for the single policy action helper. Keeping
-// stdin bounded and refusing it for read commands prevents this channel from
-// becoming an argument-smuggling escape hatch.
+// runPrivilegedInput is reserved for fixed policy write helpers. Keeping stdin
+// bounded and refusing it for read commands prevents this channel from becoming
+// an argument-smuggling escape hatch.
 func runPrivilegedInput(argv []string, input []byte) (stdout []byte, stderr []byte, err error) {
 	definition, ok := commandByName(argv)
 	if !ok {

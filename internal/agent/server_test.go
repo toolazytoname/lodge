@@ -226,11 +226,108 @@ func TestServerActionsRejectsConcurrentExecution(t *testing.T) {
 	}
 }
 
+func TestServerDeploymentsListAndExecuteRolledBackFailure(t *testing.T) {
+	definition := deploymentResponseFixture().Deployments[0]
+	withDeploymentHandlers(t,
+		func() (shared.DeploymentsResponse, error) { return deploymentResponseFixture(), nil },
+		func(received shared.DeploymentDefinition) (shared.DeploymentExecutionResult, error) {
+			if received.ID != definition.ID {
+				t.Fatalf("received deployment=%+v", received)
+			}
+			return shared.DeploymentExecutionResult{
+				ActionID: received.ID, StackKey: received.StackKey, Kind: received.Kind,
+				ReleaseID: received.ReleaseID, PreviousReleaseID: received.CurrentReleaseID,
+				RollbackPerformed: true, ErrorKind: "health_verification_failed",
+			}, nil
+		},
+	)
+	s := NewServer("secret")
+	listed := do(t, s, newAuthedReq(http.MethodGet, "/v1/deployments", "secret"))
+	if listed.Code != http.StatusOK || !contains(listed.Body.String(), `"id":"deploy:gateway:v2"`) || contains(listed.Body.String(), "composeFile") {
+		t.Fatalf("deployment list should be typed and redacted, got %d: %s", listed.Code, listed.Body.String())
+	}
+	executed := do(t, s, newAuthedReq(http.MethodPost, "/v1/deployments/deploy:gateway:v2", "secret"))
+	if executed.Code != http.StatusBadGateway || !contains(executed.Body.String(), `"rollbackPerformed":true`) {
+		t.Fatalf("rolled-back deployment failure should be typed, got %d: %s", executed.Code, executed.Body.String())
+	}
+}
+
+func TestServerDeploymentsRejectsCallerInputAndAmbiguousPaths(t *testing.T) {
+	withDeploymentHandlers(t,
+		func() (shared.DeploymentsResponse, error) { return deploymentResponseFixture(), nil },
+		func(shared.DeploymentDefinition) (shared.DeploymentExecutionResult, error) {
+			return shared.DeploymentExecutionResult{}, nil
+		},
+	)
+	s := NewServer("secret")
+	for _, path := range []string{
+		"/v1/deployments//deploy:gateway:v2",
+		"/v1/deployments/deploy:gateway:v2/extra",
+	} {
+		response := do(t, s, newAuthedReq(http.MethodPost, path, "secret"))
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("ambiguous deployment path %q should be 404, got %d", path, response.Code)
+		}
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/deployments/deploy:gateway:v2?image=latest", strings.NewReader(`{"compose":"evil"}`))
+	request.Header.Set("Authorization", "Bearer secret")
+	response := do(t, s, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("deployment query/body should be rejected, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestServerActionsAndDeploymentsShareExecutionLock(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	withDeploymentHandlers(t,
+		func() (shared.DeploymentsResponse, error) { return deploymentResponseFixture(), nil },
+		func(definition shared.DeploymentDefinition) (shared.DeploymentExecutionResult, error) {
+			close(entered)
+			<-release
+			return shared.DeploymentExecutionResult{
+				OK: true, ActionID: definition.ID, StackKey: definition.StackKey, Kind: definition.Kind,
+				ReleaseID: definition.ReleaseID, PreviousReleaseID: definition.CurrentReleaseID,
+			}, nil
+		},
+	)
+	withActionHandlers(t,
+		func() (shared.ActionsResponse, error) { return actionResponseFixture(), nil },
+		func(shared.ActionDefinition) (shared.ActionExecutionResult, error) {
+			return shared.ActionExecutionResult{}, nil
+		},
+	)
+	s := NewServer("secret")
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		done <- do(t, s, newAuthedReq(http.MethodPost, "/v1/deployments/deploy:gateway:v2", "secret"))
+	}()
+	<-entered
+	conflict := do(t, s, newAuthedReq(http.MethodPost, "/v1/actions/logs:systemd:caddy.service", "secret"))
+	if conflict.Code != http.StatusConflict {
+		t.Fatalf("action during deployment should be 409, got %d: %s", conflict.Code, conflict.Body.String())
+	}
+	close(release)
+	if completed := <-done; completed.Code != http.StatusOK {
+		t.Fatalf("deployment should finish, got %d: %s", completed.Code, completed.Body.String())
+	}
+}
+
 func actionResponseFixture() shared.ActionsResponse {
 	return shared.ActionsResponse{Actions: []shared.ActionDefinition{{
 		ID: "logs:systemd:caddy.service", TargetKey: "systemd:caddy.service", TargetLabel: "Caddy",
 		TargetKind: shared.ActionTargetSystemd, Kind: shared.ActionLogs,
 		Description: "读取最多 200 行脱敏日志：Caddy", Confirmation: "确认读取日志 Caddy", Risk: shared.ActionRiskRead,
+	}}}
+}
+
+func deploymentResponseFixture() shared.DeploymentsResponse {
+	return shared.DeploymentsResponse{Deployments: []shared.DeploymentDefinition{{
+		ID: "deploy:gateway:v2", StackKey: "gateway", StackLabel: "Gateway", Kind: shared.DeploymentDeploy,
+		ReleaseID: "v2", ReleaseLabel: "Version 2",
+		Image: "registry.example.test/lodge/gateway@sha256:" + strings.Repeat("2", 64), CurrentReleaseID: "v1",
+		Description:  "部署不可变镜像并验证；失败自动回滚：Gateway / Version 2",
+		Confirmation: "确认部署 Gateway 到 Version 2", Risk: shared.ActionRiskDisruptive,
 	}}}
 }
 
@@ -240,6 +337,15 @@ func withActionHandlers(t *testing.T, list func() (shared.ActionsResponse, error
 	listApprovedActions, executeApprovedActionByID = list, execute
 	t.Cleanup(func() {
 		listApprovedActions, executeApprovedActionByID = originalList, originalExecute
+	})
+}
+
+func withDeploymentHandlers(t *testing.T, list func() (shared.DeploymentsResponse, error), execute func(shared.DeploymentDefinition) (shared.DeploymentExecutionResult, error)) {
+	t.Helper()
+	originalList, originalExecute := listApprovedDeployments, executeApprovedDeploymentByID
+	listApprovedDeployments, executeApprovedDeploymentByID = list, execute
+	t.Cleanup(func() {
+		listApprovedDeployments, executeApprovedDeploymentByID = originalList, originalExecute
 	})
 }
 

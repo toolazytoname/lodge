@@ -15,15 +15,20 @@ required_patterns=(
   '服务进程采集通过：services='
   'service-context SSH authentication summary is missing or invalid'
   'service-context controlled action list is missing or invalid'
+  'service-context declarative deployment list is missing or invalid'
   'install -d -o root -g lodge -m 0750 "$CONF_DIR"'
   '[ ! -L "$CONF_DIR" ]'
   "stat -c '%u' \"\$ACTION_POLICY_FILE\""
   "stat -c '%a' \"\$ACTION_POLICY_FILE\""
+  "stat -c '%u' \"\$DEPLOYMENT_POLICY_FILE\""
+  "stat -c '%a' \"\$DEPLOYMENT_POLICY_FILE\""
+  'install -d -o root -g root -m 0700 "$DEPLOYMENT_STATE_DIR"'
   '所有写操作保持禁用（fail closed）'
   'docker system prune -f'
   'journalctl --vacuum-time=7d'
   'systemctl restart caddy'
   '--execute-action restart:systemd:caddy.service'
+  '--execute-deployment deploy:gateway:latest'
   'docs/agent-onboarding.md'
 )
 for pattern in "${required_patterns[@]}"; do
@@ -37,6 +42,10 @@ if grep -Eq '^[[:space:]]*ReadWritePaths=/etc/lodge-agent' deploy/lodge-agent.se
   printf 'lodge-agent must not be able to replace its root-owned action policy\n' >&2
   exit 1
 fi
+grep -Fx 'ReadWritePaths=/var/lib/lodge-agent/deployments' deploy/lodge-agent.service >/dev/null || {
+  printf 'lodge-agent unit must expose only the root-owned deployment state directory for writes\n' >&2
+  exit 1
+}
 
 python3 - <<'PY'
 import json
@@ -48,6 +57,22 @@ assert isinstance(policy["targets"], list)
 for target in policy["targets"]:
     assert set(target) == {"key", "label", "kind", "resource", "actions"}
     assert set(target["actions"]) <= {"start", "stop", "restart", "logs"}
+PY
+
+python3 - <<'PY'
+import json
+
+with open("deploy/agent-deployments.example.json", encoding="utf-8") as stream:
+    policy = json.load(stream)
+assert policy["version"] == 1
+assert isinstance(policy["stacks"], list)
+for stack in policy["stacks"]:
+    assert set(stack) == {"key", "label", "projectDirectory", "composeFile", "service", "stateless", "health", "releases"}
+    assert stack["stateless"] is True
+    assert stack["health"]["kind"] in {"docker", "http"}
+    for release in stack["releases"]:
+        image, digest = release["image"].rsplit("@sha256:", 1)
+        assert image and len(digest) == 64 and set(digest) <= set("0123456789abcdef")
 PY
 
 for forbidden_directive in \

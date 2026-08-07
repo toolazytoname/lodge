@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "stacks": [
+    {
+      "key": "gateway",
+      "label": "示例网关",
+      "projectDirectory": "/srv/gateway",
+      "composeFile": "/srv/gateway/compose.yaml",
+      "service": "gateway",
+      "stateless": true,
+      "health": {
+        "kind": "http",
+        "url": "http://127.0.0.1:8080/health",
+        "timeoutSeconds": 60
+      },
+      "releases": [
+        {
+          "id": "v1",
+          "label": "版本 1",
+          "image": "registry.example.test/lodge/gateway@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    }
+  ]
+}

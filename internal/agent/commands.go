@@ -8,7 +8,7 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.6.0"
+const AgentVersion = "0.7.0"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 var composeMetadataCommand = []string{"/usr/local/bin/lodge-agent", "--collect-compose-metadata"}
@@ -16,6 +16,8 @@ var proxyRoutesCommand = []string{"/usr/local/bin/lodge-agent", "--collect-proxy
 var sshAuthCommand = []string{"/usr/local/bin/lodge-agent", "--collect-ssh-auth"}
 var listActionsCommand = []string{"/usr/local/bin/lodge-agent", "--list-actions"}
 var executeActionCommand = []string{"/usr/local/bin/lodge-agent", "--execute-action"}
+var listDeploymentsCommand = []string{"/usr/local/bin/lodge-agent", "--list-deployments"}
+var executeDeploymentCommand = []string{"/usr/local/bin/lodge-agent", "--execute-deployment"}
 var systemdUnitsCommand = []string{
 	"systemctl", "show", "--type=service", "--all",
 	"--property=Id,LoadState,ActiveState,SubState,FragmentPath",
@@ -46,15 +48,19 @@ var privilegedRead = []PrivCommand{
 	{Argv: proxyRoutesCommand, Desc: "输出脱敏的 Caddy/Nginx Web 路由"},
 	{Argv: sshAuthCommand, Desc: "输出最近 SSH 认证失败的来源 IP 聚合"},
 	{Argv: listActionsCommand, Desc: "列出 root 策略批准的受控动作"},
+	{Argv: listDeploymentsCommand, Desc: "列出 root 策略批准的声明式部署"},
 	{Argv: []string{"ss", "-tlnpH"}, Desc: "监听套接字（含 PID，需 root 才能跨用户）"},
 	{Argv: systemdUnitsCommand, Desc: "读取 systemd service 状态与 unit 来源分类"},
 	{Argv: processOriginsCommand, Desc: "输出脱敏进程来源（不含参数、环境变量或完整路径）"},
 }
 
-// privilegedWrite 只授权一个固定的 root 策略执行入口。具体目标和允许的
-// start/stop/restart/logs 动作由 root 拥有的 actions.json 决定；Hub 和 Agent
-// HTTP 请求都不能提交命令、参数或路径。
-var privilegedWrite = []PrivCommand{{Write: true, Argv: executeActionCommand, Desc: "执行 root 策略批准的单个受控动作"}}
+// privilegedWrite 只授权两个固定的 root 策略执行入口。具体目标、动作和不可变
+// 发布版本由 root 拥有的策略文件决定；Hub 和 Agent HTTP 请求都不能提交命令、
+// 参数、路径、Compose 内容或环境变量。
+var privilegedWrite = []PrivCommand{
+	{Write: true, Argv: executeActionCommand, Desc: "执行 root 策略批准的单个受控动作"},
+	{Write: true, Argv: executeDeploymentCommand, Desc: "执行 root 策略批准的声明式部署"},
+}
 
 // AllPrivileged 返回只读 + 写命令的合集，按声明顺序。
 func AllPrivileged() []PrivCommand {

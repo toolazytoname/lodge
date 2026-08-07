@@ -94,7 +94,7 @@ func TestCommandByName(t *testing.T) {
 	if ok {
 		t.Fatal("进程来源 helper 被追加参数后不应命中白名单")
 	}
-	for _, command := range [][]string{composeMetadataCommand, proxyRoutesCommand, sshAuthCommand, listActionsCommand, systemdUnitsCommand} {
+	for _, command := range [][]string{composeMetadataCommand, proxyRoutesCommand, sshAuthCommand, listActionsCommand, listDeploymentsCommand, systemdUnitsCommand} {
 		definition, found := commandByName(command)
 		if !found || definition.Write {
 			t.Fatalf("orchestration metadata command should be read-only: %v", command)
@@ -104,13 +104,15 @@ func TestCommandByName(t *testing.T) {
 			t.Fatalf("orchestration command with extra args matched allowlist: %v", command)
 		}
 	}
-	definition, found := commandByName(executeActionCommand)
-	if !found || !definition.Write {
-		t.Fatal("fixed action executor should be the only write command")
-	}
-	_, found = commandByName(append(append([]string{}, executeActionCommand...), "restart:systemd:caddy.service"))
-	if found {
-		t.Fatal("action executor with an argv action ID must be rejected")
+	for _, command := range [][]string{executeActionCommand, executeDeploymentCommand} {
+		definition, found := commandByName(command)
+		if !found || !definition.Write {
+			t.Fatalf("fixed policy executor should be a write command: %v", command)
+		}
+		_, found = commandByName(append(append([]string{}, command...), "caller-controlled-id"))
+		if found {
+			t.Fatalf("policy executor with an argv ID must be rejected: %v", command)
+		}
 	}
 	for _, removed := range [][]string{
 		{"docker", "system", "prune", "-f"},
