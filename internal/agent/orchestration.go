@@ -2,8 +2,10 @@ package agent
 
 import (
 	"encoding/json"
+	"io"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -15,6 +17,11 @@ type composeMetadata struct {
 }
 
 var composeLabelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
+
+var dockerComposeQuery = []string{
+	"docker", "ps", "--all", "--no-trunc", "--format",
+	`[{{json .ID}},{{json (.Label "com.docker.compose.project")}},{{json (.Label "com.docker.compose.service")}}]`,
+}
 
 // parseComposeMetadata accepts only the two official Compose identity labels
 // emitted by docker ps. It deliberately never reads the full label map,
@@ -40,6 +47,23 @@ func parseComposeMetadata(content []byte) map[string]composeMetadata {
 		result[containerID] = composeMetadata{Project: project, Service: service}
 	}
 	return result
+}
+
+func writeComposeMetadata(content []byte, writer io.Writer) error {
+	metadata := parseComposeMetadata(content)
+	containerIDs := make([]string, 0, len(metadata))
+	for containerID := range metadata {
+		containerIDs = append(containerIDs, containerID)
+	}
+	sort.Strings(containerIDs)
+	encoder := json.NewEncoder(writer)
+	for _, containerID := range containerIDs {
+		value := metadata[containerID]
+		if err := encoder.Encode([]string{containerID, value.Project, value.Service}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validContainerID(value string) bool {

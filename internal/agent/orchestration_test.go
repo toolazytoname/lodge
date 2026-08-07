@@ -1,6 +1,9 @@
 package agent
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestParseComposeMetadataUsesOnlyValidatedIdentityLabels(t *testing.T) {
 	content := []byte(`
@@ -17,6 +20,20 @@ not json
 	value, found := findComposeMetadata(metadata, "6687817628f3")
 	if !found || value.Project != "new-api" || value.Service != "postgres" {
 		t.Fatalf("Compose prefix lookup failed: found=%v value=%+v", found, value)
+	}
+}
+
+func TestWriteComposeMetadataEmitsOnlyValidatedSortedTuples(t *testing.T) {
+	content := []byte("[\"ffffffffffff\",\"z-project\",\"web\"]\n" +
+		"[\"aaaaaaaaaaaa\",\"a-project\",\"api\"]\n" +
+		"[\"bbbbbbbbbbbb\",\"unsafe/project\",\"api\"]\n")
+	var output bytes.Buffer
+	if err := writeComposeMetadata(content, &output); err != nil {
+		t.Fatal(err)
+	}
+	want := "[\"aaaaaaaaaaaa\",\"a-project\",\"api\"]\n[\"ffffffffffff\",\"z-project\",\"web\"]\n"
+	if output.String() != want {
+		t.Fatalf("unexpected sanitized Compose output:\n got: %s want: %s", output.String(), want)
 	}
 }
 

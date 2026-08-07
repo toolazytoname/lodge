@@ -41,13 +41,14 @@ plus a one-way fingerprint. It never reads or emits `cmdline`, environment
 variables, or the full working-directory path. Additional arguments do not
 match either the Agent allowlist or sudoers policy.
 
-Two additional fixed read-only commands collect orchestration identity. Docker
-formats only `com.docker.compose.project` and `com.docker.compose.service`; it
-does not return the label map, working directory, config paths, environment, or
-command line. systemd returns unit identity, state, and fragment path; the Agent
-uses the path only in memory to classify operator-managed units and emits no
-path. Both argv arrays are exact sudoers entries with no caller-controlled
-target or wildcard.
+A second exact self-invocation, `--collect-compose-metadata`, runs one fixed
+Docker query inside the root-owned Agent and emits only validated
+`com.docker.compose.project` and `com.docker.compose.service` tuples. It does
+not return the label map, working directory, config paths, environment, or
+command line. A fixed systemd read returns unit identity, state, and fragment
+path; the Agent uses the path only in memory to classify operator-managed units
+and emits no path. All sudoers argv arrays have no caller-controlled target or
+wildcard.
 
 ## Atomic Hub enrollment
 

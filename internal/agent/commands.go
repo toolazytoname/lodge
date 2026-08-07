@@ -11,10 +11,7 @@ import (
 const AgentVersion = "0.3.0"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
-var dockerComposePSCommand = []string{
-	"docker", "ps", "--all", "--no-trunc", "--format",
-	"[{{json .ID}},{{json (.Label `com.docker.compose.project`)}},{{json (.Label `com.docker.compose.service`)}}]",
-}
+var composeMetadataCommand = []string{"/usr/local/bin/lodge-agent", "--collect-compose-metadata"}
 var systemdUnitsCommand = []string{
 	"systemctl", "show", "--type=service", "--all",
 	"--property=Id,LoadState,ActiveState,SubState,FragmentPath",
@@ -44,7 +41,7 @@ type PrivCommand struct {
 var privilegedRead = []PrivCommand{
 	{Argv: []string{"docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}"}, Desc: "列出所有容器（含完整 ID）"},
 	{Argv: []string{"docker", "system", "df", "--format", "{{json .}}"}, Desc: "docker 磁盘占用"},
-	{Argv: dockerComposePSCommand, Desc: "读取容器的 Compose project/service 标签"},
+	{Argv: composeMetadataCommand, Desc: "输出校验后的 Compose project/service 身份"},
 	{Argv: []string{"ss", "-tlnpH"}, Desc: "监听套接字（含 PID，需 root 才能跨用户）"},
 	{Argv: systemdUnitsCommand, Desc: "读取 systemd service 状态与 unit 来源分类"},
 	{Argv: processOriginsCommand, Desc: "输出脱敏进程来源（不含参数、环境变量或完整路径）"},

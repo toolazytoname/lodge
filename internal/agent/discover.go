@@ -266,7 +266,7 @@ func Discover() shared.ServicesResponse {
 	} else if !isDockerMissing(string(stderr)) {
 		warns = append(warns, "docker ps 失败: "+firstLine(string(stderr)))
 	}
-	if stdout, stderr, err := runPriv(dockerComposePSCommand); err == nil {
+	if stdout, stderr, err := runPriv(composeMetadataCommand); err == nil {
 		for containerID, metadata := range parseComposeMetadata(stdout) {
 			if svc := findContainerByID(containersByID, containerID); svc != nil {
 				svc.ComposeProject = metadata.Project

@@ -63,13 +63,6 @@ func TestGenerateSudoersOmitsEmptyCommandClass(t *testing.T) {
 	}
 }
 
-func TestComposeSudoersCommandUsesQuoteFreeTemplate(t *testing.T) {
-	line := formatSudoersLine(dockerComposePSCommand)
-	if strings.Contains(line, `"`) || !strings.Contains(line, "`com.docker.compose.project`") || !strings.Contains(line, "`com.docker.compose.service`") {
-		t.Fatalf("Compose label template must avoid sudoers quote syntax: %s", line)
-	}
-}
-
 func TestCommandByName(t *testing.T) {
 	// 已注册的 docker ps 应命中
 	c, ok := commandByName([]string{"docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}"})
@@ -101,7 +94,7 @@ func TestCommandByName(t *testing.T) {
 	if ok {
 		t.Fatal("进程来源 helper 被追加参数后不应命中白名单")
 	}
-	for _, command := range [][]string{dockerComposePSCommand, systemdUnitsCommand} {
+	for _, command := range [][]string{composeMetadataCommand, systemdUnitsCommand} {
 		definition, found := commandByName(command)
 		if !found || definition.Write {
 			t.Fatalf("orchestration metadata command should be read-only: %v", command)
