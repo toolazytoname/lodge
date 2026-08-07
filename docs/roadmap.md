@@ -149,5 +149,8 @@ returned all seven closed-enum posture fields through its service account and
 rejected an attempted extra helper argument. The Hub upgrade verified schema 7,
 5 configured hosts, 14,154 observations, a rollback bundle and post-deploy
 backup, unauthenticated API rejection, loopback-only binding, Tailnet Serve, and
-absence of configured secret values in recent service logs. This makes the
+absence of configured secret values in recent service logs. A post-rollout
+Hub-local authenticated pull also validated the current seven-field posture
+from all 5/5 registered Agents without exposing tokens, addresses, or raw host
+data. This makes the
 current posture visible; it does not change the unresolved SSH access risk.

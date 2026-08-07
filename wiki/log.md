@@ -253,4 +253,4 @@
 ## [2026-08-08] rollout | M8 实时防护姿态上线
 
 - 最终 push CI `31224459335` 与 PR CI `31224462704` 通过后，5 台 Agent `0.8.0` 与 Hub `0.9.0` 事务上线。五台服务均给出 7 个 closed-enum 字段，且额外 helper 参数均被 sudoers 拒绝。
-- Hub 保持 loopback + Tailnet Serve；schema 7 integrity、5 configured hosts、14,154 observations、rollback bundle、post-deploy backup、未登录 API 401 与 recent log 不含已配置 secret 值均通过。此记录不改变 SSH/账号/防火墙/云边界，M8 仍待恢复路径和独立管理员验证。
+- Hub 保持 loopback + Tailnet Serve；schema 7 integrity、5 configured hosts、14,154 observations、rollback bundle、post-deploy backup、未登录 API 401 与 recent log 不含已配置 secret 值均通过。Hub 进程所在地再次用既有凭据拉取 5/5 Agent，七个字段均有效且未输出 token/address/raw host data。此记录不改变 SSH/账号/防火墙/云边界，M8 仍待恢复路径和独立管理员验证。

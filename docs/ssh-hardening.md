@@ -26,7 +26,8 @@ seven-field closed vocabulary, and an attempted invocation with an added helper
 argument was rejected on every host. The Hub's transaction completed with a
 rollback bundle and post-deploy database backup; schema 7 integrity, 5 configured
 hosts, the served Security UI, unauthenticated API rejection, loopback binding,
-Tailnet Serve, and recent-log configured-secret exclusion were verified. This is
+Tailnet Serve, recent-log configured-secret exclusion, and a fresh 5/5
+Hub-local authenticated posture pull were verified. This is
 an observability acceptance record only: no SSH daemon, account, password,
 firewall, Fail2Ban, or cloud-edge setting was changed.
 
