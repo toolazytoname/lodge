@@ -75,14 +75,21 @@ production receiver is intentionally disabled until one is configured.
 
 The Agent boundary is implemented in version 0.6.0: a missing policy disables
 all actions, direct legacy sudo writes are removed, and only a bounded action ID
-can reach the root helper. Hub 0.7.0 and the Web implementation are complete in
-the repository. Every execution re-lists live Agent authority, requires the
+can reach the root helper. Hub 0.7.0 re-lists live Agent authority, requires the
 exact phrase, sends one non-retried POST, and records a compare-and-set lifecycle
 with pseudonymous requester identity and sanitized result. The responsive
 Operations page covers policy, risk, Agent sync, confirmation, transient logs,
-and durable audit. M6 remains open until the complete gates pass and the
-five-host rolling release proves a low-risk action without persisting returned
-log lines.
+and durable audit.
+
+Live acceptance on 2026-08-08 rolled Agent 0.6.0 to all five hosts and Hub 0.7.0
+through rollback-protected installers after both GitHub CI runs passed. The
+fleet remained 5/5 online with 55 workloads, 86 endpoints, 11 routes, zero
+warnings, and zero unidentified workloads. A Caddy log read exceeded the 64 KiB
+bound and correctly became `failed/log_read_failed` without retry; an idempotent
+start of the already-running Caddy succeeded with `running → running`. A Redis
+log read returned 200 transient lines, and an in-memory sample was absent from
+SQLite, WAL, and SHM. All three audits reached a terminal state with no
+interrupted operation. M6 is complete.
 
 ## M7 — Declarative deployment
 

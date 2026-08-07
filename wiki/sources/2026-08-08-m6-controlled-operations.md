@@ -1,6 +1,6 @@
 ---
 type: source
-status: active
+status: complete
 sources:
   - "[[lodge-server-management-roadmap]]"
 ---
@@ -50,5 +50,18 @@ Operations 页面现在展示选中主机的实时 root policy、风险级别、
 
 ## 当前边界
 
-代码、文档和本地定向验收已经完成；完整 `npm test`、双 CI、五机 Agent 0.6.0
-滚动发布、Hub 0.7.0 事务发布与低风险 live 动作完成前，M6 仍不能标记完成。
+`a650939` 完成功能切片后，Linux CI 发现 Operations 页面在不同字体度量下有 5px
+高度差；`4119a48` 固定完整画布高度而不裁图、不放宽阈值，push/PR 双 CI、race、
+Chromium 和漏洞扫描全部通过。
+
+五台主机随后通过保留 token、sudoers、unit、策略与旧二进制回滚点的事务流程统一
+升级到 Agent `0.6.0`；动作数量为 3/3/0/3/13。核心反代只批准
+logs/start/restart，不批准 stop；Ali 保持空策略；banwagong 的 Postgres/Redis 只批准
+logs，应用容器才具备 stop。Hub `0.7.0` 通过既有安装器保留一致性备份与回滚包后
+上线，schema 仍为 7。
+
+生产动作验收保留了三条真实审计：Caddy 日志超过 64 KiB，安全失败为
+`log_read_failed` 且未重试；已运行 Caddy 的幂等 start 成功，前后均为 running；
+Redis 日志成功返回 200 行，实际最长样本未出现在 DB/WAL/SHM。终验 5/5 online、
+55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified，最大观测年龄
+24.6 秒，2 succeeded、1 failed、0 interrupted。M6 完成，下一阶段进入 M7 声明式部署。

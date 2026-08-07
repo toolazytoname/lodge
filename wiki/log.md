@@ -203,3 +203,11 @@
 - 非幂等 Agent POST 禁用 retry、redirect 和环境 proxy；全局串行动作以独立后台预算完成 `requested → running → succeeded|failed`，Hub 重启只标记 `hub_restarted`，不重放不确定动作。
 - SQLite compare-and-set、分类错误、伪匿名会话身份及日志 secret sentinel 覆盖 DB/WAL/SHM；最近日志仅在当前认证响应中存在。
 - Operations 页面完成实时权限、风险、Agent 同步、逐字确认、瞬时结果和持久审计，390/1280 视觉与行为测试通过；完整门禁、双 CI 和 production live 验收仍待完成。
+
+## [2026-08-08] production | M6 受控运维完成
+
+- `a650939` 首轮 CI 精确捕获 Linux Operations 整页比 macOS 少 5px；`4119a48` 只固定完整截图画布高度，不裁图、不放宽 4% 像素阈值，push/PR 双 CI、race、6 组 Chromium 与漏洞扫描全部通过。
+- SHA-256 `6fc1a282...f12b041` 的 Agent 0.6.0 逐机滚动到五台主机；token 不变，root-only 策略动作数 3/3/0/3/13，任意命令、旧写权限和动态 helper argv 均被拒，四台远端 Serve 保持 Tailnet-only，同机 Agent 保持 loopback-only。
+- SHA-256 `d68357c9...a94a44b` 的 Hub 0.7.0 事务上线，保留发布前回滚包和发布后一致性备份；schema 7、owner-only 文件、未认证 401、Tailnet-only Serve 与嵌入 Operations 资源全部通过。
+- live Caddy log 因超过 64 KiB 安全失败且不重试；Caddy 幂等 start 成功并验证 running→running；Redis log 成功返回 200 行，实际样本不在 DB/WAL/SHM。三条审计为 2 succeeded/1 failed/0 interrupted，均使用伪匿名会话身份。
+- 终验为 5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified、最大观测年龄 24.6 秒。M6 完成，进入 M7 声明式部署。

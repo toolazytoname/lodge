@@ -11,7 +11,7 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Live SQLite schema 7 latest observations: 5 configured and 5 online on 2026-08-08"
+      "evidence": "Live Hub 0.7.0/schema 7 latest observations: 5 configured and 5 online with Agent 0.6.0 on 2026-08-08"
     },
     {
       "id": "known_workload_attribution_percent",
@@ -21,7 +21,7 @@
       "target": 95,
       "unit": "percent",
       "direction": "increase",
-      "evidence": "Live SQLite schema 7 latest observations: 55 known of 55 workloads across 5 Agent 0.5.1 hosts, with 0 discovery warnings, on 2026-08-08"
+      "evidence": "Live SQLite schema 7 latest observations: 55 known of 55 workloads across 5 Agent 0.6.0 hosts, with 0 discovery warnings, on 2026-08-08"
     },
     {
       "id": "registered_web_link_success_percent",
@@ -101,17 +101,17 @@
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Live bytedragon Hub 0.6.0 uses --history-retention 720h with SQLite schema 7 on 2026-08-08"
+      "evidence": "Live bytedragon Hub 0.7.0 uses --history-retention 720h with SQLite schema 7 on 2026-08-08"
     },
     {
       "id": "web_operations",
       "dimension": "operations",
       "name": "Audited operations available from the Web UI",
-      "current": 0,
+      "current": 4,
       "target": 4,
       "unit": "operations",
       "direction": "increase",
-      "evidence": "Repository implements approved start, stop, restart, and logs with exact confirmation and audit; current remains zero until Hub 0.7.0 and Agent 0.6.0 production acceptance"
+      "evidence": "Hub 0.7.0 and five Agent 0.6.0 hosts expose approved start, stop, restart, and logs; live start and logs reached durable success, a bounded log overflow failed closed without retry, and returned log samples were absent from SQLite/WAL/SHM"
     },
     {
       "id": "event_rule_kinds",
@@ -177,11 +177,11 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": 30.1,
+      "current": 24.6,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "Post-Agent-0.5.1 point-in-time live SQLite measurement across 5 hosts: maximum 30.1 seconds on 2026-08-08"
+      "evidence": "Post-Agent-0.6.0 and Hub-0.7.0 point-in-time live SQLite measurement across 5 hosts: maximum 24.6 seconds on 2026-08-08"
     },
     {
       "id": "risk_detection_seconds",

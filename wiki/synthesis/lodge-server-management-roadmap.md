@@ -92,6 +92,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M6 Hub/Web 闭环实现：Hub 0.7.0 每次执行前重新读取 Agent 实时策略，只接受 agent ID、action ID 与逐字确认语；非幂等 POST 不走 proxy/redirect/retry。operation 以 compare-and-set 持久化请求、运行和分类结果，重启中断只标记 `hub_restarted` 而不重放，瞬时日志由 sentinel 测试证明不进入 DB/WAL/SHM。Operations 页面在 390/1280 完成权限、风险、确认、结果与审计验收；完整 CI 和生产低风险动作完成前 M6 仍保持进行中。
 
+> 2026-08-08 M6 完成：跨平台 5px 视觉差异经固定完整画布而非降低阈值修复后，双 CI 与漏洞扫描通过。五台 Agent 0.6.0 和 Hub 0.7.0 事务发布；live Caddy 日志超限按 `log_read_failed` 安全失败且不重试，幂等 start 保持 running→running，Redis 200 行瞬时日志成功且样本不在 DB/WAL/SHM。终验 5/5、55 workloads、86 endpoints、11 routes、0 warnings、3 条 terminal audit、0 interrupted。下一步只做声明式、可预检和可回滚的 M7，不把 Operations 扩展成 Web Shell。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。
