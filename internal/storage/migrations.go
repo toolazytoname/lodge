@@ -176,4 +176,23 @@ ALTER TABLE workloads ADD COLUMN compose_project TEXT NOT NULL DEFAULT '';
 ALTER TABLE workloads ADD COLUMN compose_service TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		version: 4,
+		name:    "redacted_proxy_routes",
+		sql: `
+CREATE TABLE proxy_routes (
+    observation_id INTEGER NOT NULL,
+    workload_key TEXT NOT NULL,
+    route_key TEXT NOT NULL,
+    scheme TEXT NOT NULL CHECK (scheme IN ('http', 'https')),
+    host TEXT NOT NULL DEFAULT '',
+    port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+    path TEXT NOT NULL,
+    upstreams_json TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (observation_id, workload_key, route_key),
+    FOREIGN KEY (observation_id, workload_key)
+        REFERENCES workloads(observation_id, workload_key) ON DELETE CASCADE
+) STRICT;
+`,
+	},
 }

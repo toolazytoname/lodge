@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 3
+	currentSchemaVersion = 4
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -387,6 +387,21 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			return 0, fmt.Errorf("insert endpoint %s: %w", endpoint.Key, err)
 		}
 	}
+	for _, route := range observation.Routes {
+		upstreamsJSON, err := json.Marshal(route.Upstreams)
+		if err != nil {
+			_ = tx.Rollback()
+			return 0, fmt.Errorf("encode proxy route %s upstreams: %w", route.Key, err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO proxy_routes(observation_id, workload_key, route_key, scheme, host, port, path, upstreams_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			observationID, route.WorkloadKey, route.Key, route.Scheme, route.Host, route.Port, route.Path, string(upstreamsJSON),
+		); err != nil {
+			_ = tx.Rollback()
+			return 0, fmt.Errorf("insert proxy route %s: %w", route.Key, err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
@@ -565,6 +580,34 @@ FROM endpoints WHERE observation_id = ? ORDER BY workload_key, endpoint_key`, id
 		return domain.Observation{}, err
 	}
 	if err := endpointRows.Close(); err != nil {
+		return domain.Observation{}, err
+	}
+
+	routeRows, err := query.QueryContext(ctx, `
+SELECT workload_key, route_key, scheme, host, port, path, upstreams_json
+FROM proxy_routes WHERE observation_id = ? ORDER BY workload_key, route_key`, id)
+	if err != nil {
+		return domain.Observation{}, err
+	}
+	for routeRows.Next() {
+		var route domain.ProxyRoute
+		var upstreamsJSON string
+		route.HostID = observation.HostID
+		if err := routeRows.Scan(&route.WorkloadKey, &route.Key, &route.Scheme, &route.Host, &route.Port, &route.Path, &upstreamsJSON); err != nil {
+			_ = routeRows.Close()
+			return domain.Observation{}, err
+		}
+		if err := json.Unmarshal([]byte(upstreamsJSON), &route.Upstreams); err != nil {
+			_ = routeRows.Close()
+			return domain.Observation{}, fmt.Errorf("decode proxy route %s upstreams: %w", route.Key, err)
+		}
+		observation.Routes = append(observation.Routes, route)
+	}
+	if err := routeRows.Err(); err != nil {
+		_ = routeRows.Close()
+		return domain.Observation{}, err
+	}
+	if err := routeRows.Close(); err != nil {
 		return domain.Observation{}, err
 	}
 	if err := observation.Validate(); err != nil {

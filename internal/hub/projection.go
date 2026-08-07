@@ -24,6 +24,7 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 		AgentVersion: ping.AgentVer,
 		Workloads:    make([]domain.Workload, 0, len(services)),
 		Endpoints:    make([]domain.Endpoint, 0),
+		Routes:       make([]domain.ProxyRoute, 0),
 	}
 	if status != nil {
 		if status.Hostname != "" {
@@ -75,6 +76,19 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 				Port:         port.Port,
 				Binding:      projectBinding(shared.ClassifyBind(port.Bind)),
 				Reachability: domain.ReachabilityUnknown,
+			})
+		}
+		seenRoutes := make(map[string]struct{}, len(service.Routes))
+		for _, route := range service.Routes {
+			key := route.Scheme + "://" + net.JoinHostPort(route.Host, strconv.Itoa(route.Port)) + route.Path
+			if _, duplicate := seenRoutes[key]; duplicate {
+				continue
+			}
+			seenRoutes[key] = struct{}{}
+			observation.Routes = append(observation.Routes, domain.ProxyRoute{
+				HostID: domain.HostID(agent.ID), WorkloadKey: service.Key, Key: key,
+				Scheme: route.Scheme, Host: route.Host, Port: route.Port, Path: route.Path,
+				Upstreams: append([]string(nil), route.Upstreams...),
 			})
 		}
 	}

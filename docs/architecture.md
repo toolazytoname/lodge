@@ -26,7 +26,8 @@ The browser remains the product client. No native desktop client is required.
 
 - **Host**: one unique physical or virtual machine. Multiple SSH users do not create multiple hosts.
 - **Workload**: Docker container (with optional Compose project/service identity), systemd unit, or identified process.
-- **Endpoint**: a protocol/address/port plus optional reverse-proxy route and reachability evidence.
+- **Endpoint**: a protocol/address/port plus binding and independently evidenced reachability.
+- **ProxyRoute**: a redacted HTTP(S) scheme/host/port/path published by a Caddy or Nginx workload, with optional credential-free upstream authorities.
 - **Observation**: an immutable collection result at a point in time.
 - **Event**: a meaningful transition derived from observations.
 - **Operation**: a requested, authorized, executed, and audited state change.
@@ -41,7 +42,7 @@ translates them and rejects duplicate identities, cross-host references,
 invalid endpoints, and unevidenced reachability claims.
 
 Durable state is stored through `internal/storage` in owner-only SQLite. The
-schema normalizes immutable observations, workload/endpoint children, events,
+schema normalizes immutable observations, workload/endpoint/proxy-route children, events,
 annotations, and operation audit records. Agent credentials remain runtime
 configuration rather than durable inventory data. See
 [`docs/storage.md`](storage.md) for migration, backup, and restore invariants.

@@ -216,6 +216,43 @@ func TestGuessURL(t *testing.T) {
 	}
 }
 
+func TestJoinServicesPrefersDiscoveredProxyRouteAndKeepsAllLinks(t *testing.T) {
+	services := []shared.Service{{
+		Key: "systemd:caddy.service", Name: "caddy",
+		Routes: []shared.ProxyRoute{
+			{Scheme: "https", Port: 9443, Path: "/admin/*", Upstreams: []string{"127.0.0.1:4000"}},
+			{Scheme: "https", Host: "app.example.test", Port: 8443, Path: "/", Upstreams: []string{"127.0.0.1:3000"}},
+		},
+	}}
+	views := JoinServices(services, nil, "203.0.113.10")
+	if len(views) != 1 || len(views[0].Routes) != 2 {
+		t.Fatalf("proxy routes were not retained: %+v", views)
+	}
+	if views[0].URL != "https://app.example.test:8443/" {
+		t.Fatalf("first discovered route should be the primary URL, got %q", views[0].URL)
+	}
+	if views[0].Routes[1].URL != "https://203.0.113.10:9443/admin/" {
+		t.Fatalf("default host or wildcard path was not resolved safely: %+v", views[0].Routes[1])
+	}
+	encoded, err := json.Marshal(views[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(encoded), `"routes"`) != 1 || !strings.Contains(string(encoded), `"url":"https://app.example.test:8443/"`) {
+		t.Fatalf("route views should replace raw embedded routes in Web JSON: %s", encoded)
+	}
+
+	views = JoinServices(services, map[string]Annotation{
+		"systemd:caddy.service": {URL: "https://override.example.test"},
+	}, "203.0.113.10")
+	if views[0].URL != "https://override.example.test" || len(views[0].Routes) != 2 {
+		t.Fatalf("annotation override should win without hiding discovered routes: %+v", views[0])
+	}
+	if got := proxyRouteURL(shared.ProxyRoute{Scheme: "https", Host: "2001:db8::1", Port: 443, Path: "/"}, ""); got != "https://[2001:db8::1]/" {
+		t.Fatalf("IPv6 route URL was not bracketed: %q", got)
+	}
+}
+
 func TestAuthCookieRoundTrip(t *testing.T) {
 	passwordHash, err := HashPassword("s3cret")
 	if err != nil {

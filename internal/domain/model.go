@@ -5,7 +5,9 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -84,6 +86,20 @@ type Endpoint struct {
 	ReachabilityCheckedAt *time.Time   `json:"reachabilityCheckedAt,omitempty"`
 }
 
+// ProxyRoute is an immutable, redacted route observed on a proxy workload.
+// Upstreams are authorities only and are informational; they are not treated
+// as confirmed reachability or as credentials.
+type ProxyRoute struct {
+	HostID      HostID   `json:"hostId"`
+	WorkloadKey string   `json:"workloadKey"`
+	Key         string   `json:"key"`
+	Scheme      string   `json:"scheme"`
+	Host        string   `json:"host,omitempty"`
+	Port        int      `json:"port"`
+	Path        string   `json:"path"`
+	Upstreams   []string `json:"upstreams,omitempty"`
+}
+
 type Resources struct {
 	CPUs   int              `json:"cpus,omitempty"`
 	Load1  float64          `json:"load1,omitempty"`
@@ -121,16 +137,17 @@ type DockerResources struct {
 
 // Observation is an immutable result of one host collection attempt.
 type Observation struct {
-	HostID       HostID     `json:"hostId"`
-	ObservedAt   time.Time  `json:"observedAt"`
-	Online       bool       `json:"online"`
-	LastError    string     `json:"lastError,omitempty"`
-	Hostname     string     `json:"hostname,omitempty"`
-	AgentVersion string     `json:"agentVersion,omitempty"`
-	Resources    *Resources `json:"resources,omitempty"`
-	Workloads    []Workload `json:"workloads"`
-	Endpoints    []Endpoint `json:"endpoints"`
-	Warnings     []string   `json:"warnings,omitempty"`
+	HostID       HostID       `json:"hostId"`
+	ObservedAt   time.Time    `json:"observedAt"`
+	Online       bool         `json:"online"`
+	LastError    string       `json:"lastError,omitempty"`
+	Hostname     string       `json:"hostname,omitempty"`
+	AgentVersion string       `json:"agentVersion,omitempty"`
+	Resources    *Resources   `json:"resources,omitempty"`
+	Workloads    []Workload   `json:"workloads"`
+	Endpoints    []Endpoint   `json:"endpoints"`
+	Routes       []ProxyRoute `json:"routes"`
+	Warnings     []string     `json:"warnings,omitempty"`
 }
 
 // Annotation is user-maintained metadata joined to an observed Workload. It
@@ -298,7 +315,108 @@ func (o Observation) Validate() error {
 			return fmt.Errorf("endpoint %q has evidence but unknown reachability", endpoint.Key)
 		}
 	}
+	routes := make(map[string]struct{}, len(o.Routes))
+	for _, route := range o.Routes {
+		if route.HostID != o.HostID {
+			return fmt.Errorf("proxy route %q belongs to another host", route.Key)
+		}
+		if _, exists := workloads[route.WorkloadKey]; !exists {
+			return fmt.Errorf("proxy route %q references missing workload %q", route.Key, route.WorkloadKey)
+		}
+		if err := validateIdentifier("proxy route key", route.Key, 1024); err != nil {
+			return err
+		}
+		if route.Scheme != "http" && route.Scheme != "https" {
+			return fmt.Errorf("proxy route %q has invalid scheme %q", route.Key, route.Scheme)
+		}
+		if !validProxyHost(route.Host, true) {
+			return fmt.Errorf("proxy route %q has invalid host", route.Key)
+		}
+		if route.Port < 1 || route.Port > 65535 {
+			return fmt.Errorf("proxy route %q has invalid port %d", route.Key, route.Port)
+		}
+		if !validProxyPath(route.Path) {
+			return fmt.Errorf("proxy route %q has invalid path", route.Key)
+		}
+		expectedKey := route.Scheme + "://" + net.JoinHostPort(route.Host, strconv.Itoa(route.Port)) + route.Path
+		if route.Key != expectedKey {
+			return fmt.Errorf("proxy route %q does not match its route fields", route.Key)
+		}
+		if len(route.Upstreams) > 16 {
+			return fmt.Errorf("proxy route %q has too many upstreams", route.Key)
+		}
+		seenUpstreams := make(map[string]struct{}, len(route.Upstreams))
+		for _, upstream := range route.Upstreams {
+			if !validProxyUpstream(upstream) {
+				return fmt.Errorf("proxy route %q has invalid upstream", route.Key)
+			}
+			if _, duplicate := seenUpstreams[upstream]; duplicate {
+				return fmt.Errorf("proxy route %q has duplicate upstream", route.Key)
+			}
+			seenUpstreams[upstream] = struct{}{}
+		}
+		compositeKey := route.WorkloadKey + "\x00" + route.Key
+		if _, duplicate := routes[compositeKey]; duplicate {
+			return fmt.Errorf("duplicate proxy route key %q", route.Key)
+		}
+		routes[compositeKey] = struct{}{}
+	}
 	return nil
+}
+
+func validProxyHost(host string, allowEmpty bool) bool {
+	if host == "" {
+		return allowEmpty
+	}
+	if len(host) > 253 || strings.HasSuffix(host, ".") {
+		return false
+	}
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	if strings.ContainsAny(host, "/:@?#[]") {
+		return false
+	}
+	labels := strings.Split(host, ".")
+	for _, label := range labels {
+		if len(label) < 1 || len(label) > 63 || !asciiAlphaNumeric(label[0]) || !asciiAlphaNumeric(label[len(label)-1]) {
+			return false
+		}
+		for index := 1; index < len(label)-1; index++ {
+			if !asciiAlphaNumeric(label[index]) && label[index] != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func asciiAlphaNumeric(value byte) bool {
+	return value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z' || value >= '0' && value <= '9'
+}
+
+func validProxyPath(path string) bool {
+	if path == "" || len(path) > 512 || path[0] != '/' || !utf8.ValidString(path) || strings.ContainsAny(path, "?#") {
+		return false
+	}
+	for _, character := range path {
+		if character == 0 || unicode.IsControl(character) {
+			return false
+		}
+	}
+	return true
+}
+
+func validProxyUpstream(upstream string) bool {
+	if len(upstream) < 3 || len(upstream) > 256 || strings.ContainsAny(upstream, "/@?#") {
+		return false
+	}
+	host, portText, err := net.SplitHostPort(upstream)
+	if err != nil || !validProxyHost(host, false) {
+		return false
+	}
+	port, err := strconv.Atoi(portText)
+	return err == nil && port >= 1 && port <= 65535
 }
 
 func (a Annotation) Validate() error {

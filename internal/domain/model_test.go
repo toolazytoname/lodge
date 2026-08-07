@@ -61,6 +61,34 @@ func TestObservationValidatesComposeIdentity(t *testing.T) {
 	}
 }
 
+func TestObservationValidatesRedactedProxyRoutes(t *testing.T) {
+	observation := Observation{
+		HostID: "host-a", ObservedAt: time.Now().UTC(),
+		Workloads: []Workload{{HostID: "host-a", Key: "systemd:caddy.service", Kind: WorkloadSystemd, Name: "caddy"}},
+		Routes: []ProxyRoute{{
+			HostID: "host-a", WorkloadKey: "systemd:caddy.service", Key: "https://app.example.test:443/",
+			Scheme: "https", Host: "app.example.test", Port: 443, Path: "/", Upstreams: []string{"127.0.0.1:3000"},
+		}},
+	}
+	if err := observation.Validate(); err != nil {
+		t.Fatalf("valid redacted proxy route was rejected: %v", err)
+	}
+	observation.Routes[0].Key = "https://other.example.test:443/"
+	if err := observation.Validate(); err == nil {
+		t.Fatal("route key inconsistent with its fields should be rejected")
+	}
+	observation.Routes[0].Key = "https://app.example.test:443/"
+	observation.Routes[0].Upstreams = []string{"https://user:secret@example.test"}
+	if err := observation.Validate(); err == nil {
+		t.Fatal("credential-bearing upstream should be rejected")
+	}
+	observation.Routes[0].Upstreams = nil
+	observation.Routes[0].WorkloadKey = "docker:missing"
+	if err := observation.Validate(); err == nil {
+		t.Fatal("route referencing a missing workload should be rejected")
+	}
+}
+
 func TestAnnotationRequiresSafeDurableIdentityAndURL(t *testing.T) {
 	annotation := Annotation{
 		HostID: "host-a", WorkloadKey: "systemd:caddy.service",

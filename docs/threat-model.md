@@ -52,6 +52,14 @@
   environments are not collected. systemd discovery emits only validated unit
   names and states; fragment paths are used in-memory solely to classify
   operator-managed units.
+- Reverse-proxy discovery is one exact root-owned Agent self-invocation with no
+  caller-controlled container, path, or command. It reads standard host proxy
+  config and explicit Docker bind mounts selected from Docker mount metadata;
+  it never reads container environment variables or runs `docker exec`. Raw
+  Caddy/Nginx config, certificate/key paths, headers, authentication directives,
+  URL credentials, queries, and upstream paths are never emitted. Only
+  validated scheme/host/port/path plus credential-free upstream authorities are
+  accepted, with time and output bounds.
 - The root-only process-origin collector reads only PID/UID, process and
   executable basenames, and a working-directory basename plus one-way
   fingerprint. It never reads or emits command lines, environments, or full

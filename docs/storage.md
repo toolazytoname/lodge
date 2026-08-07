@@ -12,7 +12,7 @@ The schema stores:
 
 - Hosts, containing display metadata but no Agent URL, token, password, or SSH
   credential;
-- immutable observations and their workload and endpoint children;
+- immutable observations and their workload, endpoint, and redacted proxy-route children;
 - annotations;
 - event lifecycle records with active-event deduplication;
 - operation audit records.
@@ -21,6 +21,10 @@ Schema v2 records content-addressed legacy annotation imports so restarting the
 Hub cannot duplicate an import. Schema v3 adds optional Compose project/service
 identity to Docker workloads; upgrading existing observations fills both fields
 with empty strings without rewriting historical workload identity.
+Schema v4 adds normalized Caddy/Nginx proxy routes. It stores only scheme,
+validated host, port, path matcher, and credential-free upstream authorities;
+raw configuration, certificate/key paths, headers, query strings, and
+credentials never enter SQLite.
 
 ## Database invariants
 
@@ -29,7 +33,7 @@ with empty strings without rewriting historical workload identity.
   keys.
 - Observation timestamps use fixed-width UTC nanoseconds so text ordering is
   chronological even when whole-second and fractional values are mixed.
-- Workloads and endpoints are deleted automatically when an observation is
+- Workloads, endpoints, and proxy routes are deleted automatically when an observation is
   pruned.
 - The database, `-wal`, `-shm`, and backup files are owner-only (`0600`). An
   existing database with broader permissions or a symlinked path is rejected.

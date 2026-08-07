@@ -52,6 +52,11 @@ func sampleObservation(at time.Time) domain.Observation {
 			Protocol: "tcp", Bind: "0.0.0.0", Port: 443,
 			Binding: domain.BindingWildcard, Reachability: domain.ReachabilityUnknown,
 		}},
+		Routes: []domain.ProxyRoute{{
+			HostID: "host-a", WorkloadKey: "docker:web", Key: "https://web.example.test:443/",
+			Scheme: "https", Host: "web.example.test", Port: 443, Path: "/",
+			Upstreams: []string{"127.0.0.1:8080"},
+		}},
 		Warnings: []string{"partial fixture warning"},
 	}
 }
@@ -371,15 +376,18 @@ func TestSQLiteObservationRoundTripHistoryAndPrune(t *testing.T) {
 	if deleted != 1 {
 		t.Fatalf("pruned %d observations, want 1", deleted)
 	}
-	var workloadRows, endpointRows int
+	var workloadRows, endpointRows, routeRows int
 	if err := store.db.QueryRowContext(ctx, "SELECT count(*) FROM workloads").Scan(&workloadRows); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.db.QueryRowContext(ctx, "SELECT count(*) FROM endpoints").Scan(&endpointRows); err != nil {
 		t.Fatal(err)
 	}
-	if workloadRows != 1 || endpointRows != 1 {
-		t.Fatalf("cascade prune failed: workloads=%d endpoints=%d", workloadRows, endpointRows)
+	if err := store.db.QueryRowContext(ctx, "SELECT count(*) FROM proxy_routes").Scan(&routeRows); err != nil {
+		t.Fatal(err)
+	}
+	if workloadRows != 1 || endpointRows != 1 || routeRows != 1 {
+		t.Fatalf("cascade prune failed: workloads=%d endpoints=%d routes=%d", workloadRows, endpointRows, routeRows)
 	}
 }
 

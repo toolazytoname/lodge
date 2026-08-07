@@ -25,7 +25,8 @@ function safeWebURL(raw) {
   if (!raw) return null;
   try {
     const parsed = new URL(raw);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
+    const webScheme = parsed.protocol === "http:" || parsed.protocol === "https:";
+    return webScheme && !parsed.username && !parsed.password ? parsed.href : null;
   } catch (_) {
     return null;
   }
@@ -185,6 +186,7 @@ function renderServices(groups) {
 
 function serviceRow(agentID, service) {
   const servicePorts = service.ports || [];
+  const serviceRoutes = service.routes || [];
   const exposure = serviceExposure(service);
   const row = element("div", `svc-row ${exposure === "public" ? "public" : ""}`);
   row.append(element("span", `badge ${exposure}`, exposureLabel[exposure] || exposure));
@@ -208,9 +210,30 @@ function serviceRow(agentID, service) {
   const state = service.status ? ` · ${service.status}` : "";
   row.append(name, element("span", "svc-kind", `${runtime}${state}`));
 
+  const details = element("span", "service-details");
+  if (serviceRoutes.length) {
+    const routes = element("span", "routes");
+    serviceRoutes.forEach((route) => {
+      const routeHref = safeWebURL(route.url);
+      if (routeHref) {
+        const parsed = new URL(routeHref);
+        const label = `${parsed.host}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+        const link = element("a", "route", `${label} ↗`);
+        link.href = routeHref;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        if ((route.upstreams || []).length) link.title = `上游：${route.upstreams.join(", ")}`;
+        routes.append(link);
+      } else {
+        routes.append(element("span", "route muted", `${route.scheme} :${route.port}${route.path || "/"}`));
+      }
+    });
+    details.append(routes);
+  }
   const ports = element("span", "ports");
   servicePorts.forEach((port) => ports.append(element("span", "port", `${port.bind}:${port.port}`)));
-  row.append(ports);
+  details.append(ports);
+  row.append(details);
 
   const edit = element("button", "edit", "编辑");
   edit.type = "button";

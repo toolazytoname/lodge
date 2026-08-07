@@ -164,7 +164,7 @@ func TestDiscoverAttributesHostNetworkSocketToDockerContainer(t *testing.T) {
 		switch {
 		case argvEqual(argv, dockerPS):
 			return []byte(`{"ID":"` + containerID + `","Names":"cpa-manager-plus","Image":"example/cpa:latest","State":"running","Status":"Up","Ports":""}` + "\n"), nil, nil
-		case argvEqual(argv, composeMetadataCommand), argvEqual(argv, systemdUnitsCommand):
+		case argvEqual(argv, composeMetadataCommand), argvEqual(argv, proxyRoutesCommand), argvEqual(argv, systemdUnitsCommand):
 			return nil, nil, nil
 		case argvEqual(argv, processOriginsCommand):
 			return nil, nil, nil
@@ -207,7 +207,7 @@ func TestDiscoverGroupsCustomProcessPortsByRedactedOrigin(t *testing.T) {
 		switch {
 		case argvEqual(argv, dockerPS):
 			return nil, nil, nil
-		case argvEqual(argv, composeMetadataCommand), argvEqual(argv, systemdUnitsCommand):
+		case argvEqual(argv, composeMetadataCommand), argvEqual(argv, proxyRoutesCommand), argvEqual(argv, systemdUnitsCommand):
 			return nil, nil, nil
 		case argvEqual(argv, processOriginsCommand):
 			return []byte(`{"pid":481732,"uid":1001,"comm":"node","executable":"node","cwdBase":"image","cwdFingerprint":"0123456789abcdef"}` + "\n"), nil, nil
@@ -257,6 +257,8 @@ func TestDiscoverAddsComposeIdentityAndRelevantSystemdUnits(t *testing.T) {
 			return []byte(`{"ID":"` + containerID + `","Names":"postgres","Image":"postgres:15","State":"running","Status":"Up","Ports":""}` + "\n"), nil, nil
 		case argvEqual(argv, composeMetadataCommand):
 			return []byte(`["` + containerID + `","new-api","postgres"]` + "\n"), nil, nil
+		case argvEqual(argv, proxyRoutesCommand):
+			return []byte(`{"type":"route","workloadKey":"docker:postgres","scheme":"https","host":"db.example.test","port":443,"path":"/","upstreams":["127.0.0.1:5432"]}` + "\n"), nil, nil
 		case argvEqual(argv, systemdUnitsCommand):
 			return []byte("Id=custom.service\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/etc/systemd/system/custom.service\n\n" +
 				"Id=failed-package.service\nLoadState=loaded\nActiveState=failed\nSubState=failed\nFragmentPath=/usr/lib/systemd/system/failed-package.service\n\n" +
@@ -278,6 +280,9 @@ func TestDiscoverAddsComposeIdentityAndRelevantSystemdUnits(t *testing.T) {
 	container := byKey["docker:postgres"]
 	if container.ComposeProject != "new-api" || container.ComposeService != "postgres" {
 		t.Fatalf("Compose identity was not attached to its container: %+v", container)
+	}
+	if len(container.Routes) != 1 || container.Routes[0].Host != "db.example.test" {
+		t.Fatalf("proxy route was not attached to its workload: %+v", container)
 	}
 	if byKey["systemd:custom.service"].Status != "active/running" {
 		t.Fatalf("active custom unit was not discovered: %+v", byKey)

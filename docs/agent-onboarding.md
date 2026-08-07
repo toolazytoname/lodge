@@ -50,6 +50,17 @@ path; the Agent uses the path only in memory to classify operator-managed units
 and emits no path. All sudoers argv arrays have no caller-controlled target or
 wildcard.
 
+A third exact self-invocation, `--collect-proxy-routes`, handles Caddy and
+Nginx discovery. It reads only standard host configuration and explicit Docker
+bind mounts selected internally from validated container metadata. The helper
+does not accept a container, file, or command argument from `lodge`; it does not
+read container environment variables or execute a command inside a container.
+Raw configuration, includes, certificate/key paths, headers, and authentication
+directives remain in root memory. Output is limited to validated HTTP(S)
+scheme/host/port/path records and credential-free upstream `host:port`
+authorities. Unsupported imports/includes produce a bounded warning rather than
+raw content.
+
 ## Atomic Hub enrollment
 
 Copy `/etc/lodge-agent/token` through a trusted channel into a uniquely named,

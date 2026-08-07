@@ -297,6 +297,18 @@ func Discover() shared.ServicesResponse {
 	} else {
 		warns = append(warns, "systemd unit 采集失败: "+firstLine(string(stderr)))
 	}
+	proxyRoutes := map[string][]shared.ProxyRoute{}
+	if stdout, stderr, err := runPriv(proxyRoutesCommand); err == nil {
+		discovery := parseProxyDiscovery(stdout)
+		for _, route := range discovery.Routes {
+			proxyRoutes[route.WorkloadKey] = append(proxyRoutes[route.WorkloadKey], route.Route)
+		}
+		for _, warning := range discovery.Warnings {
+			warns = append(warns, "反向代理路由采集不完整: "+warning)
+		}
+	} else {
+		warns = append(warns, "反向代理路由采集失败: "+firstLine(string(stderr)))
+	}
 
 	// 2. 监听套接字
 	seenProcPort := map[string]bool{} // 裸进程端口去重
@@ -385,6 +397,7 @@ func Discover() shared.ServicesResponse {
 	// 3. 重算 MaxExposure（host-network 端口可能在 docker ps 之后补入）
 	out := make([]shared.Service, 0, len(services))
 	for _, svc := range services {
+		svc.Routes = proxyRoutes[svc.Key]
 		svc.MaxExposure = shared.MaxExposure(svc.Ports)
 		out = append(out, *svc)
 	}

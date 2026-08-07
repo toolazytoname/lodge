@@ -113,6 +113,18 @@ type Port struct {
 	Exposure Exposure `json:"exposure"`
 }
 
+// ProxyRoute is a redacted HTTP route published by a Caddy or Nginx workload.
+// Host may be empty for a default virtual host; the Hub can then use the
+// configured public host. Upstreams contain only validated host:port
+// authorities, never credentials, URLs, headers, config paths, or directives.
+type ProxyRoute struct {
+	Scheme    string   `json:"scheme"`
+	Host      string   `json:"host,omitempty"`
+	Port      int      `json:"port"`
+	Path      string   `json:"path"`
+	Upstreams []string `json:"upstreams,omitempty"`
+}
+
 // Service 是发现出来的一个服务 —— GET /v1/services 的元素。
 //
 // Key 是跨轮次的稳定标识，hub 用它把「本轮观测」与「用户注解」关联起来：
@@ -134,9 +146,10 @@ type Service struct {
 	ComposeProject string `json:"composeProject,omitempty"`
 	ComposeService string `json:"composeService,omitempty"`
 	// Health 是 docker 的健康检查结果，容器没配置健康检查时为空。
-	Health string `json:"health,omitempty"`
-	PID    int    `json:"pid,omitempty"`
-	Ports  []Port `json:"ports,omitempty"`
+	Health string       `json:"health,omitempty"`
+	PID    int          `json:"pid,omitempty"`
+	Ports  []Port       `json:"ports,omitempty"`
+	Routes []ProxyRoute `json:"routes,omitempty"`
 	// Unidentified 标记「监听了端口但无法获得可靠来源」的进程。
 	// 这类恰恰是最值得看的 —— 本次会话就是这样发现 bytebunny 上
 	// 有个身份不明的 python3 在 0.0.0.0:8765 上听着。

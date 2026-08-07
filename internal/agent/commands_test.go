@@ -94,7 +94,7 @@ func TestCommandByName(t *testing.T) {
 	if ok {
 		t.Fatal("进程来源 helper 被追加参数后不应命中白名单")
 	}
-	for _, command := range [][]string{composeMetadataCommand, systemdUnitsCommand} {
+	for _, command := range [][]string{composeMetadataCommand, proxyRoutesCommand, systemdUnitsCommand} {
 		definition, found := commandByName(command)
 		if !found || definition.Write {
 			t.Fatalf("orchestration metadata command should be read-only: %v", command)

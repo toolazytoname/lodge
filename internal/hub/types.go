@@ -4,7 +4,11 @@
 package hub
 
 import (
+	"net"
+	"net/url"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/toolazytoname/lodge/internal/shared"
 )
@@ -47,10 +51,16 @@ type Annotation struct {
 // ServiceView 是 observed ⨝ annotation 的结果，直接喂给前端。
 type ServiceView struct {
 	shared.Service
-	Alias  string `json:"alias,omitempty"`
-	URL    string `json:"url,omitempty"` // 解析后的访问链接：优先注解，否则按端口猜测
-	Hidden bool   `json:"hidden"`
-	Notes  string `json:"notes,omitempty"`
+	Routes []RouteView `json:"routes,omitempty"`
+	Alias  string      `json:"alias,omitempty"`
+	URL    string      `json:"url,omitempty"` // 解析后的访问链接：优先注解，否则按端口猜测
+	Hidden bool        `json:"hidden"`
+	Notes  string      `json:"notes,omitempty"`
+}
+
+type RouteView struct {
+	shared.ProxyRoute
+	URL string `json:"url,omitempty"`
 }
 
 // JoinServices 把某台 agent 的观测结果与注解合并成视图，并解析点击直达的 URL。
@@ -58,13 +68,70 @@ func JoinServices(services []shared.Service, ann map[string]Annotation, publicHo
 	out := make([]ServiceView, 0, len(services))
 	for _, s := range services {
 		a := ann[s.Key]
+		routes := make([]RouteView, 0, len(s.Routes))
+		for _, route := range s.Routes {
+			routes = append(routes, RouteView{ProxyRoute: route, URL: proxyRouteURL(route, publicHost)})
+		}
+		sort.SliceStable(routes, func(left, right int) bool {
+			leftRank, rightRank := proxyRouteRank(routes[left]), proxyRouteRank(routes[right])
+			if leftRank != rightRank {
+				return leftRank < rightRank
+			}
+			return routes[left].URL < routes[right].URL
+		})
 		url := a.URL
+		if url == "" {
+			for _, route := range routes {
+				if route.URL != "" {
+					url = route.URL
+					break
+				}
+			}
+		}
 		if url == "" {
 			url = guessURL(s, publicHost)
 		}
-		out = append(out, ServiceView{Service: s, Alias: a.Alias, URL: url, Hidden: a.Hidden, Notes: a.Notes})
+		out = append(out, ServiceView{Service: s, Routes: routes, Alias: a.Alias, URL: url, Hidden: a.Hidden, Notes: a.Notes})
 	}
 	return out
+}
+
+func proxyRouteRank(route RouteView) int {
+	rank := 0
+	if route.Host == "" {
+		rank += 4
+	}
+	if route.Scheme != "https" {
+		rank += 2
+	}
+	if route.Path != "/" {
+		rank++
+	}
+	return rank
+}
+
+func proxyRouteURL(route shared.ProxyRoute, publicHost string) string {
+	host := route.Host
+	if host == "" {
+		host = publicHost
+	}
+	if host == "" || strings.Contains(host, "*") || (route.Scheme != "http" && route.Scheme != "https") || route.Port < 1 || route.Port > 65535 {
+		return ""
+	}
+	authority := host
+	if (route.Scheme == "http" && route.Port != 80) || (route.Scheme == "https" && route.Port != 443) {
+		authority = net.JoinHostPort(host, strconv.Itoa(route.Port))
+	} else if strings.Contains(host, ":") {
+		authority = "[" + host + "]"
+	}
+	path := route.Path
+	if wildcard := strings.IndexAny(path, "*{"); wildcard >= 0 {
+		path = path[:wildcard]
+	}
+	if path == "" {
+		path = "/"
+	}
+	return (&url.URL{Scheme: route.Scheme, Host: authority, Path: path}).String()
 }
 
 // guessURL 按服务的端口猜测一个访问链接。只在注解没填 URL 时兜底。

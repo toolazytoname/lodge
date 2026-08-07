@@ -23,6 +23,10 @@ func TestProjectObservationSeparatesBindingFromReachability(t *testing.T) {
 				{Proto: "tcp", Bind: "0.0.0.0", Port: 443, Exposure: shared.ExposurePublic},
 				{Proto: "tcp6", Bind: "100.105.1.2", Port: 8080, Exposure: shared.ExposureTailnet},
 			},
+			Routes: []shared.ProxyRoute{{
+				Scheme: "https", Host: "web.example.test", Port: 443, Path: "/",
+				Upstreams: []string{"127.0.0.1:8080"},
+			}},
 		}},
 		now,
 	)
@@ -46,6 +50,9 @@ func TestProjectObservationSeparatesBindingFromReachability(t *testing.T) {
 	}
 	if observation.Workloads[0].ComposeProject != "site" || observation.Workloads[0].ComposeService != "web" {
 		t.Fatalf("Compose identity projection failed: %+v", observation.Workloads[0])
+	}
+	if len(observation.Routes) != 1 || observation.Routes[0].WorkloadKey != "docker:web" || observation.Routes[0].Host != "web.example.test" {
+		t.Fatalf("proxy route projection failed: %+v", observation.Routes)
 	}
 }
 
