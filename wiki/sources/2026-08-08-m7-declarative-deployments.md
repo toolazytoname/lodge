@@ -89,3 +89,15 @@ SQLite/WAL/SHM 均无命中，发布后 Hub 日志无 fatal/panic/敏感模式�
 这是 M7 平台的 production fail-closed 验收，不是业务发布验收。首个真实 stack 必须
 由操作者确认无状态属性、Compose 路径、immutable digest、health 与 recovery plan；
 在此之前 production deploy/rollback 次数保持 0，M7 总体仍为 in-progress。
+
+## 当前 stack 合格性
+
+上线后只读检查全部 Compose identity，共 3 个且都在 banwagong。PostgreSQL 与 Redis
+属于明确的有状态组件。`new-api` 有 Docker health，运行镜像也有一个 immutable
+RepoDigest，但容器具有两个可写 bind mount：`/data` 与 `/app/logs`。在没有业务语义、
+数据恢复流程和操作者声明前，`/data` 必须按持久状态处理。因此当前合格的 M7 v1
+production target 为 0。
+
+最后 live 验收有两个安全路径：新增一个隔离、无公网端口、无可写数据挂载的 stateless
+canary stack；或先重构/证明 `new-api` 的状态与恢复语义，再单独批准。二者都会改变生产
+工作负载或数据边界，不能由自动化代替操作者选择。

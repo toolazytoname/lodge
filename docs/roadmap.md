@@ -122,3 +122,12 @@ workloads, 86 endpoints, 11 routes, zero warnings, and zero unidentified
 workloads. M7 production execution remains deliberately open until an operator
 approves one real stateless stack, immutable digest, health check, and recovery
 plan.
+
+A read-only eligibility audit found three current Compose services and zero safe
+version-1 targets. PostgreSQL and Redis are stateful by definition. The
+application service has Docker health and an immutable repository digest, but
+also has writable `/data` and `/app/logs` bind mounts, so Lodge must treat it as
+stateful until its owner proves otherwise and defines workload-specific
+recovery. The remaining live acceptance therefore requires either an explicitly
+approved isolated stateless canary or a reviewed application refactor; it must
+not be forced onto the current stack.

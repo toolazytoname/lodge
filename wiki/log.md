@@ -236,3 +236,4 @@
 - tencent 登录横幅破坏 scp，首次传输在写入前停止并清理空 staging；改用 root-only stdin 传输后通过。bytebunny 与 banwagong 的既有 sudoers 全局错误未被 Lodge 增加。
 - Hub 0.8.0 事务上线，保留旧二进制/配置/一致性数据库回滚包并创建发布后备份；新 API 401、内嵌 UI、loopback、Tailnet-only Serve 与 credential scan 通过。
 - 终验为 schema 7/integrity ok、5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified、最大年龄 24.5 秒、0 in-flight。production 业务 deploy/rollback 保持 0，等待人工批准首个无状态 stack/digest。
+- 上线后只读合格性审计发现现有 3 个 Compose service 中，PostgreSQL/Redis 明确有状态，new-api 具有可写 `/data` 与 `/app/logs` bind mount；M7 v1 合格目标为 0。需人工选择隔离 canary 或先重构业务状态边界。
