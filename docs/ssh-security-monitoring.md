@@ -20,8 +20,9 @@ from one source. The event remains active until the rolling window drops below
 both 10 total and three from every source, preventing threshold flapping.
 
 With the normal 30-second Hub scrape, a qualifying authentication record should appear
-within 90 seconds. This is a delivery target, not proof until a live synthetic
-failure test records the measured latency.
+within 90 seconds. Production acceptance on 2026-08-08 persisted a natural
+critical bytebunny signal 27.9 seconds after the 0.5.1 deployment began; no
+synthetic password attempt or weakened SSH setting was required.
 
 ## What leaves the server
 

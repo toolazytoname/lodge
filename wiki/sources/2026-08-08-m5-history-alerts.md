@@ -74,3 +74,19 @@ fixture 使用保留测试地址验证 UI，领域/Agent parser/投影/迁移/�
 脱敏性能诊断只记录耗时、日志字节和行数：bytebunny 的 journal 即使限制最近 100 条也需要约 16 秒，而当前认证文件最近十分钟约 155 KiB/1199 行。因此 0.5.1 保持无参数 root 自调用，但优先打开固定的 `/var/log/auth.log` 或 `/var/log/secure`：只接受普通非 symlink 文件，从末尾最多读取 8 MiB，支持 RFC3339Nano 和传统 syslog 时间戳，并且尾部最老时间必须覆盖完整十分钟，否则 fail closed；两个文件都不存在时才回退到原五秒 journal 查询。文本行数上限独立为 100 万，但实际 CPU/内存先受 8 MiB 硬限制。
 
 0.5.1 候选在 bytebunny 上 43 ms 完成，得到 169 次失败和 8 个来源，已超过 critical 阈值。这个数据证明真实攻击信号存在，但证据记录不包含来源 IP，也不把 IP 推断为人员身份。完成新的全量门禁、五机统一升级和 Hub 事件延迟验收前，M5 仍保持进行中。
+
+## 生产统一发布与 M5 终验
+
+`2fc7825` 的 push CI [31209680731](https://github.com/toolazytoname/lodge/actions/runs/31209680731) 与 PR CI [31209689836](https://github.com/toolazytoname/lodge/actions/runs/31209689836) 均通过 Linux 专属文件安全测试、完整质量门禁和漏洞扫描。最终 Agent 是 Go 1.26.5、CGo-free Linux amd64 静态二进制，SHA-256 为 `cca80fdb1281a2a8cc1df06cd4b09ea2dd7c852b141c8c207b84f1931f65e284`。五台逐机安装都验证候选/root helper、token checksum 不变、真实服务 API、精确 sudo helper、追加参数拒绝、直接 `journalctl` 拒绝、服务状态、Hub 最新观测和 staging 清理。最新回滚点为：
+
+- bytebunny：`/var/lib/lodge-deploy-backups/agent-20260807T190548Z-2fc7825-ZxycMf`
+- ali：`/var/lib/lodge-deploy-backups/agent-20260807T190642Z-2fc7825-JbKo2q`
+- bytedragon：`/var/lib/lodge-deploy-backups/agent-20260807T190719Z-2fc7825-TId4io`
+- tencent：`/var/lib/lodge-deploy-backups/agent-20260807T190744Z-2fc7825-fiALVJ`
+- banwagong：`/var/lib/lodge-deploy-backups/agent-20260807T190811Z-2fc7825-WAeXBn`
+
+Hub 0.6.0 静态二进制 SHA-256 为 `9e6a76abb00c254177a29eb6d6f6d0afc12282bf212228adfd4f63e091803672`；事务发布回滚包为 `/var/lib/lodge-deploy-backups/hub-20260807T184042Z-dEomNj`，发布后一致性备份为 `/var/lib/lodge-hub/backups/post-deploy-20260807T184046Z-3912681.db`。schema 5→7、完整性、owner/mode、5 台旧 Agent 兼容、受保护 API 401 与 Tailnet-only 均先于 Agent 滚动通过。
+
+最终实时投影为 schema 7、5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified。四台远程 Agent 都通过 TCP 8443 Tailnet-only Serve；Hub 通过 HTTPS 10000 Tailnet-only Serve；同机 Agent 仅 loopback，8443 没有 Serve/Funnel。bytebunny 从 0.5.1 部署开始到 `critical/active` 事件持久化为 27.9 秒，低于 90 秒目标；终验窗口为 154 次失败、7 个来源。bytedragon 同期为 26 次、2 个来源并保持 `warning/active`。真实 IP 只留在认证事件详情，未进入本文、提交或聊天摘要，也没有自动确认真实事件。
+
+Webhook 未配置，生产 outbox 为 0，没有外发来源数据；可靠投递能力由完整自动化门禁验收。至此 M5 完成，后续进入 [[lodge-server-management-roadmap]] 的 M6 受控运维动作。

@@ -86,6 +86,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 首轮生产滚动揭示 bytebunny 的 journal 即使只取最近 100 条也约需 16 秒，0.5.0 的五秒预检在任何覆盖前安全停止。0.5.1 改为固定 auth.log/secure 的 8 MiB 有界尾部并证明覆盖完整十分钟，无文件才回退 journal；真实候选在 43 ms 内看到 169 次失败、8 个来源，来源 IP 未写入 Git 或进度记录。Hub 0.6.0/schema 7 和三台 0.5.0 已健康，统一升级与事件延迟验收仍待完成。
 
+> 2026-08-08 M5 完成：双 CI 通过后，Hub 0.6.0/schema 7 与五台 Agent 0.5.1 统一发布，终验 5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified。bytebunny 自然 critical SSH 信号从部署开始到持久化为 27.9 秒，bytedragon 同期 warning；真实来源只在认证事件页中可见且未自动确认。Webhook 未配置所以没有生产外发。下一步进入 M6 受控动作，不能把已有 Agent 只读 sudo 白名单误宣称为 Web 运维能力。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

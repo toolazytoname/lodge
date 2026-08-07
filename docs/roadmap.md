@@ -58,6 +58,14 @@ repairs or retires it.
 - [x] Deduplication, recovery, acknowledgement, and cooldown
 - [x] Webhook notification adapter
 
+Live acceptance on 2026-08-08 upgraded the Hub to 0.6.0/schema 7 and all five
+Agents to 0.5.1. The latest fleet projection was 5/5 online, 55 workloads, 86
+endpoints, 11 routes, zero warnings, and zero unidentified workloads. A natural
+bytebunny spike opened one critical SSH event 27.9 seconds after deployment
+began; bytedragon also had one active warning. Real source IPs remain inside the
+authenticated event view. Webhook delivery is implemented and tested but the
+production receiver is intentionally disabled until one is configured.
+
 ## M6 — Controlled operations
 
 - [ ] Hub action proxy with CSRF and authorization

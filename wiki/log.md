@@ -181,3 +181,10 @@
 - bytedragon、tencent、banwagong 的 Agent 0.5.0 逐机安装和 Hub 观测通过；bytebunny 在覆盖生产文件前被候选的五秒 journal 超时门禁阻止，服务和 sudoers 未改变。
 - 只输出计时/字节数的诊断显示 bytebunny 即使查询最近 100 条 SSH journal 也需要约 16 秒；其固定 `auth.log` 最近十分钟约 155 KiB/1199 行。Agent 0.5.1 因此优先读取固定认证日志的 8 MiB 尾部，并以时间戳证明完整覆盖十分钟；无文件时才走五秒 journal 回退。
 - 修正候选在 bytebunny 上 43 ms 完成，观测到 169 次失败、8 个来源，超过 critical 阈值；真实来源 IP 未进入开发日志、聊天摘要或 Git。新候选仍需完整 CI 和五机统一滚动发布。
+
+## [2026-08-08] production | M5 历史与告警完成
+
+- `2fc7825` 的 push/PR 双 CI 与漏洞扫描通过后，五台 Agent 全部逐机统一到 0.5.1 和同一静态二进制；每台验证 token 不变、真实服务 API、精确 sudo 允许、追加参数/直接 journal 拒绝、回滚点与 staging 清理。
+- schema 7 全量终验为 5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified，数据库完整性 `ok`；Hub 与四台远程 Agent 的 Serve 均为 Tailnet-only，同机 Agent 不发布 8443，未认证 Hub API 为 401。
+- bytebunny 自然流量在部署开始后 27.9 秒形成 `critical/active` SSH 事件；同期 bytedragon 为 `warning/active`。终验窗口分别为 154/7 与 26/2（失败数/来源数），真实 IP 未写入 Git 或进度记录，事件也未被自动确认。
+- 生产 Webhook 未配置，因此 outbox 为 0 且没有外发；适配器能力由自动化门禁验收。M5 完成，下一里程碑为 M6 受控运维动作。

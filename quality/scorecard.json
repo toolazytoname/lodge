@@ -11,7 +11,7 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Live SQLite latest observations: 5 configured and 5 online on 2026-08-07"
+      "evidence": "Live SQLite schema 7 latest observations: 5 configured and 5 online on 2026-08-08"
     },
     {
       "id": "known_workload_attribution_percent",
@@ -21,7 +21,7 @@
       "target": 95,
       "unit": "percent",
       "direction": "increase",
-      "evidence": "Live SQLite schema 4 latest observations: 55 known of 55 workloads across 5 Agent 0.4.1 hosts, with 0 discovery warnings, on 2026-08-07"
+      "evidence": "Live SQLite schema 7 latest observations: 55 known of 55 workloads across 5 Agent 0.5.1 hosts, with 0 discovery warnings, on 2026-08-08"
     },
     {
       "id": "registered_web_link_success_percent",
@@ -51,7 +51,7 @@
       "target": 0,
       "unit": "endpoints",
       "direction": "decrease",
-      "evidence": "Live Tailscale Funnel and Serve status on 2026-08-07"
+      "evidence": "Live loopback, Tailscale Serve, and Funnel checks across the Hub and five Agents on 2026-08-08"
     },
     {
       "id": "reachable_go_vulnerabilities",
@@ -101,7 +101,7 @@
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Live bytedragon Hub 0.5.0 uses --history-retention 720h with SQLite schema 5 on 2026-08-08"
+      "evidence": "Live bytedragon Hub 0.6.0 uses --history-retention 720h with SQLite schema 7 on 2026-08-08"
     },
     {
       "id": "web_operations",
@@ -177,21 +177,21 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": 14,
+      "current": 30.1,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "Post-Agent-0.4.1 point-in-time live SQLite measurement across 5 hosts: maximum 14.0 seconds on 2026-08-07"
+      "evidence": "Post-Agent-0.5.1 point-in-time live SQLite measurement across 5 hosts: maximum 30.1 seconds on 2026-08-08"
     },
     {
       "id": "risk_detection_seconds",
       "dimension": "security",
-      "name": "Maximum new-listener and SSH-spike detection latency",
-      "current": null,
+      "name": "Live SSH-spike detection latency",
+      "current": 27.9,
       "target": 90,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "To be measured after alerting milestone"
+      "evidence": "Natural bytebunny critical SSH signal persisted 27.9 seconds after Agent 0.5.1 deployment began on 2026-08-08"
     }
   ]
 }
