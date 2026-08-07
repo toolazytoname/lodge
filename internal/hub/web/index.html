@@ -4,30 +4,208 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Lodge</title>
+  <meta name="theme-color" content="#090d12">
+  <title>Lodge · Server Console</title>
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" type="module"></script>
 </head>
 <body>
-  <header>
-    <h1>Lodge</h1>
-    <span class="sub" id="updated"></span>
-    <button id="logoutBtn" class="hidden" type="button">退出</button>
-  </header>
-
-  <section id="login" class="hidden" aria-labelledby="loginTitle">
-    <div class="card login-card">
-      <h2 id="loginTitle" class="login-title">Lodge 登录</h2>
-      <label for="pw">密码</label>
-      <input type="password" id="pw" placeholder="输入访问密码" autocomplete="current-password">
-      <button id="loginBtn" class="primary" type="button">进入</button>
-      <p class="err hidden" id="loginErr" role="alert">密码错误或暂时无法登录</p>
+  <section id="login" class="login-screen hidden" aria-labelledby="loginTitle">
+    <div class="login-shell">
+      <div class="brand brand-login" aria-label="Lodge Server Console">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span><strong>Lodge</strong><small>Server Console</small></span>
+      </div>
+      <div class="panel login-panel">
+        <p class="eyebrow">PRIVATE MANAGEMENT PLANE</p>
+        <h1 id="loginTitle">欢迎回来</h1>
+        <p class="login-copy">登录你的私有服务器控制台。</p>
+        <label for="pw">访问密码</label>
+        <input type="password" id="pw" placeholder="输入访问密码" autocomplete="current-password">
+        <button id="loginBtn" class="button button-primary login-submit" type="button">进入控制台</button>
+        <p class="form-message error-text hidden" id="loginErr" role="alert">密码错误或控制台暂时不可用。</p>
+      </div>
+      <p class="login-footnote">连接由私有管理网络保护</p>
     </div>
   </section>
 
-  <main id="dash" class="hidden">
-    <section class="machines" id="machines" aria-label="服务器概览"></section>
-    <section id="services" aria-label="服务目录"></section>
-  </main>
+  <div id="app" class="app-shell hidden">
+    <aside class="sidebar">
+      <a class="brand" href="#overview" aria-label="Lodge 首页">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span><strong>Lodge</strong><small>Server Console</small></span>
+      </a>
+
+      <nav class="primary-nav" aria-label="主导航">
+        <p class="nav-label">WORKSPACE</p>
+        <button class="nav-item active" type="button" data-page="overview" aria-current="page">
+          <span>总览</span><small>Overview</small>
+        </button>
+        <button class="nav-item" type="button" data-page="hosts">
+          <span>主机</span><small>Hosts</small>
+        </button>
+        <button class="nav-item" type="button" data-page="services">
+          <span>服务</span><small>Services</small>
+        </button>
+        <p class="nav-label nav-label-secondary">CONTROL</p>
+        <button class="nav-item" type="button" data-page="security">
+          <span>安全</span><small>Security</small>
+        </button>
+        <button class="nav-item" type="button" data-page="operations">
+          <span>运维</span><small>Operations</small>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-state">
+          <span id="connectionDot" class="status-dot pending" aria-hidden="true"></span>
+          <span><strong id="connectionText">正在连接</strong><small id="updated">等待首次同步</small></span>
+        </div>
+        <button id="logoutBtn" class="text-button" type="button">退出登录</button>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="pageEyebrow">FLEET OVERVIEW</p>
+          <h1 id="pageTitle">全局状态</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="fleetStatus" class="fleet-status">正在读取节点</span>
+          <button id="refreshBtn" class="button button-secondary" type="button">刷新</button>
+        </div>
+      </header>
+
+      <div id="notice" class="notice hidden" role="status" aria-live="polite">
+        <span id="noticeText"></span>
+        <button id="dismissNotice" class="text-button" type="button">关闭</button>
+      </div>
+
+      <main id="dash">
+        <section id="overviewPage" class="page" data-page-panel="overview" aria-labelledby="pageTitle">
+          <div id="overviewMetrics" class="metric-grid" aria-label="舰队关键指标"></div>
+
+          <div class="overview-grid">
+            <section class="panel risk-panel" aria-labelledby="riskTitle">
+              <div class="panel-heading">
+                <div><p class="eyebrow">ATTENTION</p><h2 id="riskTitle">需要关注</h2></div>
+                <button class="inline-link" type="button" data-navigate="services" data-service-state="attention">查看服务</button>
+              </div>
+              <div id="riskSignals" class="signal-list"></div>
+            </section>
+
+            <section class="panel links-panel" aria-labelledby="quickLinksTitle">
+              <div class="panel-heading">
+                <div><p class="eyebrow">QUICK ACCESS</p><h2 id="quickLinksTitle">Web 入口</h2></div>
+                <button class="inline-link" type="button" data-navigate="services" data-service-state="web">全部入口</button>
+              </div>
+              <div id="quickLinks" class="quick-links"></div>
+            </section>
+          </div>
+
+          <section class="section-block" aria-labelledby="hostPreviewTitle">
+            <div class="section-heading">
+              <div><p class="eyebrow">LIVE HOSTS</p><h2 id="hostPreviewTitle">主机状态</h2></div>
+              <button class="inline-link" type="button" data-navigate="hosts">查看全部</button>
+            </div>
+            <div id="hostPreview" class="host-grid"></div>
+          </section>
+        </section>
+
+        <section id="hostsPage" class="page hidden" data-page-panel="hosts" aria-labelledby="pageTitle">
+          <div class="page-intro">
+            <p>集中查看节点在线状态、资源压力、工作负载数量和 Agent 版本。</p>
+          </div>
+          <div id="hostDirectory" class="host-directory"></div>
+        </section>
+
+        <section id="servicesPage" class="page hidden" data-page-panel="services" aria-labelledby="pageTitle">
+          <section class="filter-bar" aria-label="服务筛选">
+            <label class="search-field" for="serviceSearch">
+              <span>搜索</span>
+              <input id="serviceSearch" type="search" placeholder="名称、主机、端口或域名" autocomplete="off">
+            </label>
+            <label for="agentFilter">主机
+              <select id="agentFilter"><option value="all">全部主机</option></select>
+            </label>
+            <label for="exposureFilter">暴露范围
+              <select id="exposureFilter">
+                <option value="all">全部范围</option>
+                <option value="public">公网</option>
+                <option value="tailnet">Tailnet</option>
+                <option value="local">本机</option>
+                <option value="none">无监听</option>
+              </select>
+            </label>
+            <label for="stateFilter">状态
+              <select id="stateFilter">
+                <option value="all">全部状态</option>
+                <option value="attention">需要关注</option>
+                <option value="failed">失败</option>
+                <option value="web">有 Web 入口</option>
+              </select>
+            </label>
+            <span id="serviceResultCount" class="result-count">0 项</span>
+          </section>
+          <div id="serviceDirectory" class="service-directory"></div>
+        </section>
+
+        <section id="securityPage" class="page hidden" data-page-panel="security" aria-labelledby="pageTitle">
+          <div id="securityMetrics" class="metric-grid metric-grid-compact"></div>
+          <div class="boundary-grid">
+            <section class="panel">
+              <div class="panel-heading"><div><p class="eyebrow">CURRENT SURFACE</p><h2>当前暴露面</h2></div></div>
+              <div id="publicSurface" class="surface-list"></div>
+            </section>
+            <section class="panel planned-panel">
+              <span class="planned-badge">M5 计划</span>
+              <h2>历史事件与主动告警</h2>
+              <p>登录失败来源、暴露面变化和通知状态需要历史事件模型支持。当前页面只展示实时资产，不会把尚未采集的数据伪装成安全结论。</p>
+            </section>
+          </div>
+        </section>
+
+        <section id="operationsPage" class="page hidden" data-page-panel="operations" aria-labelledby="pageTitle">
+          <div class="boundary-grid">
+            <section class="panel">
+              <div class="panel-heading"><div><p class="eyebrow">READ-ONLY NOW</p><h2>资产同步</h2></div></div>
+              <div id="syncSummary" class="sync-summary"></div>
+            </section>
+            <section class="panel planned-panel">
+              <span class="planned-badge">M6 计划</span>
+              <h2>受控运维动作</h2>
+              <p>重启、部署和回滚只会通过白名单动作、二次确认和完整审计开放。当前版本保持只读，页面不会提供任意命令入口。</p>
+            </section>
+          </div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <dialog id="annotationDialog" class="annotation-dialog" aria-labelledby="annotationTitle">
+    <form id="annotationForm">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">SERVICE PROFILE</p><h2 id="annotationTitle">管理服务</h2></div>
+        <button id="closeDialogBtn" class="dialog-close" type="button" aria-label="关闭">关闭</button>
+      </div>
+      <p id="annotationContext" class="dialog-context"></p>
+      <label for="annotationAlias">显示名称</label>
+      <input id="annotationAlias" type="text" maxlength="120" placeholder="例如：个人博客">
+      <label for="annotationURL">首选 Web 入口</label>
+      <input id="annotationURL" type="url" maxlength="2048" placeholder="https://example.com">
+      <label for="annotationNotes">备注</label>
+      <textarea id="annotationNotes" maxlength="1000" rows="4" placeholder="用途、负责人或维护提示"></textarea>
+      <label class="checkbox-field" for="annotationHidden">
+        <input id="annotationHidden" type="checkbox">
+        <span><strong>标记为隐藏</strong><small>仍保留在资产目录中，降低视觉优先级。</small></span>
+      </label>
+      <p id="annotationError" class="form-message error-text hidden" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="cancelDialogBtn" class="button button-secondary" type="button">取消</button>
+        <button id="saveAnnotationBtn" class="button button-primary" type="submit">保存配置</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

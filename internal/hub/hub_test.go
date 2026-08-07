@@ -533,11 +533,26 @@ func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
 	if strings.Contains(html, "onclick=") || strings.Contains(html, "<style") {
 		t.Errorf("HTML 不应包含 CSP 无法约束的内联代码")
 	}
+	for _, marker := range []string{
+		`data-page-panel="overview"`,
+		`data-page-panel="hosts"`,
+		`data-page-panel="services"`,
+		`data-page-panel="security"`,
+		`data-page-panel="operations"`,
+		`id="annotationDialog"`,
+	} {
+		if !strings.Contains(html, marker) {
+			t.Errorf("Web 产品壳缺少 %s", marker)
+		}
+	}
 	w = httptest.NewRecorder()
 	s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/app.js", nil))
 	js := w.Body.String()
 	if strings.Contains(js, ".innerHTML") || strings.Contains(js, "insertAdjacentHTML") {
 		t.Errorf("前端不得用 HTML 字符串渲染不可信数据")
+	}
+	if strings.Contains(js, "window.prompt") {
+		t.Errorf("服务配置不得回退到阻塞式 prompt")
 	}
 }
 

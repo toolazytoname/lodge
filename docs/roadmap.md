@@ -40,7 +40,7 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 ## M4 — Product UI
 
 - [x] TypeScript frontend with generated API types
-- [ ] Overview, Hosts, Services, Security, and Operations pages
+- [x] Overview, Hosts, Services, Security, and Operations navigation and page boundaries
 - [ ] Responsive, accessible loading/empty/offline/error states
 - [ ] End-to-end and visual regression tests
 

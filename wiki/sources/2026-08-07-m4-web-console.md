@@ -32,3 +32,11 @@ CI 新增 Node 24 与 `npm ci`，本地和 CI 的 `npm test` 现在都验证 Go 
 - 先完成 Overview 与 Services：全局搜索、主机/暴露/状态筛选、风险摘要、路由快速打开和无横向溢出的服务目录。
 - 将 prompt 替换为可访问的注解对话框，支持 alias、URL、notes，并覆盖验证错误和保存状态。
 - 为 loading、empty、offline、partial failure 和 error 建立 fixture、端到端与视觉回归；在 390、1280、1920 宽度验收。
+
+## 五页面产品壳验收
+
+第二个切片建立固定侧边导航、页面级标题与 Overview、Hosts、Services、Security、Operations 五个清晰边界。Overview 使用真实观测计算在线主机、工作负载、已发现 http(s) 链接和关注项，将 failed service 提到首屏，并对 Web 入口去重。Hosts 展示资源水位、服务/公网数量、Agent 版本和最后同步时间。Services 将 55 项高密度目录改为全局搜索、主机/暴露范围/状态筛选，长端口折叠成紧凑摘要，并把失败项排序到前面。逐行 prompt 被可访问的原生 dialog 替代，能够编辑 alias、URL、notes、hidden，非法协议或含凭据地址在提交前被拒绝。
+
+Security 只汇总当前公网监听、Web 链接、待归因与离线节点；登录失败来源与历史告警明确标为 M5。Operations 只展示当前资产同步和 Agent 版本；重启、部署、回滚明确标为 M6 且保持只读。这样用户能看到完整信息架构，但不会把路线图能力误认为已经可用。
+
+使用 1280 宽度、5 主机、55 服务的脱敏 live fixture 进行浏览器验收：五个页面均可切换；服务目录为 55/55；搜索 `certbot` 得到 1/55；四个 failed unit 具有最高风险视觉优先级；配置对话框打开后焦点进入首字段，`ssh://example.com` 被 URL 边界拒绝；页面 scroll width 等于 client width；console error 为 0。390 与 1920 宽度以及 loading/empty/offline/partial failure 的自动 fixture 仍是下一切片，因此相关路线图门禁尚未勾选。

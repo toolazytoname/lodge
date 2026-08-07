@@ -87,3 +87,9 @@
 - 从导出的 Go HTTP structs 生成 TypeScript declarations，Exposure/Kind 为闭合 union；生成声明与编译 JS 漂移会阻断 `npm test`。
 - `/api/services` 删除重复的 raw status/services payload，改为紧凑 Agent 引用和 joined service views；注解 body 收窄为明确输入契约并有回归测试。
 - CI 使用 Node 24 + `npm ci`，TypeScript 是唯一 devDependency，浏览器仍无第三方运行时依赖。M4 的类型契约项完成，产品页面与交互继续实施。
+
+## [2026-08-07] implementation | M4 五页面产品壳与浏览器验收
+
+- 建立 Overview、Hosts、Services、Security、Operations 信息架构；后两者明确标注 M5/M6 能力边界。
+- 在 5 主机、55 服务脱敏 live fixture 上验收搜索、筛选、失败优先级、Web 快速入口与服务配置对话框。
+- 1280 宽度无横向溢出、console error 为 0；390/1920 与异常状态自动化证据留给下一切片。

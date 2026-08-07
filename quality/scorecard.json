@@ -34,6 +34,16 @@
       "evidence": "11 redacted Caddy/Nginx routes are registered in live schema 4; active reachability probes are an M4 acceptance item and have not yet been measured"
     },
     {
+      "id": "web_console_page_boundaries",
+      "dimension": "product",
+      "name": "Explicit Web console page boundaries",
+      "current": 5,
+      "target": 5,
+      "unit": "pages",
+      "direction": "increase",
+      "evidence": "Sanitized live-data browser acceptance covers Overview, Hosts, Services, Security, and Operations; unavailable history and actions are explicitly marked M5/M6"
+    },
+    {
       "id": "public_management_endpoints",
       "dimension": "security",
       "name": "Public management endpoints",

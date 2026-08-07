@@ -28,9 +28,10 @@ When changing a Go HTTP response or browser source, rebuild the embedded asset:
 npm run build:web
 ```
 
-The command regenerates `frontend/src/api.generated.d.ts` from Go and compiles
-`frontend/src/app.ts`. `npm test` independently regenerates into a temporary
-directory and fails if either committed artifact is stale.
+The command regenerates `frontend/src/api.generated.d.ts` from Go, compiles
+`frontend/src/app.ts`, and installs `frontend/src/app.css`. `npm test`
+independently regenerates into a temporary directory and fails if JavaScript or
+CSS embedded in the Hub is stale.
 
 ## Delivery workflow
 

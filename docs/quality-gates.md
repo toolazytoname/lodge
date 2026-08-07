@@ -12,7 +12,8 @@ Every commit intended for push must pass `npm test`, which currently enforces:
 - unit and integration tests;
 - the Go race detector;
 - shell syntax for deployment scripts;
-- generated TypeScript API-contract drift and strict browser compilation;
+- generated TypeScript API-contract drift, strict browser compilation, and
+  embedded CSS source drift;
 - JSON validity of the quality scorecard;
 - whitespace checks.
 
