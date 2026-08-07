@@ -117,11 +117,11 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": 26,
+      "current": 31,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "Post-rollout point-in-time live SQLite measurement across 5 hosts on 2026-08-07"
+      "evidence": "Post-Hub-deployment point-in-time live SQLite measurement across 5 hosts on 2026-08-07"
     },
     {
       "id": "risk_detection_seconds",

@@ -57,5 +57,6 @@
 - 五台 Agent 滚动升级到 `0.2.0`、同一 CGo-free 静态二进制 SHA；每台先建 root-only 回滚点，再做服务上下文、越权、脱敏和 Hub 端验收。
 - Docker systemd scope/host-network 监听归属与脱敏自定义进程来源上线；tencent 的 8 个 Node 端口归并成 4 个项目，bytebunny Nginx 和 banwagong cpa-manager-plus 归回容器。
 - bytebunny、ali 从旧 HTTP Serve 迁移到 TCP Serve；旧连接池造成的短暂 404/offline 观测被保留，Hub 一致性备份并重启连接池后恢复。
+- Hub 增加旧路由 404 后的一次有界重连回归保护并事务部署；认证失败不重试，重复 404 仍失败，生产 binary、回滚包和部署后 SQLite 备份均校验通过。
 - 最终 live SQLite 为 5/5 online、45 workloads、86 endpoints、0 unidentified、0 warnings，归因率 100.0%，完整性检查通过。
 - 五机远程 staging 目录均已精确删除；每台回滚包和两台 Tailscale 路由备份保留。

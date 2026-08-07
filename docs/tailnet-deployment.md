@@ -79,6 +79,12 @@ a public Funnel automatically. When an older Lodge Agent route uses HTTP Serve,
 the helper verifies that it points to the expected loopback Agent before
 disabling that exact route and replacing it with TCP forwarding.
 
+The Hub retries an Agent GET exactly once after a 404 and closes idle HTTP
+connections before that retry. This covers a connection that was established
+through the old HTTP Serve handler immediately before an HTTP-to-TCP migration.
+Authentication failures are never retried, and a repeated 404 remains an
+explicit offline observation.
+
 ## Verification
 
 On the server:
@@ -89,8 +95,9 @@ tailscale funnel status --json
 tailscale serve status --json
 ```
 
-The check passes only when the selected port has no `AllowFunnel: true`, HTTPS
-Serve points to the expected loopback listener, and the local process responds.
+The check passes only when the selected port has no `AllowFunnel: true`, the
+role's HTTPS or TCP Serve mode points to the expected loopback listener, and
+the local process responds.
 
 From an authorized tailnet device, open the Hub URL and complete login, refresh,
 and logout. From a device outside the tailnet (for example a phone with

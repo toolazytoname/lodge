@@ -65,7 +65,7 @@ tencent 原来 8 个逐端口 Node workload 被聚合为 `GridGo · node`、`dai
 
 bytebunny 也存在与 banwagong 相同的既有 `/etc/sudoers.d/hermes-ro` mode 0644 诊断；Lodge 同样没有修改或启用它，并确认安装前后诊断不增加。
 
-HTTP→TCP 路由切换后，Hub 的 Go HTTP 连接池曾继续复用旧 Tailscale HTTP Serve 连接，使两台最新观测短暂记录为 404/offline；从 Hub 新建连接访问均成功。重启前创建并验证一致性 SQLite 备份 `/var/lib/lodge-hub/backups/pre-agent-route-reconnect-20260807T0027Z.db`（`lodge:lodge 0600`），重启未改变 Hub 二进制或配置，连接池重建后首轮即恢复 5/5。该现象将由独立回归修复覆盖，不能用删历史记录掩盖部署瞬态。
+HTTP→TCP 路由切换后，Hub 的 Go HTTP 连接池曾继续复用旧 Tailscale HTTP Serve 连接，使两台最新观测短暂记录为 404/offline；从 Hub 新建连接访问均成功。重启前创建并验证一致性 SQLite 备份 `/var/lib/lodge-hub/backups/pre-agent-route-reconnect-20260807T0027Z.db`（`lodge:lodge 0600`），连接池重建后首轮即恢复 5/5。提交 `3b7b486` 增加“404 后关闭空闲连接并仅重试一次”的有界恢复；401/403 不重试，连续 404 仍明确失败。该 Hub 已用事务安装器部署：生产 SHA-256 为 `50b251a0a9551134aa4e30b1184f69a3740914a9a5feb01eb11c2204e4256693`，回滚包 `/var/lib/lodge-deploy-backups/hub-20260807T130400Z-XvlKuH`，部署后备份 `/var/lib/lodge-hub/backups/post-deploy-20260807T130404Z-3860562.db`。原始离线历史保留，不能用删记录掩盖部署瞬态。
 
 ## 全 fleet 验收
 
@@ -80,7 +80,7 @@ HTTP→TCP 路由切换后，Hub 的 Go HTTP 连接池曾继续复用旧 Tailsca
 
 已归因 workload 为 45/45，即 100.0%，超过 95% 门禁。Compose、完整 systemd/failed-unit 和 Caddy/Nginx 脱敏路由发现仍是产品完整性待办，但不再阻塞当前归因率验收。
 
-最终 SQLite 最新观测为 5/5 online、五台 Agent 均为 `0.2.0`、0 warnings，最大年龄 26 秒，`PRAGMA integrity_check=ok`。Hub config 仍为 `lodge:lodge 0600`，包含 `passwordHash` 而不含明文 `password`；未认证 `/api/agents` 返回 401。token 导入暂存文件和五机远程部署 staging 目录均已删除。
+最终 SQLite 最新观测为 5/5 online、五台 Agent 均为 `0.2.0`、0 warnings，最大年龄 31 秒，`PRAGMA integrity_check=ok`。Hub config 仍为 `lodge:lodge 0600`，包含 `passwordHash` 而不含明文 `password`；未认证 `/api/agents` 返回 401；五枚 Agent token 均未出现在 SQLite、WAL 或 SHM。token 导入暂存文件、五机 Agent staging 和 Hub staging 目录均已删除。
 
 > [!note]
 > tencent 与 banwagong 的 Tailscale `Tags` 当前为空。Serve/Funnel 验证证明管理端点不在公网，Agent bearer token 仍提供第二道边界；但 `tag:lodge-agent` 和“普通 tailnet 节点不能访问 8443”的负向 grants 尚未在管理控制台验收，因此最小权限 Tailnet ACL 仍是明确待办。
@@ -95,5 +95,6 @@ HTTP→TCP 路由切换后，Hub 的 Go HTTP 连接池曾继续复用旧 Tailsca
 - `cd165b7`：[quality 31132585365](https://github.com/toolazytoname/lodge/actions/runs/31132585365)
 - `21a180a`：[quality 31133399706](https://github.com/toolazytoname/lodge/actions/runs/31133399706)
 - `287c1b4`：[quality 31133951144](https://github.com/toolazytoname/lodge/actions/runs/31133951144)
+- `3b7b486`：[quality 31180699616](https://github.com/toolazytoname/lodge/actions/runs/31180699616)
 
 所有相关提交均通过全量质量门禁、race detector 和 `govulncheck`；用于隔离 GitHub 延迟并发队列的临时 CI tags 在验收后均已删除。
