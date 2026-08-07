@@ -20,7 +20,7 @@ import (
 	"github.com/toolazytoname/lodge/internal/hub"
 )
 
-const hubVersion = "0.8.0"
+const hubVersion = "0.9.0"
 
 func main() {
 	if err := run(); err != nil {
