@@ -11,7 +11,7 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Live Hub 0.7.0/schema 7 latest observations: 5 configured and 5 online with Agent 0.6.0 on 2026-08-08"
+      "evidence": "Live Hub 0.8.0/schema 7 latest observations: 5 configured and 5 online with Agent 0.7.0 on 2026-08-08"
     },
     {
       "id": "known_workload_attribution_percent",
@@ -21,7 +21,7 @@
       "target": 95,
       "unit": "percent",
       "direction": "increase",
-      "evidence": "Live SQLite schema 7 latest observations: 55 known of 55 workloads across 5 Agent 0.6.0 hosts, with 0 discovery warnings, on 2026-08-08"
+      "evidence": "Live SQLite schema 7 latest observations: 55 known of 55 workloads across 5 Agent 0.7.0 hosts, with 0 discovery warnings, on 2026-08-08"
     },
     {
       "id": "registered_web_link_success_percent",
@@ -101,7 +101,7 @@
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Live bytedragon Hub 0.7.0 uses --history-retention 720h with SQLite schema 7 on 2026-08-08"
+      "evidence": "Live bytedragon Hub 0.8.0 uses --history-retention 720h with SQLite schema 7 on 2026-08-08"
     },
     {
       "id": "web_operations",
@@ -111,7 +111,7 @@
       "target": 4,
       "unit": "operations",
       "direction": "increase",
-      "evidence": "Hub 0.7.0 and five Agent 0.6.0 hosts expose approved start, stop, restart, and logs; live start and logs reached durable success, a bounded log overflow failed closed without retry, and returned log samples were absent from SQLite/WAL/SHM"
+      "evidence": "Hub 0.8.0 and five Agent 0.7.0 hosts preserve approved start, stop, restart, and logs; live start and logs reached durable success, a bounded log overflow failed closed without retry, and returned log samples were absent from SQLite/WAL/SHM"
     },
     {
       "id": "declarative_deployment_safety_controls",
@@ -121,7 +121,7 @@
       "target": 8,
       "unit": "controls",
       "direction": "increase",
-      "evidence": "Agent 0.7.0 automated policy/contract/executor tests cover root policy, no shell, stateless-only, immutable digest, root-owned Compose paths, bounded local health, persistent rollback state, and verified automatic rollback"
+      "evidence": "Agent 0.7.0 automated policy/contract/executor tests cover root policy, no shell, stateless-only, immutable digest, root-owned Compose paths, bounded local health, persistent rollback state, and verified automatic rollback; five live hosts are rolled out fail-closed with zero deployment policies and empty root-only state"
     },
     {
       "id": "declarative_deployment_audit_states",
@@ -131,7 +131,7 @@
       "target": 3,
       "unit": "states",
       "direction": "increase",
-      "evidence": "Hub 0.8.0 automated tests and sanitized browser fixtures cover succeeded, failed, and rolled_back; rolled_back retains the original typed failure and the Agent call is not retried"
+      "evidence": "Hub 0.8.0 automated tests and sanitized browser fixtures cover succeeded, failed, and rolled_back; rolled_back retains the original typed failure and the Agent call is not retried. Live business deployment remains intentionally zero pending a reviewed stateless stack and digest"
     },
     {
       "id": "event_rule_kinds",
@@ -197,11 +197,11 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": 24.6,
+      "current": 24.5,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "Post-Agent-0.6.0 and Hub-0.7.0 point-in-time live SQLite measurement across 5 hosts: maximum 24.6 seconds on 2026-08-08"
+      "evidence": "Post-Agent-0.7.0 and Hub-0.8.0 point-in-time live SQLite measurement across 5 hosts: maximum 24.5 seconds on 2026-08-08"
     },
     {
       "id": "risk_detection_seconds",

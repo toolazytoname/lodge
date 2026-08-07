@@ -50,3 +50,42 @@ Agent 成功恢复操作前版本时，Hub 保存 `rolled_back` 与原始失败�
 51/51、关键端到端场景 26。代码与自动化验收已完成；production 空策略滚动和首个
 经人工确认的无状态 stack/digest 仍未完成，因此 M7 总体保持进行中。Lodge 不会从
 现有业务容器自动猜测第一个发布目标。
+
+## Fail-closed 生产滚动
+
+首轮 CI 在 Linux 先后揭示桌面/移动 Operations 完整页面分别比 macOS 短 6px/7px；
+修复仅固定 1765px/2548px 完整画布，没有裁图或放宽像素阈值。最终提交的 push CI
+[31221180729](https://github.com/toolazytoname/lodge/actions/runs/31221180729) 与 PR CI
+[31221182851](https://github.com/toolazytoname/lodge/actions/runs/31221182851) 均通过完整质量
+门禁、6 组 Chromium 场景和 `govulncheck`。
+
+Go 1.26.5、CGo-free Linux amd64 Agent `0.7.0` SHA-256 为
+`9241549d5070ea01e28d6c3aaefd3fb22a3fdd29aa29effd0d7b02d447289fdb`。
+五台逐机事务滚动保留 token/动作策略摘要，验证真实服务、精确 sudo helper、任意命令/
+动态参数拒绝和无策略空清单；动作数保持 3/3/0/3/13，合计 22。每台
+`deployments.json` 都不存在，root-only 状态目录为空，Hub 路径读取均为
+Agent 0.7.0/deployments=0。回滚包为：
+
+- bytebunny：`/var/lib/lodge-deploy-backups/agent-20260807T214753Z-8nZwzI`
+- bytedragon：`/var/lib/lodge-deploy-backups/agent-20260807T214852Z-zAWQ5S`
+- Ali：`/var/lib/lodge-deploy-backups/agent-20260807T214901Z-RLoIWI`
+- tencent：`/var/lib/lodge-deploy-backups/agent-20260807T215020Z-ZOoy3B`
+- banwagong：`/var/lib/lodge-deploy-backups/agent-20260807T215053Z-z2m4qQ`
+
+bytebunny 与 banwagong 的全局 sudoers 基线原本不干净，安装器全文比较确认 Lodge 没有
+增加新错误；这是保留的宿主债务。tencent 的 SSH 横幅会破坏 scp 协议，首轮在写入前
+停止并清理空 staging，随后用 root-only stdin 传输完成，未修改横幅配置。所有五台
+staging 最终为零。
+
+Hub `0.8.0` SHA-256 为
+`d98e44a0bd94a2e34042d926eb7f6bdfc9ab5d8b5d1b058bb242fe4cb8b28d25`；事务回滚包
+`/var/lib/lodge-deploy-backups/hub-20260807T215206Z-rje9j0`，发布后一致性备份
+`/var/lib/lodge-hub/backups/post-deploy-20260807T215211Z-3946316.db`。新发布 API 未认证
+均为 401，嵌入资源与 Tailnet-only HTTPS Serve 正常。终验为 schema 7/integrity ok、
+5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified、最大
+观测年龄 24.5 秒、0 in-flight、既有 3 条 terminal operation。五枚 Agent token 在
+SQLite/WAL/SHM 均无命中，发布后 Hub 日志无 fatal/panic/敏感模式。
+
+这是 M7 平台的 production fail-closed 验收，不是业务发布验收。首个真实 stack 必须
+由操作者确认无状态属性、Compose 路径、immutable digest、health 与 recovery plan；
+在此之前 production deploy/rollback 次数保持 0，M7 总体仍为 in-progress。

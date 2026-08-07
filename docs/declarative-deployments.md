@@ -95,3 +95,9 @@ execution additionally requires a reviewed host-specific policy and immutable
 digest, a known rollback point, a current backup/recovery plan, and explicit
 operator approval of the first target. Shipping the Hub and Agent with no
 deployment policy is a valid fail-closed production state.
+
+That fail-closed state is the current production baseline: Hub `0.8.0` and five
+Agent `0.7.0` hosts are deployed, but no host has a deployment policy or
+non-empty deployment state. This proves platform compatibility and zero
+ambient authority; it is not evidence that a real business release or rollback
+has been exercised.

@@ -228,3 +228,11 @@
 - Agent 安全控制 8/8、发布 terminal audit 3/3、Hub 边界回归 51/51、关键端到端场景 26；production 空策略滚动和首个经确认业务目标仍待执行，M7 保持进行中。
 - 首轮 Linux CI 证明 Operations 结果页因平台字体度量比 macOS 短 6px；门禁继续比较完整页面，并把完整画布固定为 1765px，不裁图也不放宽像素阈值。
 - 第二轮 Linux CI 在桌面通过后继续证明移动 Operations 页短 7px；移动完整画布固定为 2548px，使用相同的整页像素门禁。
+
+## [2026-08-08] production | M7 平台 fail-closed 上线
+
+- 最终 push/PR 双 CI、完整质量门禁和漏洞扫描通过后，五台 Agent 逐机滚动到同一 0.7.0 静态二进制并各自保留 root-only 回滚包。
+- token 与动作策略摘要不变，真实服务 55、既有动作 22、发布权限 0；五台部署策略均不存在，状态目录 root:root 0700 且为空，任意命令和动态 helper 参数仍被拒。
+- tencent 登录横幅破坏 scp，首次传输在写入前停止并清理空 staging；改用 root-only stdin 传输后通过。bytebunny 与 banwagong 的既有 sudoers 全局错误未被 Lodge 增加。
+- Hub 0.8.0 事务上线，保留旧二进制/配置/一致性数据库回滚包并创建发布后备份；新 API 401、内嵌 UI、loopback、Tailnet-only Serve 与 credential scan 通过。
+- 终验为 schema 7/integrity ok、5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified、最大年龄 24.5 秒、0 in-flight。production 业务 deploy/rollback 保持 0，等待人工批准首个无状态 stack/digest。

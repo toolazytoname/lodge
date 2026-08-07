@@ -111,3 +111,14 @@ acceptance is complete. Production M7 acceptance remains open until Agent
 `0.7.0` and Hub `0.8.0` are rolled out fail-closed, and a first real stateless
 stack plus immutable digest is explicitly reviewed; Lodge will not guess that
 business target.
+
+The fail-closed platform rollout completed on 2026-08-08 after push CI
+`31221180729` and PR CI `31221182851` passed the full quality gate and
+vulnerability scan. All five Agents run the same 0.7.0 artifact with existing
+22 action capabilities preserved, zero deployment capabilities, absent policy,
+and empty root-only rollback state. Hub 0.8.0 is live on schema 7 with a verified
+rollback bundle and post-deploy backup; the fleet remains 5/5 online, 55
+workloads, 86 endpoints, 11 routes, zero warnings, and zero unidentified
+workloads. M7 production execution remains deliberately open until an operator
+approves one real stateless stack, immutable digest, health check, and recovery
+plan.
