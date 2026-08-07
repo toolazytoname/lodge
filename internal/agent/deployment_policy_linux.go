@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -267,7 +268,7 @@ func ensureDeploymentStateDirectory(directory string, expectedUID uint32) error 
 	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() || info.Mode().Perm() != 0o700 {
 		return errors.New("deployment state directory is unsafe")
 	}
-	if stat, ok := info.Sys().(*unix.Stat_t); !ok || stat.Uid != expectedUID {
+	if stat, ok := info.Sys().(*syscall.Stat_t); !ok || stat.Uid != expectedUID {
 		return errors.New("deployment state directory has an unexpected owner")
 	}
 	return nil
@@ -346,7 +347,7 @@ func validateRootOwnedPathChain(path string, expectedUID uint32) error {
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0o022 != 0 {
 			return errors.New("deployment path chain is missing, writable, or symlinked")
 		}
-		stat, ok := info.Sys().(*unix.Stat_t)
+		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok || stat.Uid != expectedUID {
 			return errors.New("deployment path chain is not root-owned")
 		}
