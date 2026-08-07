@@ -47,6 +47,11 @@
 - `lodge` is not in `docker`, `sudo`, `wheel`, or equivalent groups.
 - Action targets must be discovered and permitted by a root-owned policy.
 - Commands use fixed argv, deadlines, bounded output, and no shell.
+- Compose discovery requests only Docker's official project/service labels;
+  full label maps, working directories, config-file paths, commands, and
+  environments are not collected. systemd discovery emits only validated unit
+  names and states; fragment paths are used in-memory solely to classify
+  operator-managed units.
 - The root-only process-origin collector reads only PID/UID, process and
   executable basenames, and a working-directory basename plus one-way
   fingerprint. It never reads or emits command lines, environments, or full

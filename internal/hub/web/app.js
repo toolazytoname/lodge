@@ -1,13 +1,14 @@
 "use strict";
 
-const exposureLabel = { public: "公网", tailnet: "内网", local: "本机", other: "待定" };
-const exposureOrder = { public: 0, other: 1, tailnet: 2, local: 3 };
+const exposureLabel = { public: "公网", tailnet: "内网", local: "本机", other: "待定", none: "无监听" };
+const exposureOrder = { public: 0, other: 1, tailnet: 2, local: 3, none: 4 };
 
 let authed = false;
 let csrfToken = "";
 let refreshTimer = null;
 
 const byID = (id) => document.getElementById(id);
+const serviceExposure = (service) => ((service.ports || []).length ? service.maxExposure : "none");
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -170,7 +171,7 @@ function renderServices(groups) {
 
     const container = element("div", "card section-card");
     const services = [...group.services].sort(
-      (left, right) => (exposureOrder[left.maxExposure] ?? 9) - (exposureOrder[right.maxExposure] ?? 9),
+      (left, right) => (exposureOrder[serviceExposure(left)] ?? 9) - (exposureOrder[serviceExposure(right)] ?? 9),
     );
     if (!services.length) {
       container.append(element("div", "empty", "无服务"));
@@ -183,8 +184,10 @@ function renderServices(groups) {
 }
 
 function serviceRow(agentID, service) {
-  const row = element("div", `svc-row ${service.maxExposure === "public" ? "public" : ""}`);
-  row.append(element("span", `badge ${service.maxExposure}`, exposureLabel[service.maxExposure] || service.maxExposure));
+  const servicePorts = service.ports || [];
+  const exposure = serviceExposure(service);
+  const row = element("div", `svc-row ${exposure === "public" ? "public" : ""}`);
+  row.append(element("span", `badge ${exposure}`, exposureLabel[exposure] || exposure));
 
   const name = element("span", "svc-name");
   const displayName = service.alias || service.name;
@@ -199,10 +202,14 @@ function serviceRow(agentID, service) {
     name.textContent = displayName;
   }
   if (service.unidentified) name.append(element("span", "err", " ?"));
-  row.append(name, element("span", "svc-kind", service.kind));
+  const runtime = service.composeProject
+    ? `compose · ${service.composeProject}/${service.composeService || service.name}`
+    : service.kind;
+  const state = service.status ? ` · ${service.status}` : "";
+  row.append(name, element("span", "svc-kind", `${runtime}${state}`));
 
   const ports = element("span", "ports");
-  (service.ports || []).forEach((port) => ports.append(element("span", "port", `${port.bind}:${port.port}`)));
+  servicePorts.forEach((port) => ports.append(element("span", "port", `${port.bind}:${port.port}`)));
   row.append(ports);
 
   const edit = element("button", "edit", "编辑");

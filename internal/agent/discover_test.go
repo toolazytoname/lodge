@@ -164,6 +164,8 @@ func TestDiscoverAttributesHostNetworkSocketToDockerContainer(t *testing.T) {
 		switch {
 		case argvEqual(argv, dockerPS):
 			return []byte(`{"ID":"` + containerID + `","Names":"cpa-manager-plus","Image":"example/cpa:latest","State":"running","Status":"Up","Ports":""}` + "\n"), nil, nil
+		case argvEqual(argv, dockerComposePSCommand), argvEqual(argv, systemdUnitsCommand):
+			return nil, nil, nil
 		case argvEqual(argv, processOriginsCommand):
 			return nil, nil, nil
 		case argvEqual(argv, ssCmd):
@@ -205,6 +207,8 @@ func TestDiscoverGroupsCustomProcessPortsByRedactedOrigin(t *testing.T) {
 		switch {
 		case argvEqual(argv, dockerPS):
 			return nil, nil, nil
+		case argvEqual(argv, dockerComposePSCommand), argvEqual(argv, systemdUnitsCommand):
+			return nil, nil, nil
 		case argvEqual(argv, processOriginsCommand):
 			return []byte(`{"pid":481732,"uid":1001,"comm":"node","executable":"node","cwdBase":"image","cwdFingerprint":"0123456789abcdef"}` + "\n"), nil, nil
 		case argvEqual(argv, ssCmd):
@@ -235,5 +239,53 @@ func TestDiscoverGroupsCustomProcessPortsByRedactedOrigin(t *testing.T) {
 	}
 	if len(service.Ports) != 2 || service.MaxExposure != shared.ExposurePublic {
 		t.Fatalf("custom process ports were not grouped: %+v", service)
+	}
+}
+
+func TestDiscoverAddsComposeIdentityAndRelevantSystemdUnits(t *testing.T) {
+	originalRunPriv := runPriv
+	originalCgroupFor := cgroupFor
+	t.Cleanup(func() {
+		runPriv = originalRunPriv
+		cgroupFor = originalCgroupFor
+	})
+
+	const containerID = "5790b9f8a68de25ae1666aa6fbf3386b2da0f8ac9990eafc991d048b52f4e9de"
+	runPriv = func(argv []string) ([]byte, []byte, error) {
+		switch {
+		case argvEqual(argv, dockerPS):
+			return []byte(`{"ID":"` + containerID + `","Names":"postgres","Image":"postgres:15","State":"running","Status":"Up","Ports":""}` + "\n"), nil, nil
+		case argvEqual(argv, dockerComposePSCommand):
+			return []byte(`["` + containerID + `","new-api","postgres"]` + "\n"), nil, nil
+		case argvEqual(argv, systemdUnitsCommand):
+			return []byte("Id=custom.service\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/etc/systemd/system/custom.service\n\n" +
+				"Id=failed-package.service\nLoadState=loaded\nActiveState=failed\nSubState=failed\nFragmentPath=/usr/lib/systemd/system/failed-package.service\n\n" +
+				"Id=ssh.service\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/usr/lib/systemd/system/ssh.service\n"), nil, nil
+		case argvEqual(argv, processOriginsCommand), argvEqual(argv, ssCmd):
+			return nil, nil, nil
+		default:
+			t.Fatalf("unexpected privileged command: %v", argv)
+			return nil, nil, nil
+		}
+	}
+	cgroupFor = func(int) cgroupOwner { return cgroupOwner{kind: shared.KindProcess} }
+
+	result := Discover()
+	byKey := make(map[string]shared.Service)
+	for _, service := range result.Services {
+		byKey[service.Key] = service
+	}
+	container := byKey["docker:postgres"]
+	if container.ComposeProject != "new-api" || container.ComposeService != "postgres" {
+		t.Fatalf("Compose identity was not attached to its container: %+v", container)
+	}
+	if byKey["systemd:custom.service"].Status != "active/running" {
+		t.Fatalf("active custom unit was not discovered: %+v", byKey)
+	}
+	if byKey["systemd:failed-package.service"].Status != "failed" {
+		t.Fatalf("failed package unit was not discovered: %+v", byKey)
+	}
+	if _, noisy := byKey["systemd:ssh.service"]; noisy {
+		t.Fatal("active package unit without a listener should stay folded")
 	}
 }

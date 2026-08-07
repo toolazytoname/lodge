@@ -168,4 +168,12 @@ CREATE TABLE annotation_imports (
 ) STRICT;
 `,
 	},
+	{
+		version: 3,
+		name:    "compose_workload_identity",
+		sql: `
+ALTER TABLE workloads ADD COLUMN compose_project TEXT NOT NULL DEFAULT '';
+ALTER TABLE workloads ADD COLUMN compose_service TEXT NOT NULL DEFAULT '';
+`,
+	},
 }

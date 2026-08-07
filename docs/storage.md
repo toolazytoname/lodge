@@ -17,8 +17,10 @@ The schema stores:
 - event lifecycle records with active-event deduplication;
 - operation audit records.
 
-Schema v2 also records content-addressed legacy annotation imports so restarting
-the Hub cannot duplicate an import.
+Schema v2 records content-addressed legacy annotation imports so restarting the
+Hub cannot duplicate an import. Schema v3 adds optional Compose project/service
+identity to Docker workloads; upgrading existing observations fills both fields
+with empty strings without rewriting historical workload identity.
 
 ## Database invariants
 

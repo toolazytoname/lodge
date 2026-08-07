@@ -25,7 +25,7 @@ The browser remains the product client. No native desktop client is required.
 ## Domain model
 
 - **Host**: one unique physical or virtual machine. Multiple SSH users do not create multiple hosts.
-- **Workload**: Docker container, Compose project, systemd unit, or identified process.
+- **Workload**: Docker container (with optional Compose project/service identity), systemd unit, or identified process.
 - **Endpoint**: a protocol/address/port plus optional reverse-proxy route and reachability evidence.
 - **Observation**: an immutable collection result at a point in time.
 - **Event**: a meaningful transition derived from observations.

@@ -44,7 +44,8 @@ func sampleObservation(at time.Time) domain.Observation {
 		},
 		Workloads: []domain.Workload{{
 			HostID: "host-a", Key: "docker:web", Kind: domain.WorkloadDocker,
-			Name: "web", State: "running", Image: "nginx:stable", StartedAt: &startedAt,
+			Name: "web", State: "running", Image: "nginx:stable",
+			ComposeProject: "site", ComposeService: "web", StartedAt: &startedAt,
 		}},
 		Endpoints: []domain.Endpoint{{
 			HostID: "host-a", WorkloadKey: "docker:web", Key: "tcp://0.0.0.0:443",
@@ -187,6 +188,69 @@ func TestSQLiteUpgradesVersionOneAndPreservesData(t *testing.T) {
 	}
 	if len(hosts) != 1 || hosts[0].ID != "host-a" {
 		t.Fatalf("v1 host was not preserved: %+v", hosts)
+	}
+}
+
+func TestSQLiteUpgradesVersionTwoWorkloadsWithEmptyComposeIdentity(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	createVersionOneDatabase(t, path)
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(migrations[1].sql); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (2, ?, ?, ?)",
+		migrations[1].name, migrations[1].checksum(), formatTime(time.Now()),
+	); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("PRAGMA user_version = 2"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	result, err := db.Exec(`
+INSERT INTO observations(host_id, observed_at, online, hostname, agent_version)
+VALUES ('host-a', ?, 1, 'host-a', '0.2.0')`, formatTime(time.Now()))
+	if err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	observationID, err := result.LastInsertId()
+	if err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+INSERT INTO workloads(observation_id, workload_key, kind, name)
+VALUES (?, 'docker:legacy', 'docker', 'legacy')`, observationID); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	latest, found, err := store.LatestObservation(context.Background(), "host-a")
+	if err != nil || !found || len(latest.Workloads) != 1 {
+		t.Fatalf("migrated v2 observation was not preserved: found=%v err=%v observation=%+v", found, err, latest)
+	}
+	workload := latest.Workloads[0]
+	if workload.ComposeProject != "" || workload.ComposeService != "" {
+		t.Fatalf("legacy workload should receive empty Compose identity: %+v", workload)
 	}
 }
 

@@ -229,10 +229,11 @@ func unitName(unit string) string {
 
 // Discover 执行服务发现，返回这台机器上在跑什么、各暴露到哪。
 //
-// 三路采集：
+// 多路采集：
 //  1. docker 容器（全部，含已停止）—— 端口取自 .Ports 的宿主侧映射；
-//  2. 监听套接字（ss）—— 经 /proc/<pid>/cgroup 归属到 docker / systemd / 裸进程；
-//  3. 归属后去重：容器已声明的宿主端口不再重复计入（docker-proxy 的套接字
+//  2. Docker Compose 官方 project/service 标签，以及自定义/failed systemd unit；
+//  3. 监听套接字（ss）—— 经 /proc/<pid>/cgroup 归属到 docker / systemd / 裸进程；
+//  4. 归属后去重：容器已声明的宿主端口不再重复计入（docker-proxy 的套接字
 //     常归到 systemd:docker.service，靠端口集合去重，而非靠 cgroup 判断）。
 func Discover() shared.ServicesResponse {
 	var warns []string
@@ -265,11 +266,36 @@ func Discover() shared.ServicesResponse {
 	} else if !isDockerMissing(string(stderr)) {
 		warns = append(warns, "docker ps 失败: "+firstLine(string(stderr)))
 	}
+	if stdout, stderr, err := runPriv(dockerComposePSCommand); err == nil {
+		for containerID, metadata := range parseComposeMetadata(stdout) {
+			if svc := findContainerByID(containersByID, containerID); svc != nil {
+				svc.ComposeProject = metadata.Project
+				svc.ComposeService = metadata.Service
+			}
+		}
+	} else if !isDockerMissing(string(stderr)) {
+		warns = append(warns, "Docker Compose 标签采集失败: "+firstLine(string(stderr)))
+	}
 	processOrigins := map[int]processOrigin{}
 	if stdout, stderr, err := runPriv(processOriginsCommand); err == nil {
 		processOrigins = parseProcessOrigins(stdout)
 	} else {
 		warns = append(warns, "进程来源采集失败: "+firstLine(string(stderr)))
+	}
+	systemdUnits := map[string]systemdUnitMetadata{}
+	if stdout, stderr, err := runPriv(systemdUnitsCommand); err == nil {
+		for _, unit := range parseSystemdUnits(stdout) {
+			systemdUnits[unit.ID] = unit
+			if !unit.relevant() {
+				continue
+			}
+			services = append(services, &shared.Service{
+				Key: "systemd:" + unit.ID, Kind: shared.KindSystemd,
+				Unit: unit.ID, Name: unitName(unit.ID), Status: unit.status(),
+			})
+		}
+	} else {
+		warns = append(warns, "systemd unit 采集失败: "+firstLine(string(stderr)))
 	}
 
 	// 2. 监听套接字
@@ -298,9 +324,13 @@ func Discover() shared.ServicesResponse {
 			case shared.KindSystemd:
 				svc := findService(services, "systemd:"+owner.unit)
 				if svc == nil {
+					status := "running"
+					if unit, found := systemdUnits[owner.unit]; found {
+						status = unit.status()
+					}
 					svc = &shared.Service{
 						Key: "systemd:" + owner.unit, Kind: shared.KindSystemd,
-						Unit: owner.unit, Name: unitName(owner.unit), Status: "running",
+						Unit: owner.unit, Name: unitName(owner.unit), Status: status,
 					}
 					services = append(services, svc)
 				}

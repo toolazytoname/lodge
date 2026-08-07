@@ -3,7 +3,13 @@ package agent
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os/exec"
+)
+
+const (
+	maxPrivilegedStdout = 4 << 20
+	maxPrivilegedStderr = 64 << 10
 )
 
 // runPrivileged 执行一条已注册的白名单命令，经 sudo -n 以 root 运行。
@@ -12,6 +18,8 @@ import (
 //   - argv 来自 commands.go 的固定定义，不经任何 shell，无注入面；
 //   - sudo -n（non-interactive）：sudoers 没配好就立即失败，绝不卡在密码提示；
 //   - sudo -- 之后才是真正的命令，防止 argv 里的 - 参数被 sudo 当成自己的选项。
+//   - stdout/stderr 分别限制为 4 MiB/64 KiB，超限时采集失败但持续排空管道，
+//     避免大主机或异常命令造成 Agent 内存无界增长。
 //
 // 校验：传入的 argv 必须命中白名单，否则拒绝 —— 这是「agent 不支持任意命令」
 // 这一硬约束的执行点。
@@ -20,14 +28,44 @@ func runPrivileged(argv []string) (stdout []byte, stderr []byte, err error) {
 		return nil, nil, errors.New("命令不在 sudoers 白名单内，拒绝执行: " + joinArgv(argv))
 	}
 	cmd := exec.Command("sudo", append([]string{"-n", "--"}, argv...)...)
-	var out, errb bytes.Buffer
+	out := boundedBuffer{limit: maxPrivilegedStdout}
+	errb := boundedBuffer{limit: maxPrivilegedStderr}
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
-	if runErr := cmd.Run(); runErr != nil {
-		return out.Bytes(), errb.Bytes(), &sudoError{argv: argv, err: runErr, stderr: errb.String()}
+	runErr := cmd.Run()
+	var limitErr error
+	if out.exceeded || errb.exceeded {
+		limitErr = fmt.Errorf("特权命令输出超过限制（stdout=%d bytes, stderr=%d bytes）", maxPrivilegedStdout, maxPrivilegedStderr)
+	}
+	if runErr != nil || limitErr != nil {
+		return out.Bytes(), errb.Bytes(), &sudoError{argv: argv, err: errors.Join(runErr, limitErr), stderr: errb.String()}
 	}
 	return out.Bytes(), errb.Bytes(), nil
 }
+
+type boundedBuffer struct {
+	buffer   bytes.Buffer
+	limit    int
+	exceeded bool
+}
+
+func (buffer *boundedBuffer) Write(content []byte) (int, error) {
+	written := len(content)
+	remaining := buffer.limit - buffer.buffer.Len()
+	if remaining > 0 {
+		if remaining > len(content) {
+			remaining = len(content)
+		}
+		_, _ = buffer.buffer.Write(content[:remaining])
+	}
+	if remaining < len(content) {
+		buffer.exceeded = true
+	}
+	return written, nil
+}
+
+func (buffer *boundedBuffer) Bytes() []byte  { return buffer.buffer.Bytes() }
+func (buffer *boundedBuffer) String() string { return buffer.buffer.String() }
 
 // sudoError 带上 stderr，方便 hub 把「为什么失败」透传给用户，而不是只看到一个 exit code。
 type sudoError struct {

@@ -18,6 +18,7 @@ func TestProjectObservationSeparatesBindingFromReachability(t *testing.T) {
 		&shared.Status{Hostname: "host-a", Load: shared.Load{CPUs: 4, One: 0.5}},
 		[]shared.Service{{
 			Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "running",
+			ComposeProject: "site", ComposeService: "web",
 			Ports: []shared.Port{
 				{Proto: "tcp", Bind: "0.0.0.0", Port: 443, Exposure: shared.ExposurePublic},
 				{Proto: "tcp6", Bind: "100.105.1.2", Port: 8080, Exposure: shared.ExposureTailnet},
@@ -42,6 +43,9 @@ func TestProjectObservationSeparatesBindingFromReachability(t *testing.T) {
 	}
 	if observation.Resources == nil || observation.Resources.CPUs != 4 {
 		t.Fatalf("resource projection failed: %+v", observation.Resources)
+	}
+	if observation.Workloads[0].ComposeProject != "site" || observation.Workloads[0].ComposeService != "web" {
+		t.Fatalf("Compose identity projection failed: %+v", observation.Workloads[0])
 	}
 }
 

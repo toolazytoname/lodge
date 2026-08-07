@@ -8,9 +8,17 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.2.0"
+const AgentVersion = "0.3.0"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
+var dockerComposePSCommand = []string{
+	"docker", "ps", "--all", "--no-trunc", "--format",
+	`[{{json .ID}},{{json (.Label "com.docker.compose.project")}},{{json (.Label "com.docker.compose.service")}}]`,
+}
+var systemdUnitsCommand = []string{
+	"systemctl", "show", "--type=service", "--all",
+	"--property=Id,LoadState,ActiveState,SubState,FragmentPath",
+}
 
 // PrivCommand 描述一条需要经 sudo 以 root 执行的命令。
 //
@@ -36,7 +44,9 @@ type PrivCommand struct {
 var privilegedRead = []PrivCommand{
 	{Argv: []string{"docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}"}, Desc: "列出所有容器（含完整 ID）"},
 	{Argv: []string{"docker", "system", "df", "--format", "{{json .}}"}, Desc: "docker 磁盘占用"},
+	{Argv: dockerComposePSCommand, Desc: "读取容器的 Compose project/service 标签"},
 	{Argv: []string{"ss", "-tlnpH"}, Desc: "监听套接字（含 PID，需 root 才能跨用户）"},
+	{Argv: systemdUnitsCommand, Desc: "读取 systemd service 状态与 unit 来源分类"},
 	{Argv: processOriginsCommand, Desc: "输出脱敏进程来源（不含参数、环境变量或完整路径）"},
 }
 
@@ -121,6 +131,7 @@ func resolveAbsolute(cmds []PrivCommand) ([][]string, error) {
 func escapeSudoersArg(s string) string {
 	r := strings.NewReplacer(
 		`\`, `\\`,
+		`"`, `\"`,
 		`,`, `\,`,
 		`:`, `\:`,
 		`#`, `\#`,

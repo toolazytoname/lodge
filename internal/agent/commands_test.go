@@ -14,6 +14,7 @@ func TestEscapeSudoersArg(t *testing.T) {
 		`c:\path`:    `c\:\\path`,
 		"with#hash":  `with\#hash`,
 		`back\slash`: `back\\slash`,
+		`a"b`:        `a\"b`,
 	}
 	for in, want := range cases {
 		if got := escapeSudoersArg(in); got != want {
@@ -63,6 +64,13 @@ func TestGenerateSudoersOmitsEmptyCommandClass(t *testing.T) {
 	}
 }
 
+func TestComposeSudoersCommandEscapesTemplateQuotes(t *testing.T) {
+	line := formatSudoersLine(dockerComposePSCommand)
+	if !strings.Contains(line, `\"com.docker.compose.project\"`) || !strings.Contains(line, `\"com.docker.compose.service\"`) {
+		t.Fatalf("Compose label template quotes were not escaped for sudoers: %s", line)
+	}
+}
+
 func TestCommandByName(t *testing.T) {
 	// 已注册的 docker ps 应命中
 	c, ok := commandByName([]string{"docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}"})
@@ -93,5 +101,15 @@ func TestCommandByName(t *testing.T) {
 	_, ok = commandByName(append(append([]string{}, processOriginsCommand...), "--token-file", "/tmp/evil"))
 	if ok {
 		t.Fatal("进程来源 helper 被追加参数后不应命中白名单")
+	}
+	for _, command := range [][]string{dockerComposePSCommand, systemdUnitsCommand} {
+		definition, found := commandByName(command)
+		if !found || definition.Write {
+			t.Fatalf("orchestration metadata command should be read-only: %v", command)
+		}
+		_, found = commandByName(append(append([]string{}, command...), "EXTRA"))
+		if found {
+			t.Fatalf("orchestration command with extra args matched allowlist: %v", command)
+		}
 	}
 }

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 2
+	currentSchemaVersion = 3
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -366,10 +366,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 	}
 	for _, workload := range observation.Workloads {
 		if _, err := tx.ExecContext(ctx, `
-INSERT INTO workloads(observation_id, workload_key, kind, name, state, image, unit, health, pid, started_at, unidentified)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+INSERT INTO workloads(observation_id, workload_key, kind, name, state, image, unit, compose_project, compose_service, health, pid, started_at, unidentified)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			observationID, workload.Key, string(workload.Kind), workload.Name, workload.State,
-			workload.Image, workload.Unit, workload.Health, workload.PID, nullableTime(workload.StartedAt), boolInt(workload.Unidentified),
+			workload.Image, workload.Unit, workload.ComposeProject, workload.ComposeService,
+			workload.Health, workload.PID, nullableTime(workload.StartedAt), boolInt(workload.Unidentified),
 		); err != nil {
 			_ = tx.Rollback()
 			return 0, fmt.Errorf("insert workload %s: %w", workload.Key, err)
@@ -499,7 +500,7 @@ FROM observations WHERE id = ?`, id).Scan(
 	}
 
 	workloadRows, err := query.QueryContext(ctx, `
-SELECT workload_key, kind, name, state, image, unit, health, pid, started_at, unidentified
+SELECT workload_key, kind, name, state, image, unit, compose_project, compose_service, health, pid, started_at, unidentified
 FROM workloads WHERE observation_id = ? ORDER BY workload_key`, id)
 	if err != nil {
 		return domain.Observation{}, err
@@ -510,7 +511,8 @@ FROM workloads WHERE observation_id = ? ORDER BY workload_key`, id)
 		var unidentified int
 		workload.HostID = observation.HostID
 		if err := workloadRows.Scan(&workload.Key, &workload.Kind, &workload.Name, &workload.State, &workload.Image,
-			&workload.Unit, &workload.Health, &workload.PID, &startedAt, &unidentified); err != nil {
+			&workload.Unit, &workload.ComposeProject, &workload.ComposeService,
+			&workload.Health, &workload.PID, &startedAt, &unidentified); err != nil {
 			_ = workloadRows.Close()
 			return domain.Observation{}, err
 		}

@@ -39,6 +39,28 @@ func TestObservationRejectsCrossHostReferences(t *testing.T) {
 	}
 }
 
+func TestObservationValidatesComposeIdentity(t *testing.T) {
+	observation := Observation{
+		HostID: "host-a", ObservedAt: time.Now().UTC(),
+		Workloads: []Workload{{
+			HostID: "host-a", Key: "docker:web", Kind: WorkloadDocker, Name: "web",
+			ComposeProject: "site", ComposeService: "web",
+		}},
+	}
+	if err := observation.Validate(); err != nil {
+		t.Fatalf("valid Compose identity was rejected: %v", err)
+	}
+	observation.Workloads[0].ComposeProject = ""
+	if err := observation.Validate(); err == nil {
+		t.Fatal("Compose service without project should be rejected")
+	}
+	observation.Workloads[0].ComposeProject = "site"
+	observation.Workloads[0].Kind = WorkloadSystemd
+	if err := observation.Validate(); err == nil {
+		t.Fatal("Compose identity on a non-Docker workload should be rejected")
+	}
+}
+
 func TestAnnotationRequiresSafeDurableIdentityAndURL(t *testing.T) {
 	annotation := Annotation{
 		HostID: "host-a", WorkloadKey: "systemd:caddy.service",

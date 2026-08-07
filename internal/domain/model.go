@@ -33,17 +33,19 @@ const (
 // runtime (for example docker:nginx or systemd:caddy.service) and remains
 // stable when a PID or container instance changes.
 type Workload struct {
-	HostID       HostID       `json:"hostId"`
-	Key          string       `json:"key"`
-	Kind         WorkloadKind `json:"kind"`
-	Name         string       `json:"name"`
-	State        string       `json:"state"`
-	Image        string       `json:"image,omitempty"`
-	Unit         string       `json:"unit,omitempty"`
-	Health       string       `json:"health,omitempty"`
-	PID          int          `json:"pid,omitempty"`
-	StartedAt    *time.Time   `json:"startedAt,omitempty"`
-	Unidentified bool         `json:"unidentified,omitempty"`
+	HostID         HostID       `json:"hostId"`
+	Key            string       `json:"key"`
+	Kind           WorkloadKind `json:"kind"`
+	Name           string       `json:"name"`
+	State          string       `json:"state"`
+	Image          string       `json:"image,omitempty"`
+	Unit           string       `json:"unit,omitempty"`
+	ComposeProject string       `json:"composeProject,omitempty"`
+	ComposeService string       `json:"composeService,omitempty"`
+	Health         string       `json:"health,omitempty"`
+	PID            int          `json:"pid,omitempty"`
+	StartedAt      *time.Time   `json:"startedAt,omitempty"`
+	Unidentified   bool         `json:"unidentified,omitempty"`
 }
 
 // BindingScope is derived only from the local socket binding. Wildcard means
@@ -239,6 +241,22 @@ func (o Observation) Validate() error {
 		}
 		if strings.TrimSpace(workload.Name) == "" {
 			return fmt.Errorf("workload %q has no name", workload.Key)
+		}
+		if workload.ComposeService != "" && workload.ComposeProject == "" {
+			return fmt.Errorf("workload %q has a Compose service without a project", workload.Key)
+		}
+		if workload.ComposeProject != "" || workload.ComposeService != "" {
+			if workload.Kind != WorkloadDocker {
+				return fmt.Errorf("workload %q has Compose metadata but is not Docker", workload.Key)
+			}
+			if err := validateIdentifier("Compose project", workload.ComposeProject, 128); err != nil {
+				return err
+			}
+			if workload.ComposeService != "" {
+				if err := validateIdentifier("Compose service", workload.ComposeService, 128); err != nil {
+					return err
+				}
+			}
 		}
 		if _, duplicate := workloads[workload.Key]; duplicate {
 			return fmt.Errorf("duplicate workload key %q", workload.Key)

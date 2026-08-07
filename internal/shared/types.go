@@ -129,6 +129,10 @@ type Service struct {
 	Since string `json:"since,omitempty"`
 	Image string `json:"image,omitempty"` // 仅 KindDocker
 	Unit  string `json:"unit,omitempty"`  // 仅 KindSystemd
+	// ComposeProject/ComposeService 来自 Docker 官方标签；只保存名称，
+	// 不采集 working_dir、config_files 或任意容器标签。
+	ComposeProject string `json:"composeProject,omitempty"`
+	ComposeService string `json:"composeService,omitempty"`
 	// Health 是 docker 的健康检查结果，容器没配置健康检查时为空。
 	Health string `json:"health,omitempty"`
 	PID    int    `json:"pid,omitempty"`

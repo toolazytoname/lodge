@@ -35,16 +35,18 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 
 	for _, service := range services {
 		workload := domain.Workload{
-			HostID:       domain.HostID(agent.ID),
-			Key:          service.Key,
-			Kind:         projectWorkloadKind(service.Kind),
-			Name:         service.Name,
-			State:        service.Status,
-			Image:        service.Image,
-			Unit:         service.Unit,
-			Health:       service.Health,
-			PID:          service.PID,
-			Unidentified: service.Unidentified,
+			HostID:         domain.HostID(agent.ID),
+			Key:            service.Key,
+			Kind:           projectWorkloadKind(service.Kind),
+			Name:           service.Name,
+			State:          service.Status,
+			Image:          service.Image,
+			Unit:           service.Unit,
+			ComposeProject: service.ComposeProject,
+			ComposeService: service.ComposeService,
+			Health:         service.Health,
+			PID:            service.PID,
+			Unidentified:   service.Unidentified,
 		}
 		if service.Since != "" {
 			if startedAt, err := time.Parse(time.RFC3339, service.Since); err == nil {
