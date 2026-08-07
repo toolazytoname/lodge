@@ -41,7 +41,7 @@
       "target": 5,
       "unit": "pages",
       "direction": "increase",
-      "evidence": "Sanitized browser acceptance covers Overview, Hosts, Services, Security, and Operations; Security now includes durable host history while unavailable event alerts and actions remain explicitly marked M5/M6"
+      "evidence": "Sanitized browser acceptance covers Overview, Hosts, Services, Security, and Operations; Security includes durable host history plus active, acknowledged, and resolved event views while operations remain explicitly M6"
     },
     {
       "id": "public_management_endpoints",
@@ -114,14 +114,44 @@
       "evidence": "Hub routes and embedded Web UI"
     },
     {
+      "id": "event_rule_kinds",
+      "dimension": "security",
+      "name": "Implemented observation event rule kinds",
+      "current": 6,
+      "target": 7,
+      "unit": "rules",
+      "direction": "increase",
+      "evidence": "Rules and tests cover host offline, memory, root disk, normalized load, failed/unhealthy workload, and new wildcard listener; SSH-origin rule remains"
+    },
+    {
+      "id": "event_lifecycle_states_exposed",
+      "dimension": "product",
+      "name": "Durable event lifecycle states exposed in Web",
+      "current": 3,
+      "target": 3,
+      "unit": "states",
+      "direction": "increase",
+      "evidence": "Authenticated API and Security event center expose active, acknowledged, and resolved with CSRF-protected acknowledgement"
+    },
+    {
+      "id": "notification_adapters",
+      "dimension": "reliability",
+      "name": "Configured event notification adapters",
+      "current": 0,
+      "target": 1,
+      "unit": "adapters",
+      "direction": "increase",
+      "evidence": "Webhook adapter and cooldown remain in M5"
+    },
+    {
       "id": "critical_e2e_scenarios",
       "dimension": "engineering",
       "name": "Automated critical end-to-end scenarios",
-      "current": 13,
+      "current": 17,
       "target": 12,
       "unit": "scenarios",
       "direction": "increase",
-      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks, durable history and host switching, history API isolation, 390/1280/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
+      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks and event acknowledgement, event lifecycle filters, durable history and host switching, isolated history/event API failures, 390/1280/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
     },
     {
       "id": "web_visual_regression_widths",

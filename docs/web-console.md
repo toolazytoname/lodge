@@ -13,9 +13,9 @@ are deliberate:
   editing supports an alias, a safe http(s) URL, notes, and a visual hidden flag.
 - **Security** reports the observed public surface, unidentified workloads,
   offline nodes, and a host-scoped recent 120-point trend from durable observation
-  summaries. The authenticated event API and acknowledgement transition are
-  implemented; their operator-facing Security list and historical login sources
-  remain M5.
+  summaries. Its event center shows current and recovered incidents, filters by
+  host/lifecycle, and performs explicit acknowledgement. Historical SSH/login
+  sources and notification delivery remain M5.
 - **Operations** currently reports only read-only synchronization state. Any
   restart, deployment, or rollback remains M6/M7 and must use typed policy,
   confirmation, verification, and audit records.
@@ -54,9 +54,11 @@ not exposed. `POST /api/events/ack?id=...` requires an authenticated session and
 CSRF token. It is idempotent for an acknowledged event, returns not found for an
 unknown ID, and refuses to rewrite a resolved incident.
 
-The API is the durable source for the upcoming Security event list. Its
-existence does not yet claim notification delivery, SSH-origin events, cooldown,
-or a completed visual acknowledgement workflow.
+The Security event center defaults to ongoing incidents and keeps acknowledged
+risk visible until recovery. It shows host, kind, severity, duration, last
+observation, and lifecycle state; resolved history remains available by filter.
+Event API failure is isolated from current surface and history data. This does
+not yet claim notification delivery, SSH-origin events, or cooldown.
 
 ## Source and embedded assets
 
@@ -94,6 +96,8 @@ The deterministic fixture server uses only invented host names and
 - persisted link status plus the CSRF-protected active-check interaction;
 - host-scoped 120-point history, host switching, responsive trend charts, and
   an isolated history-API error that preserves current inventory.
+- event rendering, host/lifecycle filters, CSRF-protected acknowledgement,
+  retained acknowledged risk, and an isolated event-API error.
 
 Reference screenshots live in `frontend/tests/__screenshots__`. Time, locale,
 timezone, data, and viewport are fixed. Update screenshots only for an intended

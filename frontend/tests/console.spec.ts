@@ -102,11 +102,26 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(4);
     await expect(page.locator("#historySummary")).toContainText("100.0% 在线");
     await expect(page.locator("#historySummary")).toContainText("120 个观测点");
+    await expect(page.getByRole("heading", { name: "事件中心" })).toBeVisible();
+    await expect(page.locator("#eventList .event-row")).toHaveCount(4);
+    await expect(page.locator("#eventSummary")).toContainText("4 进行中");
+    await expect(page.locator("#eventSummary")).toContainText("3 待确认");
+
+    await page.getByRole("button", { name: "确认事件：服务失败：certbot" }).click();
+    await expect(page.locator("#notice")).toContainText("风险会保持进行中");
+    await expect(page.locator("#eventSummary")).toContainText("2 待确认");
+    await expect(page.locator("#eventList .event-row.acknowledged")).toHaveCount(2);
+
+    await page.locator("#eventStateFilter").selectOption("resolved");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(2);
+    await expect(page.locator("#eventList")).toContainText("新增公网绑定：8443/tcp");
+    await page.locator("#eventStateFilter").selectOption("ongoing");
 
     await page.locator("#historyAgent").selectOption("east");
     await expect(page.locator("#historySummary")).toContainText("97.5% 在线");
     await expect(page.locator("#historyIncidents")).toContainText("失败服务峰值 1");
     await expectNoHorizontalOverflow(page);
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
     await expect(page).toHaveScreenshot("security-history-1280.png", { fullPage: true });
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -151,9 +166,15 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#hostPreview")).toContainText("主机数据暂时不可用");
     await expect(page).toHaveScreenshot("overview-error-1280.png", { fullPage: true });
 
+    await page.goto("/?fixture=events-error#security");
+    await expect(page.locator("#eventSummary")).toContainText("事件数据暂时不可用");
+    await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(4);
+    await expect(page.locator("#publicSurface .surface-row")).toHaveCount(12);
+
     await page.goto("/?fixture=history-error#security");
     await expect(page.locator("#historySummary")).toContainText("历史数据暂时不可用");
     await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(0);
-    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/history", "/api/link-checks", "/api/services", "/api/services"]);
+    await expect(page.locator("#eventList .event-row")).toHaveCount(4);
+    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/events", "/api/events", "/api/history", "/api/link-checks", "/api/services", "/api/services"]);
   });
 });

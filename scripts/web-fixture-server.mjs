@@ -163,6 +163,100 @@ function buildHistory(mode, agentID) {
   return { agentId: agentID, points };
 }
 
+const acknowledgedFixtureEvents = new Set();
+
+function buildEvents(mode, agentID = "") {
+  if (mode === "empty") return { events: [] };
+  const events = [
+    {
+      id: "evt_fixture_east_certbot",
+      agentId: "east",
+      kind: "workload.failed",
+      severity: "critical",
+      state: "active",
+      title: "服务失败：certbot",
+      detail: "systemd unit entered failed state",
+      firstObservedAt: "2026-08-07T23:41:00Z",
+      lastObservedAt: "2026-08-08T00:00:00Z",
+    },
+    {
+      id: "evt_fixture_harbor_nine",
+      agentId: "harbor",
+      kind: "workload.failed",
+      severity: "critical",
+      state: "active",
+      title: "服务失败：service-5-9",
+      detail: "health check reports unhealthy",
+      firstObservedAt: "2026-08-07T22:52:00Z",
+      lastObservedAt: "2026-08-08T00:00:00Z",
+    },
+    {
+      id: "evt_fixture_harbor_ten",
+      agentId: "harbor",
+      kind: "workload.failed",
+      severity: "critical",
+      state: "acknowledged",
+      title: "服务失败：service-5-10",
+      detail: "systemd unit entered failed state",
+      firstObservedAt: "2026-08-07T21:18:00Z",
+      lastObservedAt: "2026-08-08T00:00:00Z",
+      acknowledgedAt: "2026-08-07T23:12:00Z",
+    },
+    {
+      id: "evt_fixture_harbor_eleven",
+      agentId: "harbor",
+      kind: "workload.failed",
+      severity: "critical",
+      state: "active",
+      title: "服务失败：service-5-11",
+      detail: "systemd unit entered failed state",
+      firstObservedAt: "2026-08-07T23:36:00Z",
+      lastObservedAt: "2026-08-08T00:00:00Z",
+    },
+    {
+      id: "evt_fixture_west_listener",
+      agentId: "west",
+      kind: "listener.added",
+      severity: "warning",
+      state: "resolved",
+      title: "新增公网绑定：8443/tcp",
+      detail: "docker:gateway on 0.0.0.0",
+      firstObservedAt: "2026-08-07T18:10:00Z",
+      lastObservedAt: "2026-08-07T18:23:00Z",
+      resolvedAt: "2026-08-07T18:24:00Z",
+    },
+    {
+      id: "evt_fixture_south_memory",
+      agentId: "south",
+      kind: "resource.memory",
+      severity: "warning",
+      state: "resolved",
+      title: "内存压力",
+      detail: "内存使用率 87%",
+      firstObservedAt: "2026-08-07T16:05:00Z",
+      lastObservedAt: "2026-08-07T16:19:00Z",
+      resolvedAt: "2026-08-07T16:20:00Z",
+    },
+  ];
+  if (mode === "offline") {
+    events.unshift({
+      id: "evt_fixture_harbor_offline",
+      agentId: "harbor",
+      kind: "host.offline",
+      severity: "critical",
+      state: "active",
+      title: "主机离线",
+      detail: "fixture: agent connection timed out",
+      firstObservedAt: "2026-08-07T23:55:30Z",
+      lastObservedAt: "2026-08-08T00:00:00Z",
+    });
+  }
+  const projected = events.map((event) => acknowledgedFixtureEvents.has(event.id) && event.state === "active"
+    ? { ...event, state: "acknowledged", acknowledgedAt: "2026-08-08T00:00:01Z" }
+    : event);
+  return { events: agentID ? projected.filter((event) => event.agentId === agentID) : projected };
+}
+
 function fixtureMode(requestURL, cookieHeader = "") {
   const requested = requestURL.searchParams.get("fixture");
   if (requested) return requested;
@@ -241,6 +335,38 @@ const server = createServer(async (request, response) => {
         const history = buildHistory(mode, requestURL.searchParams.get("agent") || "");
         if (!history) sendJSON(response, 404, { error: "fixture unknown agent" });
         else sendJSON(response, 200, history);
+      }
+      return;
+    }
+    if (requestURL.pathname === "/api/events") {
+      if (request.method !== "GET") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+      } else if (mode === "error" || mode === "events-error") {
+        sendJSON(response, 503, { error: "fixture events unavailable" });
+      } else {
+        sendJSON(response, 200, buildEvents(mode, requestURL.searchParams.get("agent") || ""));
+      }
+      return;
+    }
+    if (requestURL.pathname === "/api/events/ack") {
+      if (request.method !== "POST") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+        return;
+      }
+      if (request.headers["x-csrf-token"] !== "fixture-csrf") {
+        sendJSON(response, 403, { error: "fixture csrf" });
+        return;
+      }
+      const id = requestURL.searchParams.get("id") || "";
+      const event = buildEvents(mode).events.find((candidate) => candidate.id === id);
+      if (!event) {
+        sendJSON(response, 404, { error: "fixture unknown event" });
+      } else if (event.state === "resolved") {
+        sendJSON(response, 409, { error: "fixture event resolved" });
+      } else {
+        acknowledgedFixtureEvents.add(id);
+        const updated = buildEvents(mode).events.find((candidate) => candidate.id === id);
+        sendJSON(response, 200, updated);
       }
       return;
     }

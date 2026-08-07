@@ -145,3 +145,10 @@
 - 新增 CSRF 保护的事件确认 POST；重复确认幂等，未知事件 404，已恢复事件 409。
 - 事件 severity/state 由 Go 契约生成 TypeScript union；真实 SQLite API 测试覆盖认证、CSRF 和完整状态边界。
 - 路线图“Observation history and event transitions”完成；Security UI、SSH 规则、cooldown 与 webhook 继续进行。
+
+## [2026-08-08] implementation | M5 Security 事件中心
+
+- Security 页面新增全局事件中心，默认聚焦进行中，可按主机和 active/acknowledged/resolved 生命周期筛选。
+- 每条事件呈现严重度、状态、主机、类型、持续时间和最近观测；确认后仍保持进行中，直到观测恢复。
+- 事件 API 独立 503 不会清空当前暴露面或历史趋势；1280/390 视觉基线经人工检查，无横向溢出。
+- 关键端到端场景由 13 增至 17；量化差距为事件规则 6/7（缺 SSH）和通知适配器 0/1。

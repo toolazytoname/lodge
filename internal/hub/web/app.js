@@ -22,12 +22,15 @@ const pageMeta = {
 const state = {
     agents: [],
     groups: [],
+    events: { events: [] },
     linkChecks: {
         checks: [],
         summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 },
     },
     agentsLoaded: false,
     servicesLoaded: false,
+    eventsLoaded: false,
+    eventsError: "",
     linkChecksLoaded: false,
 };
 let authed = false;
@@ -229,6 +232,7 @@ async function refresh() {
         api("/api/agents"),
         api("/api/services"),
         api("/api/link-checks"),
+        api("/api/events?limit=100"),
     ]);
     if (!authed) {
         setRefreshing(false);
@@ -238,6 +242,7 @@ async function refresh() {
     const agentsResult = results[0];
     const servicesResult = results[1];
     const linkChecksResult = results[2];
+    const eventsResult = results[3];
     if (agentsResult.status === "fulfilled") {
         state.agents = agentsResult.value;
         state.agentsLoaded = true;
@@ -258,6 +263,15 @@ async function refresh() {
     }
     else {
         failures.push(`入口检查：${errorMessage(linkChecksResult.reason)}`);
+    }
+    if (eventsResult.status === "fulfilled") {
+        state.events = eventsResult.value;
+        state.eventsLoaded = true;
+        state.eventsError = "";
+    }
+    else {
+        state.eventsError = errorMessage(eventsResult.reason);
+        failures.push(`事件：${state.eventsError}`);
     }
     renderAll();
     if (activePage === "security")
@@ -906,9 +920,9 @@ function renderHistory() {
     const loadSeries = chronological.map((point) => point.load1 !== undefined && point.cpus ? Math.min(100, point.load1 * 100 / point.cpus) : undefined);
     replaceChildren(trends, [
         historyTrendCard("在线", `${availability.toFixed(1)}%`, `${points.length - onlinePoints} 个离线采样`, onlineSeries, availability === 100 ? "good" : "critical"),
-        historyTrendCard("负载", loadLatest === undefined ? "—" : loadLatest.toFixed(2), cpuLatest ? `最近 ${cpuLatest} CPU` : "暂无 CPU 数据", loadSeries, "info"),
-        historyTrendCard("内存", memoryLatest === undefined ? "—" : `${memoryLatest}%`, "最近有效采样", chronological.map((point) => point.memoryUsedPct), memoryLatest !== undefined && memoryLatest >= 80 ? "warning" : "good"),
-        historyTrendCard("磁盘", diskLatest === undefined ? "—" : `${diskLatest}%`, "根文件系统", chronological.map((point) => point.diskUsedPct), diskLatest !== undefined && diskLatest >= 85 ? "critical" : "calm"),
+        historyTrendCard("负载", loadLatest === undefined ? "N/A" : loadLatest.toFixed(2), cpuLatest ? `最近 ${cpuLatest} CPU` : "暂无 CPU 数据", loadSeries, "info"),
+        historyTrendCard("内存", memoryLatest === undefined ? "N/A" : `${memoryLatest}%`, "最近有效采样", chronological.map((point) => point.memoryUsedPct), memoryLatest !== undefined && memoryLatest >= 80 ? "warning" : "good"),
+        historyTrendCard("磁盘", diskLatest === undefined ? "N/A" : `${diskLatest}%`, "根文件系统", chronological.map((point) => point.diskUsedPct), diskLatest !== undefined && diskLatest >= 85 ? "critical" : "calm"),
     ]);
     const failedPeak = Math.max(...points.map((point) => point.failedWorkloadCount));
     const warningPeak = Math.max(...points.map((point) => point.warningCount));
@@ -919,26 +933,170 @@ function renderHistory() {
         element("span", "history-pill", `公网绑定峰值 ${wildcardPeak}`),
     ]);
 }
+function syncEventAgentSelect() {
+    const select = byID("eventAgentFilter");
+    const current = select.value || "all";
+    const all = element("option", "", "全部主机");
+    all.value = "all";
+    const options = [all, ...state.agents.map((agent) => {
+            const option = element("option", "", agent.name);
+            option.value = agent.id;
+            return option;
+        })];
+    replaceChildren(select, options);
+    select.value = options.some((option) => option.value === current) ? current : "all";
+    select.disabled = !state.agents.length;
+}
+function eventKindLabel(kind) {
+    const labels = {
+        "host.offline": "主机离线",
+        "resource.memory": "内存压力",
+        "resource.disk": "磁盘压力",
+        "resource.load": "系统负载",
+        "workload.failed": "服务失败",
+        "listener.added": "新增监听",
+    };
+    return labels[kind] ?? kind;
+}
+function eventSeverityLabel(event) {
+    if (event.severity === "critical")
+        return "严重";
+    if (event.severity === "warning")
+        return "警告";
+    return "信息";
+}
+function eventStateLabel(event) {
+    if (event.state === "active")
+        return "待确认";
+    if (event.state === "acknowledged")
+        return "已确认，持续中";
+    return "已恢复";
+}
+function eventHostName(agentID) {
+    return state.agents.find((agent) => agent.id === agentID)?.name ?? agentID;
+}
+function eventDuration(event) {
+    const start = new Date(event.firstObservedAt).getTime();
+    const finish = new Date(event.resolvedAt || event.lastObservedAt).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(finish) || finish < start)
+        return "持续时间未知";
+    const minutes = Math.max(0, Math.round((finish - start) / 60_000));
+    if (minutes < 60)
+        return `持续 ${minutes} 分钟`;
+    const hours = Math.round(minutes / 6) / 10;
+    if (hours < 24)
+        return `持续 ${hours} 小时`;
+    return `持续 ${Math.round(hours / 2.4) / 10} 天`;
+}
+function filteredEvents() {
+    const agent = byID("eventAgentFilter").value || "all";
+    const lifecycle = byID("eventStateFilter").value || "ongoing";
+    return state.events.events.filter((event) => {
+        if (agent !== "all" && event.agentId !== agent)
+            return false;
+        if (lifecycle === "ongoing")
+            return event.state !== "resolved";
+        if (lifecycle !== "all")
+            return event.state === lifecycle;
+        return true;
+    });
+}
+function eventRow(event) {
+    const row = element("article", `event-row ${event.severity} ${event.state}`);
+    const heading = element("div", "event-row-heading");
+    heading.append(element("span", `event-severity ${event.severity}`, eventSeverityLabel(event)), element("span", `event-lifecycle ${event.state}`, eventStateLabel(event)));
+    const copy = element("div", "event-copy");
+    copy.append(element("strong", "", event.title));
+    if (event.detail)
+        copy.append(element("p", "", event.detail));
+    const meta = element("div", "event-meta");
+    meta.append(element("span", "", eventHostName(event.agentId)), element("span", "", eventKindLabel(event.kind)), element("span", "", eventDuration(event)), element("span", "", `最近 ${formatLastSeen(event.lastObservedAt)}`));
+    copy.append(meta);
+    row.append(heading, copy);
+    if (event.state === "active") {
+        const acknowledge = element("button", "button button-quiet event-ack", "确认");
+        acknowledge.type = "button";
+        acknowledge.setAttribute("aria-label", `确认事件：${event.title}`);
+        acknowledge.addEventListener("click", () => void acknowledgeEvent(event.id, acknowledge));
+        row.append(acknowledge);
+    }
+    else {
+        row.append(element("span", "event-state-note", event.state === "acknowledged" ? "等待恢复" : `恢复于 ${formatLastSeen(event.resolvedAt)}`));
+    }
+    return row;
+}
+function renderEvents() {
+    syncEventAgentSelect();
+    const summary = byID("eventSummary");
+    const list = byID("eventList");
+    if (!state.eventsLoaded) {
+        replaceChildren(summary, [emptyState(state.eventsError ? `事件数据暂时不可用：${state.eventsError}` : "正在读取事件…", state.eventsError ? "error" : "loading")]);
+        replaceChildren(list, []);
+        return;
+    }
+    const ongoing = state.events.events.filter((event) => event.state !== "resolved");
+    const unacknowledged = ongoing.filter((event) => event.state === "active");
+    const critical = ongoing.filter((event) => event.severity === "critical");
+    const resolved = state.events.events.filter((event) => event.state === "resolved");
+    const stats = [
+        element("span", ongoing.length ? "event-stat warning" : "event-stat calm", `${ongoing.length} 进行中`),
+        element("span", unacknowledged.length ? "event-stat critical" : "event-stat calm", `${unacknowledged.length} 待确认`),
+        element("span", critical.length ? "event-stat critical" : "event-stat calm", `${critical.length} 严重`),
+        element("span", "event-stat calm", `${resolved.length} 已恢复`),
+    ];
+    if (state.eventsError)
+        stats.push(element("span", "event-summary-error", `最近更新失败：${state.eventsError}`));
+    replaceChildren(summary, stats);
+    const events = filteredEvents();
+    if (!events.length) {
+        const message = state.events.events.length
+            ? "当前筛选条件下没有事件。"
+            : "还没有事件记录。规则会在风险出现时自动建立事件。";
+        replaceChildren(list, [emptyState(message, state.events.events.length ? "" : "success")]);
+        return;
+    }
+    const rows = events.slice(0, 20).map(eventRow);
+    if (events.length > rows.length)
+        rows.push(element("p", "more-note", `另有 ${events.length - rows.length} 条事件，请缩小筛选范围`));
+    replaceChildren(list, rows);
+}
+async function acknowledgeEvent(id, button) {
+    button.disabled = true;
+    button.textContent = "确认中";
+    try {
+        const updated = await api(`/api/events/ack?id=${encodeURIComponent(id)}`, { method: "POST" });
+        state.events.events = state.events.events.map((event) => event.id === updated.id ? updated : event);
+        state.eventsError = "";
+        renderSecurity();
+        setNotice(`已确认事件“${updated.title}”。风险会保持进行中，直到新观测证明恢复。`);
+    }
+    catch (acknowledgementError) {
+        button.disabled = false;
+        button.textContent = "重试确认";
+        setNotice(`事件确认失败：${errorMessage(acknowledgementError)}`);
+    }
+}
 function renderSecurity() {
     const entries = allServiceEntries();
     const publicEntries = entries.filter((entry) => serviceExposure(entry.service) === "public");
-    const publicWithWeb = publicEntries.filter((entry) => serviceWebTargets(entry).length > 0);
     const unknown = entries.filter((entry) => entry.service.unidentified).length;
-    const offline = state.agents.filter((agent) => !agent.online).length;
+    const activeEvents = state.events.events.filter((event) => event.state === "active");
+    const criticalEvents = state.events.events.filter((event) => event.state !== "resolved" && event.severity === "critical");
     replaceChildren(byID("securityMetrics"), [
         state.servicesLoaded
             ? metricCard("公网服务", publicEntries.length, "监听暴露范围为公网", publicEntries.length ? "warning" : "good")
             : metricCard("公网服务", "N/A", "服务数据暂不可用", "critical"),
         state.servicesLoaded
-            ? metricCard("公网 Web", publicWithWeb.length, "发现 http(s) 链接")
-            : metricCard("公网 Web", "N/A", "服务数据暂不可用", "critical"),
-        state.servicesLoaded
             ? metricCard("待归因", unknown, "来源尚未确认", unknown ? "warning" : "good")
             : metricCard("待归因", "N/A", "服务数据暂不可用", "critical"),
-        state.agentsLoaded
-            ? metricCard("离线节点", offline, "无法取得实时状态", offline ? "critical" : "good")
-            : metricCard("离线节点", "N/A", "主机数据暂不可用", "critical"),
+        state.eventsLoaded
+            ? metricCard("待确认事件", activeEvents.length, "需要操作者确认", activeEvents.length ? "warning" : "good")
+            : metricCard("待确认事件", "N/A", "事件数据暂不可用", "critical"),
+        state.eventsLoaded
+            ? metricCard("严重进行中", criticalEvents.length, "包含已确认事件", criticalEvents.length ? "critical" : "good")
+            : metricCard("严重进行中", "N/A", "事件数据暂不可用", "critical"),
     ]);
+    renderEvents();
     if (!state.servicesLoaded) {
         replaceChildren(byID("publicSurface"), [emptyState("公网暴露面数据暂时不可用。", "error")]);
         renderHistory();
@@ -1078,6 +1236,8 @@ byID("historyAgent").addEventListener("change", (event) => {
     renderHistory();
     void loadSelectedHistory(false);
 });
+byID("eventAgentFilter").addEventListener("change", renderEvents);
+byID("eventStateFilter").addEventListener("change", renderEvents);
 byID("dismissNotice").addEventListener("click", () => setNotice(null));
 byID("pw").addEventListener("keydown", (event) => {
     if (event.key === "Enter")

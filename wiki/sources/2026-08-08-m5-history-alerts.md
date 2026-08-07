@@ -42,3 +42,11 @@ Observation 与事件 open/update/recovery 在同一事务提交。重复 key、
 第四个切片开放认证的 `GET /api/events`，支持全 fleet 或已配置 host 筛选，默认 100、上限 500；返回 incident 类型、严重度、状态、面向操作者的说明和审计时间，不暴露内部 dedupe key。`POST /api/events/ack` 经过会话与 CSRF 校验，确认幂等，未知 ID 为 404，已恢复事件为 409。Go HTTP 契约继续生成 TypeScript union，未知 severity/state 不能静默落入浏览器。
 
 API 集成测试使用真实 SQLite 生命周期验证未认证 401、缺 CSRF 403、active 到 acknowledged、重复确认时间不变、恢复后冲突，以及 host/limit 边界。路线图的“Observation history and event transitions”至此完成；Security 事件 UI、SSH 来源、冷却和 webhook 仍未完成。
+
+## Security 事件中心
+
+第五个切片用真实事件替换 Security 页的 M5 占位卡。页面默认展示所有主机的进行中事件，可按主机以及进行中、待确认、已确认、已恢复、全部事件筛选。每行展示 severity、生命周期、主机、规则类型、持续时间、最近观测与详情；`acknowledged` 仍留在进行中列表，只有 `resolved` 才进入恢复历史。确认按钮调用 CSRF 保护 API，成功后原地更新状态并明确提示“风险仍持续”。
+
+页面首要安全指标从派生的公网 Web/离线数量调整为公网服务、待归因、待确认事件、严重进行中，其中严重数包含已确认但未恢复事件。事件 API 独立失败只让事件区域显示 N/A/局部错误，当前暴露面与 120 点历史保持可用。完全虚构 fixture 覆盖确认交互、生命周期筛选、独立事件 503，并在 1280/390 更新人工检查的视觉基线；关键端到端场景从 13 增至 17。
+
+按设计审计保持现有暗色、绿色主强调、10/6px 圆角层级和五页 IA；事件列表使用稀疏分隔而不是新增一排通用卡片，720px 以下明确单列。没有引入第三方前端运行时。当前量化差距为 observation 规则 6/7（缺 SSH 来源）与 notification adapter 0/1。

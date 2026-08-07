@@ -164,7 +164,7 @@
             <div class="security-side-stack">
               <section class="panel history-panel" aria-labelledby="historyTitle">
                 <div class="panel-heading history-heading">
-                  <div><p class="eyebrow">OBSERVATION HISTORY</p><h2 id="historyTitle">最近观测趋势</h2></div>
+                  <div><h2 id="historyTitle">最近观测趋势</h2></div>
                   <label class="compact-select" for="historyAgent">主机
                     <select id="historyAgent"></select>
                   </label>
@@ -173,13 +173,32 @@
                 <div id="historyTrends" class="history-trends"></div>
                 <div id="historyIncidents" class="history-incidents"></div>
               </section>
-              <section class="panel planned-panel security-next-panel">
-                <span class="planned-badge">M5 下一步</span>
-                <h2>事件确认与主动告警</h2>
-                <p>趋势数据已来自持久化观测；登录失败来源、暴露面变化、事件确认与通知状态仍需事件生命周期支持，不会把未实现能力伪装成安全结论。</p>
-              </section>
             </div>
           </div>
+          <section class="panel event-panel section-block" aria-labelledby="eventTitle">
+            <div class="panel-heading event-heading">
+              <div>
+                <h2 id="eventTitle">事件中心</h2>
+                <p>确认表示已知情，只有后续观测正常才会恢复。</p>
+              </div>
+              <div class="event-filters" aria-label="事件筛选">
+                <label class="compact-select" for="eventAgentFilter">主机
+                  <select id="eventAgentFilter"><option value="all">全部主机</option></select>
+                </label>
+                <label class="compact-select" for="eventStateFilter">状态
+                  <select id="eventStateFilter">
+                    <option value="ongoing">进行中</option>
+                    <option value="active">待确认</option>
+                    <option value="acknowledged">已确认</option>
+                    <option value="resolved">已恢复</option>
+                    <option value="all">全部事件</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div id="eventSummary" class="event-summary" aria-live="polite"></div>
+            <div id="eventList" class="event-list"></div>
+          </section>
         </section>
 
         <section id="operationsPage" class="page hidden" data-page-panel="operations" aria-labelledby="pageTitle">
