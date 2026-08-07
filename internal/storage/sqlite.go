@@ -542,6 +542,76 @@ func (s *SQLite) ObservationHistory(ctx context.Context, hostID domain.HostID, l
 	return observations, nil
 }
 
+// ObservationSummaryHistory loads timeline-sized projections in one query.
+// Full workload, endpoint, route, and resource payloads stay out of the API
+// path even when an operator asks for hundreds of points.
+func (s *SQLite) ObservationSummaryHistory(ctx context.Context, hostID domain.HostID, limit int) ([]domain.ObservationSummary, error) {
+	if limit < 1 || limit > 1000 {
+		return nil, errors.New("history limit must be between 1 and 1000")
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT o.host_id, o.observed_at, o.online, o.last_error, o.agent_version,
+       o.resources_json, o.warnings_json,
+       (SELECT count(*) FROM workloads w WHERE w.observation_id = o.id),
+       (SELECT count(*) FROM workloads w WHERE w.observation_id = o.id
+          AND (lower(trim(w.state)) = 'failed' OR lower(trim(w.health)) = 'unhealthy')),
+       (SELECT count(*) FROM endpoints e WHERE e.observation_id = o.id AND e.binding = 'wildcard')
+FROM observations o
+WHERE o.host_id = ?
+ORDER BY o.observed_at DESC, o.id DESC
+LIMIT ?`, string(hostID), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	summaries := make([]domain.ObservationSummary, 0, limit)
+	for rows.Next() {
+		var summary domain.ObservationSummary
+		var observedAt string
+		var online int
+		var resourcesJSON, warningsJSON sql.NullString
+		if err := rows.Scan(
+			&summary.HostID, &observedAt, &online, &summary.LastError, &summary.AgentVersion,
+			&resourcesJSON, &warningsJSON, &summary.WorkloadCount, &summary.FailedWorkloadCount,
+			&summary.WildcardEndpointCount,
+		); err != nil {
+			return nil, err
+		}
+		summary.ObservedAt, err = parseTime(observedAt)
+		if err != nil {
+			return nil, err
+		}
+		summary.Online = online == 1
+		if resourcesJSON.Valid && resourcesJSON.String != "" {
+			var resources domain.Resources
+			if err := json.Unmarshal([]byte(resourcesJSON.String), &resources); err != nil {
+				return nil, fmt.Errorf("decode summary resources: %w", err)
+			}
+			summary.CPUs = resources.CPUs
+			summary.Load1 = resources.Load1
+			summary.MemoryUsedPct = domain.UsagePercent(resources.Memory.UsedBytes, resources.Memory.TotalBytes)
+			for _, disk := range resources.Disks {
+				if disk.Mount == "/" {
+					summary.DiskUsedPct = domain.UsagePercent(disk.UsedBytes, disk.TotalBytes)
+					break
+				}
+			}
+		}
+		if warningsJSON.Valid && warningsJSON.String != "" {
+			var warnings []string
+			if err := json.Unmarshal([]byte(warningsJSON.String), &warnings); err != nil {
+				return nil, fmt.Errorf("decode summary warnings: %w", err)
+			}
+			summary.WarningCount = len(warnings)
+		}
+		if err := summary.Validate(); err != nil {
+			return nil, fmt.Errorf("stored observation summary is invalid: %w", err)
+		}
+		summaries = append(summaries, summary)
+	}
+	return summaries, rows.Err()
+}
+
 type queryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row

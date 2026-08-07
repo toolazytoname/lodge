@@ -29,6 +29,12 @@ performs bounded metadata-only `HEAD` probes from its own network perspective,
 then atomically stores the latest result set. It does not proxy response data to
 the browser. See [ADR 0006](adr/0006-hub-web-link-probes.md).
 
+Historical browsing uses a separate bounded projection rather than returning
+complete immutable observations. `/api/history` reads at most 500 points in one
+query and exposes only timestamp, online/error state, resource percentages, and
+aggregate workload/endpoint/warning counts. Full workload and route payloads
+remain available to internal rule evaluation without multiplying browser data.
+
 ## Trust boundaries
 
 1. **Browser to Hub**: human authentication, CSRF protection, output encoding, and operation confirmation.

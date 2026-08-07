@@ -28,7 +28,27 @@ export interface AnnotationInput {
 
 export type Exposure = "local" | "tailnet" | "public" | "other";
 
+export interface HostHistoryResponse {
+  agentId: string;
+  points: Array<ObservationHistoryPoint>;
+}
+
 export type Kind = "docker" | "systemd" | "process";
+
+export interface ObservationHistoryPoint {
+  observedAt: string;
+  online: boolean;
+  lastError?: string;
+  agentVersion?: string;
+  cpus?: number;
+  load1?: number;
+  memoryUsedPct?: number;
+  diskUsedPct?: number;
+  workloadCount: number;
+  failedWorkloadCount: number;
+  wildcardEndpointCount: number;
+  warningCount: number;
+}
 
 export interface Port {
   proto: string;

@@ -443,6 +443,7 @@ func TestSQLiteObservationRoundTripHistoryAndPrune(t *testing.T) {
 	second := sampleObservation(first.ObservedAt.Add(time.Minute))
 	second.Online = false
 	second.LastError = "test timeout"
+	second.Workloads[0].State = "failed"
 	if _, err := store.RecordObservation(ctx, first); err != nil {
 		t.Fatal(err)
 	}
@@ -463,6 +464,22 @@ func TestSQLiteObservationRoundTripHistoryAndPrune(t *testing.T) {
 	}
 	if len(history) != 2 || !history[0].ObservedAt.Equal(second.ObservedAt) || !history[1].ObservedAt.Equal(first.ObservedAt) {
 		t.Fatalf("history order is wrong: %+v", history)
+	}
+	summaries, err := store.ObservationSummaryHistory(ctx, "host-a", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summaries) != 2 || !summaries[0].ObservedAt.Equal(second.ObservedAt) || summaries[0].Online {
+		t.Fatalf("summary history order/state is wrong: %+v", summaries)
+	}
+	if summaries[0].WorkloadCount != 1 || summaries[0].FailedWorkloadCount != 1 || summaries[0].WildcardEndpointCount != 1 || summaries[0].WarningCount != 1 {
+		t.Fatalf("summary history counts are wrong: %+v", summaries[0])
+	}
+	if summaries[0].MemoryUsedPct != 25 || summaries[0].DiskUsedPct != 50 || summaries[0].CPUs != 4 || summaries[0].Load1 != 0.5 {
+		t.Fatalf("summary history resources are wrong: %+v", summaries[0])
+	}
+	if _, err := store.ObservationSummaryHistory(ctx, "host-a", 1001); err == nil {
+		t.Fatal("oversized summary history limit was accepted")
 	}
 
 	deleted, err := store.PruneObservations(ctx, second.ObservedAt)

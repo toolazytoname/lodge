@@ -52,6 +52,7 @@ func generate() ([]byte, error) {
 			reflect.TypeOf(hub.AgentSummary{}),
 			reflect.TypeOf(hub.AgentServices{}),
 			reflect.TypeOf(hub.AnnotationInput{}),
+			reflect.TypeOf(hub.HostHistoryResponse{}),
 			reflect.TypeOf(hub.WebLinkChecksResponse{}),
 		},
 		seen:  make(map[reflect.Type]bool),

@@ -49,6 +49,28 @@ type AnnotationInput struct {
 	Notes  string `json:"notes,omitempty"`
 }
 
+// ObservationHistoryPoint is a bounded timeline projection. Full immutable
+// observations remain in SQLite and are never multiplied into the browser API.
+type ObservationHistoryPoint struct {
+	ObservedAt            string  `json:"observedAt"`
+	Online                bool    `json:"online"`
+	LastError             string  `json:"lastError,omitempty"`
+	AgentVersion          string  `json:"agentVersion,omitempty"`
+	CPUs                  int     `json:"cpus,omitempty"`
+	Load1                 float64 `json:"load1,omitempty"`
+	MemoryUsedPct         int     `json:"memoryUsedPct,omitempty"`
+	DiskUsedPct           int     `json:"diskUsedPct,omitempty"`
+	WorkloadCount         int     `json:"workloadCount"`
+	FailedWorkloadCount   int     `json:"failedWorkloadCount"`
+	WildcardEndpointCount int     `json:"wildcardEndpointCount"`
+	WarningCount          int     `json:"warningCount"`
+}
+
+type HostHistoryResponse struct {
+	AgentID string                    `json:"agentId"`
+	Points  []ObservationHistoryPoint `json:"points"`
+}
+
 // WebLinkCheckView is bounded probe evidence from the Hub's network view.
 type WebLinkCheckView struct {
 	AgentID    string              `json:"agentId"`

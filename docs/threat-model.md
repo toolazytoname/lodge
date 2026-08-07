@@ -39,6 +39,9 @@
 - URLs allow only explicitly supported schemes (`https` and, where justified, `http`).
 - User and Agent data is rendered without inline JavaScript or unsafe HTML interpolation.
 - Request bodies, fields, command output, and log reads have size limits.
+- Observation-history responses are host-scoped, authenticated, aggregated,
+  and capped at 500 points; they do not expose complete historical workload or
+  route payloads.
 - Security headers are set by the Hub, including a restrictive Content Security Policy.
 - Active Web-link checks are an authenticated, CSRF-protected management
   capability. They use only absolute credential-free http(s) targets from the

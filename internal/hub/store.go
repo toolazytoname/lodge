@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type Store interface {
 	Snapshot() []AgentSnapshot
 	Annotations(agentID string) map[string]Annotation
 	SetAnnotation(context.Context, string, string, Annotation) error
+	ObservationSummaryHistory(context.Context, domain.HostID, int) ([]domain.ObservationSummary, error)
 	WebLinkChecks(context.Context) ([]domain.WebLinkCheck, error)
 	ReplaceWebLinkChecks(context.Context, []domain.WebLinkCheck) error
 }
@@ -28,17 +30,19 @@ type Store interface {
 // SQLiteStore in production. It deliberately has no file path or Save method,
 // so Agent bearer tokens cannot accidentally be serialized by this layer.
 type MemStore struct {
-	mu     sync.RWMutex
-	agents []AgentConfig
-	snaps  map[string]*AgentSnapshot
-	anns   map[string]map[string]Annotation
-	checks []domain.WebLinkCheck
+	mu      sync.RWMutex
+	agents  []AgentConfig
+	snaps   map[string]*AgentSnapshot
+	anns    map[string]map[string]Annotation
+	checks  []domain.WebLinkCheck
+	history map[string][]domain.ObservationSummary
 }
 
 func NewMemStore() *MemStore {
 	return &MemStore{
-		snaps: make(map[string]*AgentSnapshot),
-		anns:  make(map[string]map[string]Annotation),
+		snaps:   make(map[string]*AgentSnapshot),
+		anns:    make(map[string]map[string]Annotation),
+		history: make(map[string][]domain.ObservationSummary),
 	}
 }
 
@@ -69,6 +73,10 @@ func (s *MemStore) Update(ctx context.Context, id string, online bool, lastError
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	summary, err := summarizeRuntimeUpdate(id, online, lastError, ping, status, services, observedAt)
+	if err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	snapshot, exists := s.snaps[id]
@@ -84,7 +92,45 @@ func (s *MemStore) Update(ctx context.Context, id string, online bool, lastError
 	if online {
 		snapshot.LastSeen = observedAt.UTC().Format(time.RFC3339)
 	}
+	s.history[id] = append([]domain.ObservationSummary{summary}, s.history[id]...)
+	if len(s.history[id]) > 1000 {
+		s.history[id] = s.history[id][:1000]
+	}
 	return nil
+}
+
+func summarizeRuntimeUpdate(id string, online bool, lastError string, ping shared.Ping, status *shared.Status, services []shared.Service, observedAt time.Time) (domain.ObservationSummary, error) {
+	summary := domain.ObservationSummary{
+		HostID: domain.HostID(id), ObservedAt: observedAt.UTC(), Online: online,
+		LastError: lastError, AgentVersion: ping.AgentVer, WorkloadCount: len(services),
+	}
+	for _, service := range services {
+		if strings.EqualFold(strings.TrimSpace(service.Status), "failed") ||
+			strings.EqualFold(strings.TrimSpace(service.Health), "unhealthy") {
+			summary.FailedWorkloadCount++
+		}
+		for _, port := range service.Ports {
+			if port.Exposure == shared.ExposurePublic {
+				summary.WildcardEndpointCount++
+			}
+		}
+	}
+	if status != nil {
+		summary.CPUs = status.Load.CPUs
+		summary.Load1 = status.Load.One
+		summary.MemoryUsedPct = domain.UsagePercent(status.Memory.UsedBytes, status.Memory.TotalBytes)
+		summary.WarningCount = len(status.Warnings)
+		for _, disk := range status.Disks {
+			if disk.Mount == "/" {
+				summary.DiskUsedPct = domain.UsagePercent(disk.UsedBytes, disk.TotalBytes)
+				break
+			}
+		}
+	}
+	if err := summary.Validate(); err != nil {
+		return domain.ObservationSummary{}, err
+	}
+	return summary, nil
 }
 
 func (s *MemStore) Snapshot() []AgentSnapshot {
@@ -123,6 +169,22 @@ func (s *MemStore) SetAnnotation(ctx context.Context, agentID, key string, annot
 	annotation.AgentID = agentID
 	s.anns[agentID][key] = annotation
 	return nil
+}
+
+func (s *MemStore) ObservationSummaryHistory(ctx context.Context, hostID domain.HostID, limit int) ([]domain.ObservationSummary, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > 1000 {
+		return nil, fmt.Errorf("history limit must be between 1 and 1000")
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	available := s.history[string(hostID)]
+	if limit > len(available) {
+		limit = len(available)
+	}
+	return append([]domain.ObservationSummary(nil), available[:limit]...), nil
 }
 
 func (s *MemStore) WebLinkChecks(ctx context.Context) ([]domain.WebLinkCheck, error) {

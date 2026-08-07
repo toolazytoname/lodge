@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,8 @@ const (
 	maxNotesRunes          = 4000
 	maxURLBytes            = 2048
 	webLinkProbeBudget     = 15 * time.Second
+	historyDefaultLimit    = 120
+	historyMaximumLimit    = 500
 )
 
 // Server is the Hub HTTP boundary. A configured authenticator protects every
@@ -66,9 +69,52 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	// 受保护路由：需登录。
 	s.mux.HandleFunc("/api/agents", s.auth(s.agents))
 	s.mux.HandleFunc("/api/services", s.auth(s.services))
+	s.mux.HandleFunc("/api/history", s.auth(s.history))
 	s.mux.HandleFunc("/api/annotation", s.auth(s.annotation))
 	s.mux.HandleFunc("/api/link-checks", s.auth(s.linkChecks))
 	return s, nil
+}
+
+func (s *Server) history(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	agentID := r.URL.Query().Get("agent")
+	if agentID == "" || len(agentID) > maxAgentIDBytes {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "需要有效的 agent"})
+		return
+	}
+	if !s.hasAgent(agentID) {
+		writeJSONHub(w, http.StatusNotFound, map[string]string{"error": "unknown agent"})
+		return
+	}
+	limit := historyDefaultLimit
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed < 1 || parsed > historyMaximumLimit {
+			writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "limit must be between 1 and 500"})
+			return
+		}
+		limit = parsed
+	}
+	summaries, err := s.store.ObservationSummaryHistory(r.Context(), domain.HostID(agentID), limit)
+	if err != nil {
+		log.Printf("lodge hub read observation history: %v", err)
+		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "history persistence failed"})
+		return
+	}
+	response := HostHistoryResponse{AgentID: agentID, Points: make([]ObservationHistoryPoint, 0, len(summaries))}
+	for _, summary := range summaries {
+		response.Points = append(response.Points, ObservationHistoryPoint{
+			ObservedAt: summary.ObservedAt.UTC().Format(time.RFC3339Nano), Online: summary.Online,
+			LastError: summary.LastError, AgentVersion: summary.AgentVersion,
+			CPUs: summary.CPUs, Load1: summary.Load1,
+			MemoryUsedPct: summary.MemoryUsedPct, DiskUsedPct: summary.DiskUsedPct,
+			WorkloadCount: summary.WorkloadCount, FailedWorkloadCount: summary.FailedWorkloadCount,
+			WildcardEndpointCount: summary.WildcardEndpointCount, WarningCount: summary.WarningCount,
+		})
+	}
+	writeJSONHub(w, http.StatusOK, response)
 }
 
 func (s *Server) linkChecks(w http.ResponseWriter, r *http.Request) {

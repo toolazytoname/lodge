@@ -131,3 +131,33 @@ func TestWebLinkCheckRequiresConsistentEvidence(t *testing.T) {
 		t.Fatalf("evidenced unreachable Web link was rejected: %v", err)
 	}
 }
+
+func TestSummarizeObservationBoundsTimelineData(t *testing.T) {
+	observation := Observation{
+		HostID: "host-a", ObservedAt: time.Now().UTC(), Online: true, AgentVersion: "0.5.0",
+		Resources: &Resources{
+			CPUs: 4, Load1: 1.25,
+			Memory: MemoryResources{TotalBytes: 1000, UsedBytes: 760},
+			Disks:  []DiskResources{{Mount: "/", TotalBytes: 2000, UsedBytes: 900}},
+		},
+		Workloads: []Workload{
+			{HostID: "host-a", Key: "docker:web", Kind: WorkloadDocker, Name: "web", State: "running"},
+			{HostID: "host-a", Key: "systemd:worker.service", Kind: WorkloadSystemd, Name: "worker", State: "failed"},
+		},
+		Endpoints: []Endpoint{
+			{HostID: "host-a", WorkloadKey: "docker:web", Key: "tcp://0.0.0.0:443", Protocol: "tcp", Bind: "0.0.0.0", Port: 443, Binding: BindingWildcard, Reachability: ReachabilityUnknown},
+			{HostID: "host-a", WorkloadKey: "docker:web", Key: "tcp://127.0.0.1:8080", Protocol: "tcp", Bind: "127.0.0.1", Port: 8080, Binding: BindingLocal, Reachability: ReachabilityUnknown},
+		},
+		Warnings: []string{"partial collection"},
+	}
+	summary, err := SummarizeObservation(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.WorkloadCount != 2 || summary.FailedWorkloadCount != 1 || summary.WildcardEndpointCount != 1 || summary.WarningCount != 1 {
+		t.Fatalf("summary counts mismatch: %+v", summary)
+	}
+	if summary.CPUs != 4 || summary.Load1 != 1.25 || summary.MemoryUsedPct != 76 || summary.DiskUsedPct != 45 {
+		t.Fatalf("summary resources mismatch: %+v", summary)
+	}
+}

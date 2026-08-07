@@ -116,3 +116,10 @@
 - 发布后 fleet 保持 5/5 online、55 workloads、11 routes、0 warnings、0 unidentified，最大观测年龄 2.4 秒。
 - 首次 Hub 检查的 16 个展示入口为 7 reachable、1 degraded、8 unreachable；其中 11 条注册代理路由为 6/1/4，可达率 54.5%，未达到 95% 目标。
 - M4 产品能力完成；DNS、TLS、timeout、502 等真实资产问题保留为显式治理差距，没有删除失败证据来美化指标。
+
+## [2026-08-08] implementation | M5 有界历史查询底座
+
+- 新增 host-scoped `ObservationSummary` 与 `/api/history`，默认 120 点、上限 500 点，避免完整历史快照在浏览器边界被放大。
+- 单条 SQLite 查询汇总在线状态、资源比例、workload/failed、公网绑定与 warning，保持新到旧顺序。
+- 补齐领域、SQLite、MemStore 和 HTTP 边界测试；未知主机与非法 limit 明确失败。
+- Web 时间线、事件生命周期、规则和通知仍在后续切片，M5 保持进行中。

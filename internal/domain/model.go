@@ -5,6 +5,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"strconv"
@@ -148,6 +149,25 @@ type Observation struct {
 	Endpoints    []Endpoint   `json:"endpoints"`
 	Routes       []ProxyRoute `json:"routes"`
 	Warnings     []string     `json:"warnings,omitempty"`
+}
+
+// ObservationSummary is the bounded history projection used by operators and
+// rule evaluation. It deliberately excludes full workload, endpoint, route,
+// and resource payloads so a timeline request cannot multiply large snapshots.
+type ObservationSummary struct {
+	HostID                HostID    `json:"hostId"`
+	ObservedAt            time.Time `json:"observedAt"`
+	Online                bool      `json:"online"`
+	LastError             string    `json:"lastError,omitempty"`
+	AgentVersion          string    `json:"agentVersion,omitempty"`
+	CPUs                  int       `json:"cpus,omitempty"`
+	Load1                 float64   `json:"load1,omitempty"`
+	MemoryUsedPct         int       `json:"memoryUsedPct,omitempty"`
+	DiskUsedPct           int       `json:"diskUsedPct,omitempty"`
+	WorkloadCount         int       `json:"workloadCount"`
+	FailedWorkloadCount   int       `json:"failedWorkloadCount"`
+	WildcardEndpointCount int       `json:"wildcardEndpointCount"`
+	WarningCount          int       `json:"warningCount"`
 }
 
 // Annotation is user-maintained metadata joined to an observed Workload. It
@@ -386,6 +406,93 @@ func (o Observation) Validate() error {
 		routes[compositeKey] = struct{}{}
 	}
 	return nil
+}
+
+func SummarizeObservation(observation Observation) (ObservationSummary, error) {
+	if err := observation.Validate(); err != nil {
+		return ObservationSummary{}, err
+	}
+	summary := ObservationSummary{
+		HostID: observation.HostID, ObservedAt: observation.ObservedAt, Online: observation.Online,
+		LastError: observation.LastError, AgentVersion: observation.AgentVersion,
+		WorkloadCount: len(observation.Workloads), WarningCount: len(observation.Warnings),
+	}
+	for _, workload := range observation.Workloads {
+		if strings.EqualFold(strings.TrimSpace(workload.State), "failed") ||
+			strings.EqualFold(strings.TrimSpace(workload.Health), "unhealthy") {
+			summary.FailedWorkloadCount++
+		}
+	}
+	for _, endpoint := range observation.Endpoints {
+		if endpoint.Binding == BindingWildcard {
+			summary.WildcardEndpointCount++
+		}
+	}
+	if observation.Resources != nil {
+		summary.CPUs = observation.Resources.CPUs
+		summary.Load1 = observation.Resources.Load1
+		summary.MemoryUsedPct = UsagePercent(
+			observation.Resources.Memory.UsedBytes,
+			observation.Resources.Memory.TotalBytes,
+		)
+		for _, disk := range observation.Resources.Disks {
+			if disk.Mount == "/" {
+				summary.DiskUsedPct = UsagePercent(disk.UsedBytes, disk.TotalBytes)
+				break
+			}
+		}
+	}
+	if err := summary.Validate(); err != nil {
+		return ObservationSummary{}, err
+	}
+	return summary, nil
+}
+
+func (summary ObservationSummary) Validate() error {
+	if err := validateIdentifier("host id", string(summary.HostID), 128); err != nil {
+		return err
+	}
+	if summary.ObservedAt.IsZero() {
+		return errors.New("observation summary time must not be zero")
+	}
+	if !utf8.ValidString(summary.LastError) || len(summary.LastError) > 4096 {
+		return errors.New("observation summary error is invalid")
+	}
+	if !utf8.ValidString(summary.AgentVersion) || len(summary.AgentVersion) > 128 {
+		return errors.New("observation summary Agent version is invalid")
+	}
+	if summary.CPUs < 0 || summary.CPUs > 4096 || summary.Load1 < 0 || math.IsNaN(summary.Load1) || math.IsInf(summary.Load1, 0) {
+		return errors.New("observation summary load is invalid")
+	}
+	for _, value := range []int{summary.MemoryUsedPct, summary.DiskUsedPct} {
+		if value < 0 || value > 100 {
+			return errors.New("observation summary percentage is invalid")
+		}
+	}
+	for _, value := range []int{
+		summary.WorkloadCount, summary.FailedWorkloadCount,
+		summary.WildcardEndpointCount, summary.WarningCount,
+	} {
+		if value < 0 {
+			return errors.New("observation summary count is invalid")
+		}
+	}
+	if summary.FailedWorkloadCount > summary.WorkloadCount {
+		return errors.New("failed workload count exceeds workload count")
+	}
+	return nil
+}
+
+// UsagePercent converts byte counters to an integer percentage while keeping
+// malformed or racing OS counters inside the public 0..100 contract.
+func UsagePercent(used, total int64) int {
+	if used <= 0 || total <= 0 {
+		return 0
+	}
+	if used >= total {
+		return 100
+	}
+	return int(float64(used) * 100 / float64(total))
 }
 
 func validProxyHost(host string, allowEmpty bool) bool {

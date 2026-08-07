@@ -114,6 +114,10 @@ func (s *SQLiteStore) ObservationHistory(ctx context.Context, hostID domain.Host
 	return s.database.ObservationHistory(ctx, hostID, limit)
 }
 
+func (s *SQLiteStore) ObservationSummaryHistory(ctx context.Context, hostID domain.HostID, limit int) ([]domain.ObservationSummary, error) {
+	return s.database.ObservationSummaryHistory(ctx, hostID, limit)
+}
+
 func (s *SQLiteStore) RunObservationRetention(ctx context.Context, retention time.Duration) {
 	if retention <= 0 {
 		return

@@ -5,8 +5,8 @@
 `internal/storage` provides the SQLite persistence adapter for Lodge's durable
 domain model. The Hub opens `/var/lib/lodge-hub/lodge.db` by default, records
 every complete, partial, and offline observation, and keeps only the latest UI
-projection in memory. The embedded UI does not expose history yet; browsing and
-alerting over these records belongs to M5.
+projection in memory. M5 exposes a bounded observation-summary API; the Web
+timeline and alert lifecycle remain in progress.
 
 The schema stores:
 
@@ -41,6 +41,9 @@ stored.
   chronological even when whole-second and fractional values are mixed.
 - Workloads, endpoints, and proxy routes are deleted automatically when an observation is
   pruned.
+- Timeline reads use one bounded summary query (default 120, maximum 500
+  points). They do not materialize every historical workload, endpoint, route,
+  or full resource payload into the browser response.
 - The database, `-wal`, `-shm`, and backup files are owner-only (`0600`). An
   existing database with broader permissions or a symlinked path is rejected.
 

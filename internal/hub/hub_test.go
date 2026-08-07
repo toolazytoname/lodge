@@ -581,6 +581,60 @@ func TestWebLinkChecksRequireAuthenticationCSRFAndPersistEvidence(t *testing.T) 
 	}
 }
 
+func TestObservationHistoryAPIIsBoundedAndHostScoped(t *testing.T) {
+	store := NewMemStore()
+	ctx := context.Background()
+	if err := store.SetAgents(ctx, []AgentConfig{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	status := &shared.Status{
+		Hostname: "host-a", Load: shared.Load{CPUs: 2, One: 0.75},
+		Memory: shared.Memory{TotalBytes: 1000, UsedBytes: 600},
+		Disks:  []shared.Disk{{Mount: "/", TotalBytes: 1000, UsedBytes: 400}},
+	}
+	services := []shared.Service{{
+		Key: "systemd:worker.service", Kind: shared.KindSystemd, Name: "worker", Status: "failed",
+		Ports: []shared.Port{{Proto: "tcp", Bind: "0.0.0.0", Port: 8080, Exposure: shared.ExposurePublic}},
+	}}
+	first := time.Date(2026, 8, 8, 1, 2, 3, 0, time.UTC)
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{AgentVer: "0.5.0"}, status, services, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update(ctx, "host-a", false, "fixture timeout", shared.Ping{AgentVer: "0.5.0"}, status, services, first.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, store, "")
+
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/history?agent=host-a&limit=1", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("history API returned HTTP %d: %s", w.Code, w.Body.String())
+	}
+	var response HostHistoryResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.AgentID != "host-a" || len(response.Points) != 1 || response.Points[0].Online {
+		t.Fatalf("history response mismatch: %+v", response)
+	}
+	point := response.Points[0]
+	if point.FailedWorkloadCount != 1 || point.WildcardEndpointCount != 1 || point.MemoryUsedPct != 60 || point.DiskUsedPct != 40 {
+		t.Fatalf("history projection mismatch: %+v", point)
+	}
+
+	for target, expected := range map[string]int{
+		"/api/history":                        http.StatusBadRequest,
+		"/api/history?agent=missing":          http.StatusNotFound,
+		"/api/history?agent=host-a&limit=501": http.StatusBadRequest,
+	} {
+		w = httptest.NewRecorder()
+		server.ServeHTTP(w, httptest.NewRequest(http.MethodGet, target, nil))
+		if w.Code != expected {
+			t.Errorf("GET %s returned HTTP %d, want %d", target, w.Code, expected)
+		}
+	}
+}
+
 func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
 	s := newTestServer(t, NewMemStore(), "")
 	for _, path := range []string{"/", "/app.css", "/app.js", "/api/session"} {
