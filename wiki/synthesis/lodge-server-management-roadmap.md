@@ -98,6 +98,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M7 平台已 fail-closed 上线：最终双 CI 与漏洞扫描通过后，五台 Agent 0.7.0 和 Hub 0.8.0 事务滚动完成。55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified 保持，既有动作 22，发布权限 0；策略不存在、状态为空、token 未进 SQLite/WAL/SHM，管理面继续 Tailnet-only。production 业务发布仍是 0 次，只有操作者明确批准一个无状态 stack、固定 digest、health 与 recovery plan 后才完成最后 live rollback 验收。
 
+> 2026-08-08 M8 首个证据切片：重新只读检查五台主机有效 SSH 配置，全部仍是 wildcard `:22`、密码认证开启、root 远程登录开启；bytebunny、bytedragon、Ali 还没有 active UFW/Fail2Ban 双层防护。Tailnet 五机均 running，但不等于公网 SSH 已关闭。仓库已固化每台独立恢复路径、非 root key 管理员、Tailnet 新会话、`sshd -t`+reload、云边界回滚的收口门禁；尚未做会导致锁死的批量变更。下一步必须先确认每台的 console/recovery 和可用管理员 key，再逐机执行。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

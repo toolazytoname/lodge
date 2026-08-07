@@ -8,6 +8,7 @@
 - [[2026-08-08-m5-history-alerts]] — M5 有界历史查询、事件生命周期、规则与通知的持续实施记录。
 - [[2026-08-08-m6-controlled-operations]] — M6 root 策略动作、固定权限边界、审计与 Web 操作闭环的持续实施记录。
 - [[2026-08-08-m7-declarative-deployments]] — M7 root 策略不可变发布、健康检查与自动回滚的持续实施记录。
+- [[2026-08-08-m8-ssh-hardening-baseline]] — 五台主机有效 SSH、防火墙、Fail2Ban 与 Tailnet 基线，以及防锁死收口路径。
 
 ## Synthesis
 

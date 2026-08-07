@@ -131,3 +131,13 @@ stateful until its owner proves otherwise and defines workload-specific
 recovery. The remaining live acceptance therefore requires either an explicitly
 approved isolated stateless canary or a reviewed application refactor; it must
 not be forced onto the current stack.
+
+## M8 — SSH access hardening
+
+- [x] Read-only five-host effective SSH, listener, firewall, Fail2Ban, and Tailscale baseline
+- [x] Lockout-safe per-host rollout and acceptance runbook
+- [ ] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
+- [ ] Disable SSH password, keyboard-interactive, and root remote login one host at a time
+- [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate
+
+The 2026-08-08 baseline found every host still accepts password authentication and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali additionally have no active UFW or Fail2Ban layer; tencent has both; banwagong has active UFW but no active Fail2Ban. Tailscale is running on all five, but it does not by itself close public SSH. The detailed evidence and non-lockout sequence are in [`ssh-hardening.md`](ssh-hardening.md). No SSH, firewall, cloud-edge, user, or password setting was changed by this milestone.

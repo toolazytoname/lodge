@@ -237,3 +237,9 @@
 - Hub 0.8.0 事务上线，保留旧二进制/配置/一致性数据库回滚包并创建发布后备份；新 API 401、内嵌 UI、loopback、Tailnet-only Serve 与 credential scan 通过。
 - 终验为 schema 7/integrity ok、5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified、最大年龄 24.5 秒、0 in-flight。production 业务 deploy/rollback 保持 0，等待人工批准首个无状态 stack/digest。
 - 上线后只读合格性审计发现现有 3 个 Compose service 中，PostgreSQL/Redis 明确有状态，new-api 具有可写 `/data` 与 `/app/logs` bind mount；M7 v1 合格目标为 0。需人工选择隔离 canary 或先重构业务状态边界。
+
+## [2026-08-08] audit | M8 SSH 防爆破与访问收口基线
+
+- 五台主机的只读有效配置均为 wildcard SSH 监听、`PasswordAuthentication yes`、`PermitRootLogin yes`、public-key enabled、`MaxAuthTries 6` 与 `LoginGraceTime 120`；因此 Tailnet 已运行不等于公网 SSH 已关闭。
+- bytebunny、bytedragon、Ali 的 UFW inactive 且没有 active Fail2Ban；tencent 两者 active；banwagong 仅 UFW active。该证据不能推断云安全组或互联网实际可达性。
+- 新增逐主机的 non-root key 管理员、独立 Tailnet 新会话、保留 console/recovery、`sshd -t`+reload、云边界和 firewall 回滚证据门禁。尚未修改任何 SSH、用户、防火墙、Fail2Ban、云规则或密码，M8 保持进行中。
