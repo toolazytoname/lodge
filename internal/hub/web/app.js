@@ -45,9 +45,12 @@ let editingService = null;
 let selectedHistoryAgent = "";
 let selectedActionAgent = "";
 let pendingAction = null;
+let pendingDeployment = null;
 let actionExecuting = false;
 const historyByAgent = new Map();
 const actionsByAgent = new Map();
+const deploymentsByAgent = new Map();
+const trackedDeploymentOperations = new Set();
 function byID(id) {
     const node = document.getElementById(id);
     if (!node)
@@ -312,7 +315,7 @@ async function refresh() {
     if (activePage === "security")
         void loadSelectedHistory(true);
     if (activePage === "operations")
-        void loadSelectedActions(true);
+        void loadSelectedCapabilities(true);
     updateConnectionState(failures.length > 0);
     if (failures.length) {
         const noUsableData = !state.agentsLoaded && !state.servicesLoaded;
@@ -353,7 +356,7 @@ function setPage(page, updateHash = true) {
     if (page === "operations") {
         syncActionAgentSelect();
         renderOperations();
-        void loadSelectedActions(false);
+        void loadSelectedCapabilities(false);
     }
     window.scrollTo({ top: 0, behavior: "instant" });
 }
@@ -1207,6 +1210,38 @@ async function loadSelectedActions(force) {
     if (selectedActionAgent === agentID)
         renderOperations();
 }
+async function loadSelectedDeployments(force) {
+    syncActionAgentSelect();
+    const agentID = selectedActionAgent;
+    if (!agentID) {
+        renderOperations();
+        return;
+    }
+    const current = deploymentsByAgent.get(agentID) ?? { response: null, loading: false, error: "" };
+    if (current.loading || (!force && current.response))
+        return;
+    deploymentsByAgent.set(agentID, { ...current, loading: true, error: "" });
+    renderOperations();
+    try {
+        const response = await api(`/api/deployments?agent=${encodeURIComponent(agentID)}`);
+        deploymentsByAgent.set(agentID, { response, loading: false, error: "" });
+    }
+    catch (deploymentError) {
+        deploymentsByAgent.set(agentID, {
+            response: current.response,
+            loading: false,
+            error: errorMessage(deploymentError),
+        });
+    }
+    if (selectedActionAgent === agentID)
+        renderOperations();
+}
+async function loadSelectedCapabilities(force) {
+    await Promise.all([
+        loadSelectedActions(force),
+        loadSelectedDeployments(force),
+    ]);
+}
 function actionKindLabel(kind) {
     const labels = {
         logs: "读取日志",
@@ -1223,6 +1258,16 @@ function actionRiskLabel(risk) {
         disruptive: "中断风险",
     };
     return labels[risk];
+}
+function deploymentKindLabel(kind) {
+    return kind === "rollback" ? "回滚" : "部署";
+}
+function shortImageDigest(image) {
+    const marker = "@sha256:";
+    const offset = image.lastIndexOf(marker);
+    if (offset < 0)
+        return "摘要不可用";
+    return `sha256:${image.slice(offset + marker.length, offset + marker.length + 12)}…`;
 }
 function operationStateLabel(stateValue) {
     const labels = {
@@ -1258,6 +1303,13 @@ function operationErrorLabel(errorKind) {
         command_failed: "动作执行失败",
         state_read_failed: "无法读取目标状态",
         health_verification_failed: "执行后健康验证失败",
+        preflight_failed: "发布前检查失败",
+        image_prepare_failed: "镜像准备失败",
+        current_release_unknown: "无法识别当前版本",
+        state_prepare_failed: "发布状态准备失败",
+        compose_apply_failed: "Compose 应用失败",
+        rollback_failed: "自动回滚失败",
+        state_commit_failed: "发布状态持久化失败",
         log_read_failed: "日志读取失败",
         hub_restarted: "Hub 重启，结果不确定且未重放",
     };
@@ -1290,7 +1342,7 @@ function renderOperationAudit() {
         const copy = element("div", "operation-copy");
         copy.append(element("strong", "", operation.targetKey || "未指定目标"), element("p", "", operation.resultSummary || operationErrorLabel(operation.errorKind) || "等待执行结果"));
         const metadata = element("div", "operation-meta");
-        metadata.append(element("span", "", agentNames.get(operation.agentId) ?? operation.agentId), element("span", "", formatLastSeen(operation.requestedAt)), element("span", "", operationDuration(operation) || "—"), element("span", "operation-requester", operation.requestedBy.startsWith("session:") ? `会话 ${operation.requestedBy.slice(8)}` : operation.requestedBy));
+        metadata.append(element("span", "", agentNames.get(operation.agentId) ?? operation.agentId), element("span", "", formatLastSeen(operation.requestedAt)), element("span", "", operationDuration(operation) || "未完成"), element("span", "operation-requester", operation.requestedBy.startsWith("session:") ? `会话 ${operation.requestedBy.slice(8)}` : operation.requestedBy));
         copy.append(metadata);
         row.append(stateCell, copy);
         return row;
@@ -1300,19 +1352,86 @@ function renderOperationAudit() {
     }
     replaceChildren(audit, rows);
 }
+function renderDeployments(selectedAgent, inFlight) {
+    const status = byID("deploymentCapabilityStatus");
+    const list = byID("deploymentList");
+    const loaded = selectedActionAgent ? deploymentsByAgent.get(selectedActionAgent) : undefined;
+    const deployments = loaded?.response?.deployments ?? [];
+    if (!state.agentsLoaded || !selectedAgent) {
+        replaceChildren(status, []);
+        replaceChildren(list, [emptyState(state.agentsLoaded ? "尚未纳管主机。" : "主机列表暂时不可用。", state.agentsLoaded ? "" : "error")]);
+        return;
+    }
+    if (!loaded || (loaded.loading && !loaded.response)) {
+        replaceChildren(status, []);
+        replaceChildren(list, [emptyState("正在向 Agent 读取实时发布策略…", "loading")]);
+        return;
+    }
+    if (loaded.error && !loaded.response) {
+        replaceChildren(status, []);
+        replaceChildren(list, [emptyState(`发布策略暂时不可用：${loaded.error}`, "error")]);
+        return;
+    }
+    const stacks = new Map();
+    deployments.forEach((definition) => {
+        const existing = stacks.get(definition.stackKey) ?? [];
+        existing.push(definition);
+        stacks.set(definition.stackKey, existing);
+    });
+    const statusLine = element("div", "capability-status-line");
+    statusLine.append(element("span", `status-dot ${selectedAgent.online ? "online" : "offline"}`), element("strong", "", `${deployments.length} 个发布 / ${stacks.size} 个服务栈`), element("span", "", loaded.loading ? "正在复核策略" : `Agent ${loaded.response?.agentVersion || "版本未知"}`));
+    if (loaded.error)
+        statusLine.append(element("span", "capability-error", `最近更新失败：${loaded.error}`));
+    replaceChildren(status, [statusLine]);
+    if (!deployments.length) {
+        replaceChildren(list, [emptyState("这台主机没有安装发布策略，部署和回滚保持禁用。", "success")]);
+        return;
+    }
+    const groups = [...stacks.values()].map((definitions) => {
+        const first = definitions[0];
+        const group = element("article", "deployment-stack");
+        const heading = element("div", "deployment-stack-heading");
+        const identity = element("div", "deployment-stack-identity");
+        identity.append(element("strong", "", first.stackLabel), element("small", "", first.stackKey));
+        heading.append(identity, element("span", "deployment-current", `当前 ${first.currentReleaseId || "待识别"}`), element("span", "deployment-previous", `上一个 ${first.previousReleaseId || "无"}`));
+        group.append(heading);
+        definitions.forEach((definition) => {
+            const button = element("button", `deployment-row kind-${definition.kind}`);
+            button.type = "button";
+            button.setAttribute("aria-label", `${deploymentKindLabel(definition.kind)} ${definition.stackLabel} 到 ${definition.releaseLabel}`);
+            const kind = element("span", "deployment-kind", deploymentKindLabel(definition.kind));
+            const copy = element("span", "deployment-copy");
+            copy.append(element("strong", "", definition.releaseLabel), element("small", "", definition.description));
+            const metadata = element("span", "deployment-release-meta");
+            metadata.append(element("span", "deployment-release-id", definition.releaseId), element("code", "deployment-digest", shortImageDigest(definition.image)));
+            button.append(kind, copy, metadata, element("span", `action-risk ${definition.risk}`, actionRiskLabel(definition.risk)));
+            button.disabled = !selectedAgent.online || inFlight > 0 || actionExecuting;
+            button.addEventListener("click", () => openDeploymentDialog(selectedAgent, definition));
+            group.append(button);
+        });
+        return group;
+    });
+    replaceChildren(list, groups);
+}
 function renderOperations() {
     syncActionAgentSelect();
     const selectedAgent = state.agents.find((agent) => agent.id === selectedActionAgent);
     const loaded = selectedActionAgent ? actionsByAgent.get(selectedActionAgent) : undefined;
+    const deploymentLoaded = selectedActionAgent ? deploymentsByAgent.get(selectedActionAgent) : undefined;
     const actions = loaded?.response?.actions ?? [];
-    const targetCount = new Set(actions.map((action) => action.targetKey)).size;
+    const deployments = deploymentLoaded?.response?.deployments ?? [];
+    const targetCount = new Set([
+        ...actions.map((action) => action.targetKey),
+        ...deployments.map((deployment) => `deployment:${deployment.stackKey}`),
+    ]).size;
     const inFlight = state.operations.operations.filter((operation) => operation.state === "requested" || operation.state === "running").length;
-    const failed = state.operations.operations.filter((operation) => operation.state === "failed").length;
+    const failed = state.operations.operations.filter((operation) => operation.state === "failed" || operation.state === "rolled_back").length;
+    const capabilitiesLoaded = Boolean(loaded?.response && deploymentLoaded?.response);
     replaceChildren(byID("operationsMetrics"), [
-        metricCard("当前权限", loaded?.response ? actions.length : "N/A", selectedAgent ? selectedAgent.name : "未选择主机", actions.length ? "good" : "calm"),
-        metricCard("批准目标", loaded?.response ? targetCount : "N/A", "来自 root-only 策略", targetCount ? "info" : "calm"),
+        metricCard("受控能力", capabilitiesLoaded ? actions.length + deployments.length : "N/A", selectedAgent ? selectedAgent.name : "未选择主机", actions.length + deployments.length ? "good" : "calm"),
+        metricCard("批准目标", capabilitiesLoaded ? targetCount : "N/A", "来自 root-only 策略", targetCount ? "info" : "calm"),
         metricCard("执行中", state.operationsLoaded ? inFlight : "N/A", "全局串行门禁", inFlight ? "warning" : "good"),
-        metricCard("最近失败", state.operationsLoaded ? failed : "N/A", `最近 ${state.operations.operations.length} 条记录`, failed ? "critical" : "good"),
+        metricCard("失败 / 回滚", state.operationsLoaded ? failed : "N/A", `最近 ${state.operations.operations.length} 条记录`, failed ? "critical" : "good"),
     ]);
     if (!state.agentsLoaded) {
         replaceChildren(byID("syncSummary"), [emptyState("资产同步状态暂时不可用。", "error")]);
@@ -1372,10 +1491,12 @@ function renderOperations() {
             replaceChildren(list, actionRows);
         }
     }
+    renderDeployments(selectedAgent, inFlight);
     renderOperationAudit();
 }
 function openActionDialog(agent, definition) {
     pendingAction = { agentID: agent.id, agentName: agent.name, definition };
+    pendingDeployment = null;
     actionExecuting = false;
     byID("actionDialogTitle").textContent = `${actionKindLabel(definition.kind)} ${definition.targetLabel}`;
     byID("actionDialogContext").textContent = `${agent.name} · ${definition.targetKey}`;
@@ -1407,6 +1528,42 @@ function openActionDialog(agent, definition) {
     byID("actionDialog").showModal();
     input.focus();
 }
+function openDeploymentDialog(agent, definition) {
+    pendingAction = null;
+    pendingDeployment = { agentID: agent.id, agentName: agent.name, definition };
+    actionExecuting = false;
+    byID("actionDialogTitle").textContent = `${deploymentKindLabel(definition.kind)} ${definition.stackLabel} 到 ${definition.releaseLabel}`;
+    byID("actionDialogContext").textContent = `${agent.name} · ${definition.stackKey} · ${shortImageDigest(definition.image)}`;
+    replaceChildren(byID("actionDialogRisk"), [
+        element("span", `action-risk ${definition.risk}`, actionRiskLabel(definition.risk)),
+        element("span", "", "固定摘要 · 后台执行 · 健康失败自动回滚"),
+    ]);
+    byID("actionDialogDescription").textContent = definition.description;
+    byID("actionConfirmationPhrase").textContent = definition.confirmation;
+    const input = byID("actionConfirmation");
+    input.value = "";
+    input.disabled = false;
+    byID("actionConfirmationFields").classList.remove("hidden");
+    byID("actionResult").classList.add("hidden");
+    byID("actionLogNotice").classList.add("hidden");
+    const logs = byID("actionResultLogs");
+    logs.textContent = "";
+    logs.classList.add("hidden");
+    byID("actionError").classList.add("hidden");
+    const execute = byID("executeActionBtn");
+    execute.disabled = true;
+    execute.classList.remove("hidden");
+    execute.textContent = "确认发布";
+    const cancel = byID("cancelActionBtn");
+    cancel.disabled = false;
+    cancel.textContent = "取消";
+    byID("closeActionDialogBtn").disabled = false;
+    byID("actionDialog").showModal();
+    input.focus();
+}
+function pendingConfirmation() {
+    return pendingAction?.definition.confirmation ?? pendingDeployment?.definition.confirmation;
+}
 function closeActionDialog() {
     if (actionExecuting)
         return;
@@ -1414,6 +1571,7 @@ function closeActionDialog() {
     if (dialog.open)
         dialog.close();
     pendingAction = null;
+    pendingDeployment = null;
     byID("actionConfirmation").value = "";
     byID("actionResultLogs").textContent = "";
 }
@@ -1453,6 +1611,66 @@ function showActionExecutionResult(response) {
     cancel.textContent = "关闭";
     renderOperations();
 }
+function showDeploymentAccepted(response) {
+    rememberOperation(response.operation);
+    replaceChildren(byID("actionResultSummary"), [
+        element("strong", "success", "发布已受理"),
+        element("span", "", "Hub 正在后台执行。最终结果会自动写入下方操作记录，关闭窗口不会中断任务。"),
+    ]);
+    byID("actionResult").classList.remove("hidden");
+    byID("actionConfirmationFields").classList.add("hidden");
+    byID("actionLogNotice").classList.add("hidden");
+    byID("actionResultLogs").classList.add("hidden");
+    byID("executeActionBtn").classList.add("hidden");
+    byID("cancelActionBtn").textContent = "关闭";
+    renderOperations();
+}
+function operationIsTerminal(operation) {
+    return operation.state === "succeeded" || operation.state === "failed" || operation.state === "rolled_back";
+}
+async function trackDeploymentOperation(operationID, agentName, stackLabel) {
+    if (trackedDeploymentOperations.has(operationID))
+        return;
+    trackedDeploymentOperations.add(operationID);
+    try {
+        for (let attempt = 0; attempt < 800 && authed; attempt += 1) {
+            if (attempt > 0) {
+                await new Promise((resolve) => window.setTimeout(resolve, 1_500));
+            }
+            try {
+                state.operations = await api("/api/operations?limit=100");
+                state.operationsLoaded = true;
+                state.operationsError = "";
+                renderOperations();
+            }
+            catch (pollError) {
+                state.operationsError = errorMessage(pollError);
+                renderOperations();
+                continue;
+            }
+            const operation = state.operations.operations.find((candidate) => candidate.id === operationID);
+            if (!operation || !operationIsTerminal(operation))
+                continue;
+            if (operation.state === "succeeded") {
+                setNotice(`${agentName} · ${stackLabel}：发布成功，健康验证已通过。`);
+            }
+            else if (operation.state === "rolled_back") {
+                setNotice(`${agentName} · ${stackLabel}：发布未通过验证，已自动回滚并写入审计。`);
+            }
+            else {
+                setNotice(`${agentName} · ${stackLabel}：发布失败，${operationErrorLabel(operation.errorKind) || "请查看操作记录"}。`);
+            }
+            void loadSelectedDeployments(true);
+            return;
+        }
+        if (authed) {
+            setNotice(`${agentName} · ${stackLabel}：页面跟踪已超时，请以持久操作记录为准。`);
+        }
+    }
+    finally {
+        trackedDeploymentOperations.delete(operationID);
+    }
+}
 async function refreshOperationAudit() {
     try {
         state.operations = await api("/api/operations?limit=100");
@@ -1466,16 +1684,14 @@ async function refreshOperationAudit() {
 }
 async function executePendingAction(event) {
     event.preventDefault();
-    if (!pendingAction || actionExecuting)
+    const action = pendingAction;
+    const deployment = pendingDeployment;
+    if ((!action && !deployment) || actionExecuting)
         return;
     const confirmation = byID("actionConfirmation").value;
-    if (confirmation !== pendingAction.definition.confirmation)
+    const expectedConfirmation = action?.definition.confirmation ?? deployment?.definition.confirmation;
+    if (confirmation !== expectedConfirmation)
         return;
-    const input = {
-        agentId: pendingAction.agentID,
-        actionId: pendingAction.definition.id,
-        confirmation,
-    };
     actionExecuting = true;
     const execute = byID("executeActionBtn");
     const cancel = byID("cancelActionBtn");
@@ -1488,24 +1704,46 @@ async function executePendingAction(event) {
     byID("actionConfirmation").disabled = true;
     error.classList.add("hidden");
     try {
-        const response = await api("/api/actions/execute", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(input),
-        });
-        showActionExecutionResult(response);
-        setNotice(response.operation.state === "succeeded"
-            ? `${pendingAction.agentName} · ${pendingAction.definition.targetLabel}：动作已完成并写入审计。`
-            : `${pendingAction.agentName} · ${pendingAction.definition.targetLabel}：动作失败，已记录类型化原因。`);
+        if (action) {
+            const input = {
+                agentId: action.agentID,
+                actionId: action.definition.id,
+                confirmation,
+            };
+            const response = await api("/api/actions/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(input),
+            });
+            showActionExecutionResult(response);
+            setNotice(response.operation.state === "succeeded"
+                ? `${action.agentName} · ${action.definition.targetLabel}：动作已完成并写入审计。`
+                : `${action.agentName} · ${action.definition.targetLabel}：动作失败，已记录类型化原因。`);
+        }
+        else if (deployment) {
+            const input = {
+                agentId: deployment.agentID,
+                deploymentId: deployment.definition.id,
+                confirmation,
+            };
+            const response = await api("/api/deployments/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(input),
+            });
+            showDeploymentAccepted(response);
+            setNotice(`${deployment.agentName} · ${deployment.definition.stackLabel}：发布已受理，正在后台执行。`);
+            void trackDeploymentOperation(response.operation.id, deployment.agentName, deployment.definition.stackLabel);
+        }
     }
     catch (actionError) {
-        const audited = executionResponseFromError(actionError);
+        const audited = action ? executionResponseFromError(actionError) : null;
         if (audited) {
             showActionExecutionResult(audited);
-            setNotice(`${pendingAction.agentName} · ${pendingAction.definition.targetLabel}：Agent 未完成动作，失败已写入审计。`);
+            setNotice(`${action?.agentName ?? "主机"} · ${action?.definition.targetLabel ?? "目标"}：Agent 未完成动作，失败已写入审计。`);
         }
         else {
-            error.textContent = `无法提交动作：${errorMessage(actionError)}`;
+            error.textContent = `${deployment ? "无法提交发布" : "无法提交动作"}：${errorMessage(actionError)}`;
             error.classList.remove("hidden");
         }
     }
@@ -1513,8 +1751,8 @@ async function executePendingAction(event) {
         actionExecuting = false;
         close.disabled = false;
         if (!byID("actionConfirmationFields").classList.contains("hidden")) {
-            execute.disabled = confirmation !== pendingAction?.definition.confirmation;
-            execute.textContent = "确认执行";
+            execute.disabled = confirmation !== pendingConfirmation();
+            execute.textContent = deployment ? "确认发布" : "确认执行";
             cancel.disabled = false;
             byID("actionConfirmation").disabled = false;
         }
@@ -1522,7 +1760,7 @@ async function executePendingAction(event) {
             cancel.disabled = false;
         }
         void refreshOperationAudit();
-        void loadSelectedActions(true);
+        void loadSelectedCapabilities(true);
     }
 }
 async function probeWebLinks() {
@@ -1623,7 +1861,7 @@ byID("eventStateFilter").addEventListener("change", renderEvents);
 byID("actionAgent").addEventListener("change", (event) => {
     selectedActionAgent = event.currentTarget.value;
     renderOperations();
-    void loadSelectedActions(false);
+    void loadSelectedCapabilities(false);
 });
 byID("dismissNotice").addEventListener("click", () => setNotice(null));
 byID("pw").addEventListener("keydown", (event) => {
@@ -1670,7 +1908,7 @@ byID("closeActionDialogBtn").addEventListener("click", closeActionDialog);
 byID("cancelActionBtn").addEventListener("click", closeActionDialog);
 byID("actionConfirmation").addEventListener("input", (event) => {
     const value = event.currentTarget.value;
-    byID("executeActionBtn").disabled = actionExecuting || value !== pendingAction?.definition.confirmation;
+    byID("executeActionBtn").disabled = actionExecuting || value !== pendingConfirmation();
     byID("actionError").classList.add("hidden");
 });
 byID("actionDialog").addEventListener("click", (event) => {
@@ -1683,6 +1921,7 @@ byID("actionDialog").addEventListener("cancel", (event) => {
 });
 byID("actionDialog").addEventListener("close", () => {
     pendingAction = null;
+    pendingDeployment = null;
     byID("actionResultLogs").textContent = "";
 });
 window.addEventListener("hashchange", setPageFromHash);

@@ -137,6 +137,12 @@
   pre-operation image. Failed recovery is explicitly `rollback_failed` and is
   never hidden or automatically replayed. Stateful deployment remains disabled
   until a dedicated backup/restore adapter is designed and tested.
+- Hub deployment execution re-lists Agent authority, compares the exact
+  confirmation, shares the fleet-wide action lock, writes `requested` and
+  `running` before returning HTTP 202, and sends one non-retried POST. Browser
+  disconnect does not cancel accepted work; Hub restart marks unfinished audit
+  as uncertain and never replays it. The Web receives neither the host policy
+  paths nor the metadata-only Agent execution result.
 
 ### Secrets
 

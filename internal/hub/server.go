@@ -25,32 +25,34 @@ import (
 var webFS embed.FS
 
 const (
-	maxAnnotationBodyBytes = 16 << 10
-	maxAgentIDBytes        = 128
-	maxServiceKeyBytes     = 512
-	maxAliasRunes          = 120
-	maxNotesRunes          = 4000
-	maxURLBytes            = 2048
-	webLinkProbeBudget     = 15 * time.Second
-	actionExecutionBudget  = 30 * time.Second
-	historyDefaultLimit    = 120
-	historyMaximumLimit    = 500
-	eventsDefaultLimit     = 100
-	eventsMaximumLimit     = 500
+	maxAnnotationBodyBytes    = 16 << 10
+	maxAgentIDBytes           = 128
+	maxServiceKeyBytes        = 512
+	maxAliasRunes             = 120
+	maxNotesRunes             = 4000
+	maxURLBytes               = 2048
+	webLinkProbeBudget        = 15 * time.Second
+	actionExecutionBudget     = 30 * time.Second
+	deploymentExecutionBudget = 19 * time.Minute
+	historyDefaultLimit       = 120
+	historyMaximumLimit       = 500
+	eventsDefaultLimit        = 100
+	eventsMaximumLimit        = 500
 )
 
 // Server is the Hub HTTP boundary. A configured authenticator protects every
 // API except login and session discovery.
 type Server struct {
-	store    Store
-	authn    *authenticator
-	mux      *http.ServeMux
-	limiter  *loginLimiter
-	prober   webLinkProbeRunner
-	probeMu  sync.Mutex
-	actions  agentActionClient
-	actionMu sync.Mutex
-	now      func() time.Time
+	store       Store
+	authn       *authenticator
+	mux         *http.ServeMux
+	limiter     *loginLimiter
+	prober      webLinkProbeRunner
+	probeMu     sync.Mutex
+	actions     agentActionClient
+	deployments agentDeploymentClient
+	actionMu    sync.Mutex
+	now         func() time.Time
 }
 
 // NewServerWithAuth requires an Argon2id verifier and an independent signing
@@ -62,7 +64,7 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	}
 	s := &Server{
 		store: store, authn: authn, limiter: newLoginLimiter(), prober: newWebLinkProber(),
-		actions: newHTTPAgentActionClient(), now: time.Now,
+		actions: newHTTPAgentActionClient(), deployments: newHTTPAgentDeploymentClient(), now: time.Now,
 	}
 	s.mux = http.NewServeMux()
 
@@ -84,6 +86,8 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	s.mux.HandleFunc("/api/events/ack", s.auth(s.acknowledgeEvent))
 	s.mux.HandleFunc("/api/actions", s.auth(s.agentActions))
 	s.mux.HandleFunc("/api/actions/execute", s.auth(s.executeAction))
+	s.mux.HandleFunc("/api/deployments", s.auth(s.agentDeployments))
+	s.mux.HandleFunc("/api/deployments/execute", s.auth(s.executeDeployment))
 	s.mux.HandleFunc("/api/operations", s.auth(s.operations))
 	s.mux.HandleFunc("/api/annotation", s.auth(s.annotation))
 	s.mux.HandleFunc("/api/link-checks", s.auth(s.linkChecks))

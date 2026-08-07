@@ -21,7 +21,9 @@ are deliberate:
   exposes approved start/stop/restart/recent-log actions, requires the exact
   per-action confirmation phrase, and shows durable lifecycle audit. Recent log
   lines exist only in the current result dialog and are cleared when it closes.
-  Declarative deployment and rollback remain M7.
+  The same host selection also exposes root-approved immutable releases and
+  rollback, with current/previous identities, a shortened sha256 display, exact
+  confirmation, asynchronous acceptance, and durable terminal status.
 
 The UI must not describe a discovered link as reachable until an active probe
 has supplied evidence. It must not turn a failed API request into a misleading
@@ -62,7 +64,7 @@ risk visible until recovery. It shows host, kind, severity, duration, last
 observation, and lifecycle state; resolved history remains available by filter.
 Event API failure is isolated from current surface and history data. Webhook
 delivery is configured server-side and has no browser secret surface. This does
-does not claim that a source IP identifies a person or organization; Lodge does
+not claim that a source IP identifies a person or organization; Lodge does
 not perform attribution or GeoIP lookup.
 
 ## Source and embedded assets
@@ -105,7 +107,10 @@ The deterministic fixture server uses only invented host names and
   retained acknowledged risk, and an isolated event-API error;
 - live action-policy rendering, exact confirmation, CSRF-protected execution,
   transient log display, durable audit refresh, and the complete Operations
-  page at 390px.
+  page at 390px;
+- live deployment-policy rendering, immutable digest identity, exact
+  confirmation, HTTP 202 background execution, automatic terminal polling, and
+  `rolled_back` audit presentation.
 
 Reference screenshots live in `frontend/tests/__screenshots__`. Time, locale,
 timezone, data, and viewport are fixed. Update screenshots only for an intended

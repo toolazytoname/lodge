@@ -159,3 +159,23 @@ type ActionExecutionResponse struct {
 	Result    *shared.ActionExecutionResult `json:"result,omitempty"`
 	ErrorKind string                        `json:"errorKind,omitempty"`
 }
+
+// AgentDeploymentsResponse is the live root-policy projection. Host paths,
+// Compose/environment content, Agent URL, token, and health implementation are
+// intentionally absent.
+type AgentDeploymentsResponse struct {
+	AgentID      string                        `json:"agentId"`
+	AgentName    string                        `json:"agentName"`
+	AgentVersion string                        `json:"agentVersion,omitempty"`
+	Deployments  []shared.DeploymentDefinition `json:"deployments"`
+}
+
+type DeploymentExecutionInput struct {
+	AgentID      string `json:"agentId"`
+	DeploymentID string `json:"deploymentId"`
+	Confirmation string `json:"confirmation"`
+}
+
+type DeploymentExecutionResponse struct {
+	Operation OperationView `json:"operation"`
+}

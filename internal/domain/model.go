@@ -384,7 +384,7 @@ func (operation Operation) Validate() error {
 			return errors.New("failed operation must have finish time and error category")
 		}
 	case OperationRolledBack:
-		if operation.StartedAt == nil || operation.FinishedAt == nil || operation.Error != "" || strings.TrimSpace(operation.ResultSummary) == "" {
+		if operation.StartedAt == nil || operation.FinishedAt == nil || operation.Error == "" || strings.TrimSpace(operation.ResultSummary) == "" {
 			return errors.New("rolled-back operation timestamps or result are inconsistent")
 		}
 	default:

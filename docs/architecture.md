@@ -79,10 +79,15 @@ audit database. The browser exposes this contract through the Operations page.
 
 Declarative deployments reuse the capability boundary but have a distinct
 host-local transaction. The root policy fixes Compose paths, service, immutable
-image digests, and health checks; the Hub will select only a release ID. Root
+image digests, and health checks; the Hub selects only a release ID. Root
 captures an immutable rollback point, applies one generated override, verifies
 health, and restores the prior image on failure. Version 1 rejects stateful
-services. See [ADR 0011](adr/0011-root-policy-declarative-deployments.md).
+services. The Hub re-lists live authority on both list and execute, shares the
+ordinary action admission lock, persists `requested`/`running`, returns 202, and
+finalizes one non-retried Agent call in a bounded background context. Successful
+host recovery becomes `rolled_back` with the original failure category. The Web
+page polls this durable record, so browser lifetime is not the operation
+lifetime. See [ADR 0011](adr/0011-root-policy-declarative-deployments.md).
 
 Binding and reachability are separate. `0.0.0.0:PORT` means `wildcard-bound`;
 only an external probe or authoritative firewall/provider evidence can produce

@@ -48,6 +48,13 @@ export interface AgentActionsResponse {
   actions: Array<ActionDefinition>;
 }
 
+export interface AgentDeploymentsResponse {
+  agentId: string;
+  agentName: string;
+  agentVersion?: string;
+  deployments: Array<DeploymentDefinition>;
+}
+
 export interface AgentServices {
   agent: ServiceAgent;
   services: Array<ServiceView>;
@@ -73,6 +80,33 @@ export interface AnnotationInput {
   hidden?: boolean;
   notes?: string;
 }
+
+export interface DeploymentDefinition {
+  id: string;
+  stackKey: string;
+  stackLabel: string;
+  kind: DeploymentKind;
+  releaseId: string;
+  releaseLabel: string;
+  image: string;
+  currentReleaseId?: string;
+  previousReleaseId?: string;
+  description: string;
+  confirmation: string;
+  risk: ActionRisk;
+}
+
+export interface DeploymentExecutionInput {
+  agentId: string;
+  deploymentId: string;
+  confirmation: string;
+}
+
+export interface DeploymentExecutionResponse {
+  operation: OperationView;
+}
+
+export type DeploymentKind = "deploy" | "rollback";
 
 export type EventState = "active" | "acknowledged" | "resolved";
 

@@ -58,6 +58,9 @@ func generate() ([]byte, error) {
 			reflect.TypeOf(hub.AgentActionsResponse{}),
 			reflect.TypeOf(hub.ActionExecutionInput{}),
 			reflect.TypeOf(hub.ActionExecutionResponse{}),
+			reflect.TypeOf(hub.AgentDeploymentsResponse{}),
+			reflect.TypeOf(hub.DeploymentExecutionInput{}),
+			reflect.TypeOf(hub.DeploymentExecutionResponse{}),
 			reflect.TypeOf(hub.OperationsResponse{}),
 		},
 		seen:  make(map[reflect.Type]bool),
@@ -118,6 +121,8 @@ func (generator *typeGenerator) add(value reflect.Type) error {
 			generator.types[value.Name()] = "export type ActionTargetKind = \"systemd\" | \"docker\";\n"
 		case reflect.TypeOf(shared.ActionRisk("")):
 			generator.types[value.Name()] = "export type ActionRisk = \"read\" | \"change\" | \"disruptive\";\n"
+		case reflect.TypeOf(shared.DeploymentKind("")):
+			generator.types[value.Name()] = "export type DeploymentKind = \"deploy\" | \"rollback\";\n"
 		default:
 			generator.types[value.Name()] = fmt.Sprintf("export type %s = string;\n", value.Name())
 		}

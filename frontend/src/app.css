@@ -398,6 +398,7 @@ textarea:focus-visible {
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 620;
+  white-space: nowrap;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
@@ -1620,6 +1621,7 @@ textarea:focus-visible {
 
 .action-panel,
 .operation-boundary-panel,
+.deployment-panel,
 .operation-audit-panel {
   padding: 18px;
 }
@@ -1633,6 +1635,7 @@ textarea:focus-visible {
 }
 
 .action-boundary-copy,
+.deployment-heading p,
 .operation-audit-panel .panel-heading p {
   margin: 5px 0 0;
   color: var(--subtle);
@@ -1672,6 +1675,156 @@ textarea:focus-visible {
 
 .action-list > .empty-state {
   min-height: 190px;
+}
+
+.deployment-heading {
+  align-items: end;
+}
+
+.deployment-guardrails {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.deployment-guardrails span {
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--muted);
+  padding: 4px 7px;
+  font: 8px var(--font-mono);
+  white-space: nowrap;
+}
+
+.deployment-list {
+  display: grid;
+}
+
+.deployment-list > .empty-state {
+  min-height: 150px;
+}
+
+.deployment-stack {
+  border-top: 1px solid var(--border-soft);
+}
+
+.deployment-stack:first-child {
+  border-top: 0;
+}
+
+.deployment-stack-heading {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  background: rgb(255 255 255 / 1.5%);
+  padding: 10px 8px;
+}
+
+.deployment-stack-identity {
+  min-width: 0;
+}
+
+.deployment-stack-identity strong,
+.deployment-stack-identity small {
+  display: block;
+}
+
+.deployment-stack-identity strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deployment-stack-identity small,
+.deployment-current,
+.deployment-previous {
+  color: var(--subtle);
+  font: 8px var(--font-mono);
+}
+
+.deployment-stack-identity small {
+  margin-top: 2px;
+}
+
+.deployment-row {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 52px minmax(0, 1fr) 150px auto;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text);
+  padding: 12px 8px;
+  text-align: left;
+}
+
+.deployment-row:hover:not(:disabled) {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 2%), transparent);
+}
+
+.deployment-row:disabled {
+  cursor: not-allowed;
+}
+
+.deployment-kind {
+  color: var(--info);
+  font: 600 9px var(--font-mono);
+}
+
+.deployment-row.kind-rollback .deployment-kind {
+  color: var(--warning);
+}
+
+.deployment-copy,
+.deployment-release-meta {
+  min-width: 0;
+}
+
+.deployment-copy strong,
+.deployment-copy small,
+.deployment-release-meta span,
+.deployment-release-meta code {
+  display: block;
+}
+
+.deployment-copy strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deployment-copy small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deployment-release-meta {
+  text-align: right;
+}
+
+.deployment-release-id {
+  color: var(--muted);
+  font: 9px var(--font-mono);
+}
+
+.deployment-digest {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--subtle);
+  font: 8px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .action-row {
@@ -2505,6 +2658,40 @@ textarea:focus-visible {
 
   .action-row {
     grid-template-columns: 62px minmax(0, 1fr) auto;
+  }
+
+  .deployment-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .deployment-guardrails {
+    justify-content: flex-start;
+  }
+
+  .deployment-stack-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .deployment-previous {
+    display: none;
+  }
+
+  .deployment-row {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 9px;
+  }
+
+  .deployment-release-meta {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    display: flex;
+    gap: 9px;
+    text-align: left;
+  }
+
+  .deployment-digest {
+    margin-top: 0;
   }
 
   .operation-row {

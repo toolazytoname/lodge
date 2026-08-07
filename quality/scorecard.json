@@ -41,7 +41,7 @@
       "target": 5,
       "unit": "pages",
       "direction": "increase",
-      "evidence": "Sanitized browser acceptance covers Overview, Hosts, Services, Security, and Operations; Operations renders live root-policy capabilities, exact confirmation, transient results, and durable audit"
+      "evidence": "Sanitized browser acceptance covers Overview, Hosts, Services, Security, and Operations; Operations renders live action/deployment policies, exact confirmation, transient logs, asynchronous release acceptance, and durable audit"
     },
     {
       "id": "public_management_endpoints",
@@ -67,11 +67,11 @@
       "id": "hub_security_regression_tests",
       "dimension": "engineering",
       "name": "Hub authentication and browser-boundary regression tests",
-      "current": 45,
-      "target": 45,
+      "current": 51,
+      "target": 51,
       "unit": "tests",
       "direction": "increase",
-      "evidence": "Test functions in auth_security_test.go, hub_test.go, action_client_test.go, and operation_handlers_test.go"
+      "evidence": "Test functions in auth_security_test.go, hub_test.go, action_client_test.go, operation_handlers_test.go, deployment_client_test.go, and deployment_handlers_test.go"
     },
     {
       "id": "ssh_password_disabled_hosts",
@@ -124,6 +124,16 @@
       "evidence": "Agent 0.7.0 automated policy/contract/executor tests cover root policy, no shell, stateless-only, immutable digest, root-owned Compose paths, bounded local health, persistent rollback state, and verified automatic rollback"
     },
     {
+      "id": "declarative_deployment_audit_states",
+      "dimension": "operations",
+      "name": "Declarative deployment terminal audit states",
+      "current": 3,
+      "target": 3,
+      "unit": "states",
+      "direction": "increase",
+      "evidence": "Hub 0.8.0 automated tests and sanitized browser fixtures cover succeeded, failed, and rolled_back; rolled_back retains the original typed failure and the Agent call is not retried"
+    },
+    {
       "id": "event_rule_kinds",
       "dimension": "security",
       "name": "Implemented observation event rule kinds",
@@ -157,11 +167,11 @@
       "id": "critical_e2e_scenarios",
       "dimension": "engineering",
       "name": "Automated critical end-to-end scenarios",
-      "current": 20,
+      "current": 26,
       "target": 12,
       "unit": "scenarios",
       "direction": "increase",
-      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks and event acknowledgement, event lifecycle filters, durable history and host switching, isolated history/event API failures, exact action confirmation, transient log handling, durable operation audit, 390/1280/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
+      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks and event acknowledgement, event lifecycle filters, durable history and host switching, isolated history/event/deployment-policy API failures, exact action/deployment confirmation, transient log handling, immutable digest display, asynchronous deployment acceptance and terminal polling, rolled-back audit display, durable operation audit, 390/1280/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
     },
     {
       "id": "web_visual_regression_widths",

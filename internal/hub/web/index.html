@@ -230,6 +230,20 @@
               <div id="syncSummary" class="sync-summary"></div>
             </section>
           </div>
+          <section class="panel deployment-panel section-block" aria-labelledby="deploymentTitle">
+            <div class="panel-heading deployment-heading">
+              <div>
+                <p class="eyebrow">IMMUTABLE RELEASES</p>
+                <h2 id="deploymentTitle">已批准发布</h2>
+                <p>只显示主机策略批准的不可变版本；页面不能修改镜像、路径或健康检查。</p>
+              </div>
+              <div class="deployment-guardrails" aria-label="发布安全边界">
+                <span>仅无状态服务</span><span>固定 sha256</span><span>失败自动回滚</span>
+              </div>
+            </div>
+            <div id="deploymentCapabilityStatus" class="action-capability-status" aria-live="polite"></div>
+            <div id="deploymentList" class="deployment-list"></div>
+          </section>
           <section class="panel operation-audit-panel section-block" aria-labelledby="operationAuditTitle">
             <div class="panel-heading">
               <div>

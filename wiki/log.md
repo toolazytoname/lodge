@@ -218,3 +218,11 @@
 - root 预登记路径、service、health 和 release；Hub/HTTP 只能选择 ID，不能提交 Compose、环境、路径、镜像、命令或公网健康 URL。
 - 首次变更捕获运行镜像 RepoDigest；canonical override 同时保存 current/previous，fsync 后原子提交，失败则重新应用旧镜像并验证健康。
 - 量化安全控制达到 8/8；Hub 异步审计、Web 确认与 production 空策略滚动仍待完成，M7 保持进行中。
+
+## [2026-08-08] implementation | M7 Hub 异步审计与 Web 发布
+
+- Hub 0.8.0 对 list/execute 都重新读取 Agent root policy，只接受 agent/deployment ID 与逐字确认；调用者不能提交镜像、Compose、路径、环境、健康目标或命令。
+- 发布与普通动作共用全局串行门禁；`requested/running` 在 HTTP 202 前落库，后台只发送一次有界 Agent POST，浏览器断开不取消，Hub 重启不重放。
+- terminal 审计覆盖 succeeded、failed、rolled_back；自动恢复保留原失败分类，恢复失败明确为 rollback_failed。
+- Operations 页面新增不可变发布区，展示当前/上一版本与缩短 sha256，精确确认后通过持久操作记录跟踪最终状态；390/1280 fixture 同时覆盖成功与已回滚呈现。
+- Agent 安全控制 8/8、发布 terminal audit 3/3、Hub 边界回归 51/51、关键端到端场景 26；production 空策略滚动和首个经确认业务目标仍待执行，M7 保持进行中。

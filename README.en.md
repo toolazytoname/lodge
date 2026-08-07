@@ -20,8 +20,8 @@
 
 What's running on each of your machines, and what it's exposed to (local only / tailnet only / public) — discovered automatically, not tracked in a spreadsheet that goes stale in a week.
 
-- **agent**: runs on each managed machine under a non-root account, with read-only discovery of listening ports, containers, Compose identity, systemd services, redacted process origin, Caddy/Nginx Web routes, and recent SSH authentication-failure source counts. A root-owned target policy maps approved action IDs to fixed start, stop, restart, and recent-log operations — no arbitrary command execution.
-- **hub**: the central node, polls each Agent and serves a unified Web UI. It provides hardened password login, durable SQLite history, deduplicated event lifecycles, SSH brute-force source events, explicit acknowledgement, bounded Web-link checks, an optional durable Webhook, and exact-confirmation controlled actions with durable audit. Declarative deployment, rollback, and a vault remain roadmap items and are not security promises until implemented.
+- **agent**: runs on each managed machine under a non-root account, with read-only discovery of listening ports, containers, Compose identity, systemd services, redacted process origin, Caddy/Nginx Web routes, and recent SSH authentication-failure source counts. Root-owned policies map approved IDs to fixed start, stop, restart, recent-log, stateless deployment, and rollback operations; there is no arbitrary command execution.
+- **hub**: the central node, polls each Agent and serves a unified Web UI. It provides hardened password login, durable SQLite history, deduplicated event lifecycles, SSH brute-force source events, explicit acknowledgement, bounded Web-link checks, an optional durable Webhook, exact-confirmation controlled actions, and asynchronous immutable releases with durable success/failure/rollback audit. A vault remains a roadmap item and is not a security promise until implemented.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ The Hub pulls; Agents do not push. All machines share one tailnet. An Agent only
 
 - **agent never runs as root** — a dedicated system account, never added to the `docker` group (that group is root-equivalent). Controlled actions use one exact `--execute-action` sudo entry, receive only a bounded action ID, and resolve it through a non-replaceable root-owned policy to fixed argv; shell text, commands, arguments, and paths are not accepted. SSH monitoring emits only canonical source IPs and counts from a bounded authentication-log tail or bounded journal window, never usernames or raw logs. Proxy discovery does not read container environments or use `docker exec`, and emits only redacted routes and credential-free upstream authorities.
 - **Hub login**: an Argon2id verifier instead of a stored plaintext password, an independent random session-signing key, and `Secure`, `HttpOnly`, `SameSite=Strict` cookies. State-changing requests require a CSRF token. Consecutive login failures trigger exponential-backoff lockout.
-- **Management boundary**: production management endpoints are tailnet-only. Authentication is defense in depth, not permission to expose the console publicly. The Hub re-reads live Agent authority, requires CSRF plus the exact confirmation phrase, serializes writes, verifies state, records a durable audit, never retries the remote POST, and never stores returned log lines. Declarative deployment and a vault remain roadmap work.
+- **Management boundary**: production management endpoints are tailnet-only. Authentication is defense in depth, not permission to expose the console publicly. The Hub re-reads live Agent authority, requires CSRF plus the exact confirmation phrase, serializes writes, verifies state, records a durable audit, never retries the remote POST, and never stores returned log lines. Deployment is limited to root-reviewed stateless single services, immutable sha256 images, and local health checks; failure triggers a verified attempt to restore the previous release. A vault remains roadmap work.
 - **Persistence boundary**: Agent URLs and tokens exist only in the owner-private `0600` config and process memory, never SQLite. The database, WAL, and backups are `0600`, and migrations are versioned and checksum-verified.
 
 ## Development
@@ -74,6 +74,7 @@ docs/               architecture, threat model, quality gates, and delivery docs
 - [SSH security monitoring](docs/ssh-security-monitoring.md)
 - [Tailnet-only deployment](docs/tailnet-deployment.md)
 - [Agent onboarding](docs/agent-onboarding.md)
+- [Declarative deployments and rollback](docs/declarative-deployments.md)
 - [Web console](docs/web-console.md)
 - [Quality gates](docs/quality-gates.md)
 - [Development and acceptance](docs/development.md)

@@ -138,14 +138,17 @@ test.describe("Lodge Web console", () => {
     await expect(page).toHaveScreenshot("security-history-390.png", { fullPage: true });
   });
 
-  test("operations page enforces exact confirmation and keeps logs transient", async ({ page }) => {
+  test("operations page gates actions and asynchronous immutable releases", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/?fixture=normal#operations");
 
     await expect(page.getByRole("heading", { name: "已批准动作" })).toBeVisible();
     await expect(page.locator("#actionList .action-row")).toHaveCount(3);
-    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(4);
-    await expect(page.locator("#operationsMetrics .metric-value")).toHaveText(["3", "1", "0", "1"]);
+    await expect(page.getByRole("heading", { name: "已批准发布" })).toBeVisible();
+    await expect(page.locator("#deploymentList .deployment-row")).toHaveCount(2);
+    await expect(page.locator("#deploymentList")).toContainText("sha256:222222222222…");
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(5);
+    await expect(page.locator("#operationsMetrics .metric-value")).toHaveText(["5", "2", "0", "2"]);
     await page.getByRole("button", { name: "读取日志 Gateway", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "读取日志 Gateway" });
     await expect(dialog).toBeVisible();
@@ -162,7 +165,7 @@ test.describe("Lodge Web console", () => {
     await expect(dialog.locator("#actionResultSummary")).toContainText("动作完成");
     await expect(dialog.locator("#actionResultLogs")).toContainText("gateway ready");
     await expect(dialog.locator("#actionLogNotice")).toContainText("关闭后即清除");
-    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(5);
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(6);
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("读取日志");
     await expectNoHorizontalOverflow(page);
     // Preserve the complete page while neutralizing platform font-metric
@@ -173,9 +176,29 @@ test.describe("Lodge Web console", () => {
     await dialog.locator("#cancelActionBtn").click();
     await expect(dialog).not.toBeVisible();
     await expect(page.locator("#actionResultLogs")).toHaveText("");
+
+    await page.getByRole("button", { name: "部署 Gateway 到 Version 2", exact: true }).click();
+    const deploymentDialog = page.getByRole("dialog", { name: "部署 Gateway 到 Version 2" });
+    await expect(deploymentDialog.locator("#actionConfirmationPhrase")).toHaveText("确认部署 Gateway 到 Version 2");
+    const deploymentConfirmation = deploymentDialog.getByLabel("确认短语");
+    const deploy = deploymentDialog.getByRole("button", { name: "确认发布", exact: true });
+    await deploymentConfirmation.fill("确认部署 Gateway");
+    await expect(deploy).toBeDisabled();
+    await deploymentConfirmation.fill("确认部署 Gateway 到 Version 2");
+    await expect(deploy).toBeEnabled();
+    await deploy.click();
+    await expect(deploymentDialog.locator("#actionResultSummary")).toContainText("发布已受理");
+    await expect(page.locator("#operationAudit .operation-row").first()).toContainText("部署");
+    await expect(page.locator("#operationAudit .operation-row").first()).toContainText("成功");
+    await expect(page.locator("#notice")).toContainText("健康验证已通过");
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(7);
+    await deploymentDialog.locator("#cancelActionBtn").click();
+    await expect(deploymentDialog).not.toBeVisible();
+
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#actionList .action-row")).toHaveCount(3);
     await expectNoHorizontalOverflow(page);
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
     await page.addStyleTag({ content: "html, body { min-height: 1951px !important; }" });
     await expect(page).toHaveScreenshot("operations-390.png", { fullPage: true });
   });
@@ -221,6 +244,11 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#historySummary")).toContainText("历史数据暂时不可用");
     await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(0);
     await expect(page.locator("#eventList .event-row")).toHaveCount(4);
-    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/events", "/api/events", "/api/history", "/api/link-checks", "/api/operations", "/api/services", "/api/services"]);
+
+    await page.goto("/?fixture=deployments-error#operations");
+    await expect(page.locator("#actionList .action-row")).toHaveCount(3);
+    await expect(page.locator("#deploymentList")).toContainText("发布策略暂时不可用");
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(5);
+    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/deployments", "/api/events", "/api/events", "/api/history", "/api/link-checks", "/api/operations", "/api/services", "/api/services"]);
   });
 });

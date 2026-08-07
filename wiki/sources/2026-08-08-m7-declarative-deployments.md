@@ -32,6 +32,21 @@ root-owned Compose paths、local health、persistent rollback point、verified a
 rollback。macOS 单元测试、Linux 测试编译、Linux Agent 构建、安装器策略测试与
 vet 已通过；完整门禁和 GitHub CI 将作为本切片提交证据。
 
-Hub 异步执行、`rolled_back` 持久审计、Web exact confirmation 和 production 空策略滚动
-仍未完成，因此 M7 保持进行中。任何真实业务发布目标与 immutable digest 都不会
-由 Agent 自动猜测。
+## Hub 与 Web 闭环
+
+Hub `0.8.0` 新增实时发布清单和异步执行 API。list 与 execute 都重新访问 Agent，
+执行只接收 agent/deployment ID/逐字确认，不接受镜像、路径、Compose、环境或健康
+目标。普通动作和发布共享全局 admission lock；Hub 在返回 HTTP 202 前以 compare-and-set
+持久化 `requested → running`，随后在独立有界 context 中只发送一次 Agent POST。
+浏览器断开不会取消已受理事务，Hub 重启也不会重放不确定执行。
+
+Agent 成功恢复操作前版本时，Hub 保存 `rolled_back` 与原始失败分类；恢复失败保存
+`failed/rollback_failed`。Operations 页面展示当前/上一 release、缩短摘要、部署/回滚
+风险与安全边界，精确确认后立即显示“已受理”，再轮询持久审计直到 terminal。fixture
+覆盖成功、失败、已回滚、CSRF、错误确认、共享串行锁和 390/1280 视觉，无真实主机、
+地址或镜像进入截图。
+
+量化状态更新为 Agent 安全控制 8/8、发布 terminal audit 3/3、Hub 边界回归测试
+51/51、关键端到端场景 26。代码与自动化验收已完成；production 空策略滚动和首个
+经人工确认的无状态 stack/digest 仍未完成，因此 M7 总体保持进行中。Lodge 不会从
+现有业务容器自动猜测第一个发布目标。

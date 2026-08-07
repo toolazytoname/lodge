@@ -20,8 +20,8 @@
 
 每台自己维护的服务器上跑着什么服务、暴露到哪里（只本机可访问 / 只 tailnet 内可访问 / 公网可达），一目了然——而不是靠手工表格，一周后就过时。
 
-- **agent**：部署在每台被管机器上，非 root 账号运行，只读采集端口、容器、Compose 身份、自建/失败 systemd 单元、脱敏进程来源、Caddy/Nginx Web 路由与最近 SSH 认证失败来源聚合，通过 sudoers 精确白名单执行少数几个受限动作，不支持任意命令执行。
-- **hub**：中心节点，定期拉取各 agent 的状态，提供 Web 界面统一查看；当前使用密码登录 + 登录限速，将观测历史、去重事件生命周期与受控操作审计持久化到 SQLite，提供按主机的有界趋势、SSH 爆破来源事件、事件筛选/确认、可选的可靠 Webhook 通知、显式 Web 入口检查，以及由 root 策略批准并逐字确认的启动/停止/重启/近期日志动作。声明式部署、回滚与 vault 仍在路线图中，未完成前不作为安全承诺。
+- **agent**：部署在每台被管机器上，非 root 账号运行，只读采集端口、容器、Compose 身份、自建/失败 systemd 单元、脱敏进程来源、Caddy/Nginx Web 路由与最近 SSH 认证失败来源聚合，通过 sudoers 精确白名单执行少数几个受限动作和无状态服务发布，不支持任意命令执行。
+- **hub**：中心节点，定期拉取各 agent 的状态，提供 Web 界面统一查看；当前使用密码登录 + 登录限速，将观测历史、去重事件生命周期与受控操作审计持久化到 SQLite，提供按主机的有界趋势、SSH 爆破来源事件、事件筛选/确认、可选的可靠 Webhook 通知、显式 Web 入口检查，以及由 root 策略批准并逐字确认的启动/停止/重启/近期日志、固定摘要部署和回滚。vault 仍在路线图中，未完成前不作为安全承诺。
 
 ## 架构
 
@@ -36,7 +36,7 @@ hub 主动拉取（非 agent 推送），机器都在同一个 tailnet 里；age
 
 - **agent 绝不以 root 运行**，专用系统账号，不加入 `docker` 组（docker 组等价 root）。特权采集走完整 argv 精确白名单；受控操作只允许一个固定 `--execute-action` sudo 入口，从 stdin 接收有界动作 ID，再由不可被 `lodge` 替换的 root-only `/etc/lodge-agent/actions.json` 映射到固定命令，不接受 shell、命令、参数或路径。SSH 监测只从有界认证日志尾部或有界 journal 窗口输出 canonical 来源 IP/count，不输出用户名或原始日志。进程归属不读取命令行、环境变量或完整路径；反向代理发现不读取容器环境变量、不执行 `docker exec`，Nginx include 也被限制在 `/etc/nginx` 内，只输出脱敏路由与无凭据上游地址。
 - **hub 登录**：Argon2id 慢哈希 verifier，不保存明文密码；独立随机密钥签名会话，Cookie 使用 `Secure`、`HttpOnly`、`SameSite=Strict`，写操作验证 CSRF token；连续失败按指数退避锁定。
-- **管理面边界**：生产管理面只允许在 Tailnet 内开放；登录认证是纵深防御，不是公网暴露的许可。Hub 不接受命令、参数或目标，只能执行 Agent 实时策略返回的动作 ID；每次写操作要求 CSRF 与逐字确认、全局串行、执行后验证和持久审计，远程 POST 不重试，日志不入审计。声明式部署和 vault 仍在路线图中，未完成前不作为安全承诺。
+- **管理面边界**：生产管理面只允许在 Tailnet 内开放；登录认证是纵深防御，不是公网暴露的许可。Hub 不接受命令、参数或目标，只能执行 Agent 实时策略返回的动作/发布 ID；每次写操作要求 CSRF 与逐字确认、全局串行、执行后验证和持久审计，远程 POST 不重试，日志不入审计。发布只允许 root 预先登记的无状态单服务、固定 sha256 镜像和本机健康检查，失败自动尝试恢复上一已验证版本。vault 仍在路线图中，未完成前不作为安全承诺。
 - **持久化边界**：Agent URL/token 只存在于 `0600` 私有配置和进程内存，不进入 SQLite；数据库、WAL、备份均为 `0600`，迁移有版本与校验和门禁。
 
 ## 开发
@@ -78,6 +78,7 @@ quality/            可量化质量基线与目标
 - [Tailnet-only 部署](docs/tailnet-deployment.md)
 - [Agent 安全纳管](docs/agent-onboarding.md)
 - [SSH 安全监测](docs/ssh-security-monitoring.md)
+- [声明式部署与回滚](docs/declarative-deployments.md)
 - [质量门禁](docs/quality-gates.md)
 - [Web 控制台与浏览器验收](docs/web-console.md)
 - [开发与验收](docs/development.md)

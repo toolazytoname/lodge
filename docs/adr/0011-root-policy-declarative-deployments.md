@@ -79,6 +79,10 @@ the time reserved for restoring the previous service.
 - Automatic rollback is best effort and its failure is visible. It cannot
   guarantee recovery from host loss, broken storage, an incompatible external
   dependency, or a release that corrupts data despite being declared stateless.
-- The Hub and Web layer must re-list live authority, require exact confirmation,
+- The Hub and Web layer re-list live authority, require exact confirmation,
   execute asynchronously with no retry, and durably audit success, recovered
-  failure, and failed rollback before M7 is complete.
+  failure, and failed rollback. Ordinary actions and deployments share one
+  fleet-wide admission lock.
+- HTTP 202 means only that `requested` and `running` were durably recorded. The
+  browser follows the operation audit to a terminal result; closing or
+  refreshing the page does not cancel or replay the host transaction.

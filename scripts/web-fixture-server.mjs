@@ -72,7 +72,7 @@ function buildFixture(mode) {
         online: !offline,
         lastSeen: "2026-08-08T00:00:00Z",
         ...(offline ? { lastError: "fixture: agent connection timed out" } : {}),
-        agentVersion: "0.6.0",
+        agentVersion: "0.7.0",
       },
       services,
     };
@@ -142,7 +142,7 @@ function buildHistory(mode, agentID) {
       observedAt: new Date(baseTime - index * 30_000).toISOString(),
       online,
       ...(online ? {
-        agentVersion: "0.6.0",
+        agentVersion: "0.7.0",
         cpus: hostDefinitions[hostIndex].cpus,
         load1: Number(Math.max(0.01, hostDefinitions[hostIndex].load1 + wave * 0.08).toFixed(2)),
         memoryUsedPct: memory,
@@ -167,6 +167,19 @@ const acknowledgedFixtureEvents = new Set();
 
 function seededOperations() {
   return [
+    {
+      id: "op_fixture_south_deploy_rollback",
+      agentId: "south",
+      targetKey: "gateway",
+      kind: "deploy",
+      state: "rolled_back",
+      requestedBy: "session:9b1d4e73a2f011c8",
+      requestedAt: "2026-08-07T23:54:00Z",
+      startedAt: "2026-08-07T23:54:01Z",
+      finishedAt: "2026-08-07T23:55:18Z",
+      resultSummary: "Version 2 未通过健康验证，已自动恢复 Version 1",
+      errorKind: "health_verification_failed",
+    },
     {
       id: "op_fixture_west_restart",
       agentId: "west",
@@ -219,6 +232,7 @@ function seededOperations() {
 }
 
 let fixtureOperations = seededOperations();
+let fixtureDeploymentPending = new Map();
 
 function buildActions(mode, agentID) {
   const agent = buildFixture(mode).agents.find((candidate) => candidate.id === agentID);
@@ -231,7 +245,7 @@ function buildActions(mode, agentID) {
   return {
     agentId: agent.id,
     agentName: agent.name,
-    agentVersion: "0.6.0",
+    agentVersion: "0.7.0",
     actions: [
       {
         ...common,
@@ -259,6 +273,65 @@ function buildActions(mode, agentID) {
       },
     ],
   };
+}
+
+function buildDeployments(mode, agentID) {
+  const agent = buildFixture(mode).agents.find((candidate) => candidate.id === agentID);
+  if (!agent) return null;
+  const digest = (digit) => `registry.fixture.example.test/gateway@sha256:${digit.repeat(64)}`;
+  return {
+    agentId: agent.id,
+    agentName: agent.name,
+    agentVersion: "0.7.0",
+    deployments: [
+      {
+        id: "deploy:gateway:v2",
+        stackKey: "gateway",
+        stackLabel: "Gateway",
+        kind: "deploy",
+        releaseId: "v2",
+        releaseLabel: "Version 2",
+        image: digest("2"),
+        currentReleaseId: "v1",
+        previousReleaseId: "v0",
+        description: "部署不可变镜像并验证；失败自动回滚：Gateway / Version 2",
+        confirmation: "确认部署 Gateway 到 Version 2",
+        risk: "disruptive",
+      },
+      {
+        id: "rollback:gateway",
+        stackKey: "gateway",
+        stackLabel: "Gateway",
+        kind: "rollback",
+        releaseId: "v0",
+        releaseLabel: "Version 0",
+        image: digest("0"),
+        currentReleaseId: "v1",
+        previousReleaseId: "v0",
+        description: "回滚到上一个已验证版本：Gateway / Version 0",
+        confirmation: "确认回滚 Gateway 到 Version 0",
+        risk: "disruptive",
+      },
+    ],
+  };
+}
+
+function settleFixtureDeployments() {
+  for (const [operationID, polls] of fixtureDeploymentPending) {
+    if (polls < 1) {
+      fixtureDeploymentPending.set(operationID, polls + 1);
+      continue;
+    }
+    fixtureOperations = fixtureOperations.map((operation) => operation.id === operationID
+      ? {
+          ...operation,
+          state: "succeeded",
+          finishedAt: "2026-08-08T00:01:18Z",
+          resultSummary: "Gateway 已部署 Version 2，健康验证通过",
+        }
+      : operation);
+    fixtureDeploymentPending.delete(operationID);
+  }
 }
 
 async function readJSONBody(request) {
@@ -419,6 +492,7 @@ const server = createServer(async (request, response) => {
       } else {
         acknowledgedFixtureEvents.clear();
         fixtureOperations = seededOperations();
+        fixtureDeploymentPending = new Map();
         sendJSON(response, 200, { ok: true });
       }
       return;
@@ -547,12 +621,60 @@ const server = createServer(async (request, response) => {
       });
       return;
     }
+    if (requestURL.pathname === "/api/deployments") {
+      if (request.method !== "GET") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+      } else if (mode === "error" || mode === "deployments-error") {
+        sendJSON(response, 503, { error: "fixture deployments unavailable" });
+      } else {
+        const deployments = buildDeployments(mode, requestURL.searchParams.get("agent") || "");
+        if (!deployments) sendJSON(response, 404, { error: "fixture unknown agent" });
+        else sendJSON(response, 200, deployments);
+      }
+      return;
+    }
+    if (requestURL.pathname === "/api/deployments/execute") {
+      if (request.method !== "POST") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+        return;
+      }
+      if (request.headers["x-csrf-token"] !== "fixture-csrf") {
+        sendJSON(response, 403, { error: "fixture csrf" });
+        return;
+      }
+      const input = await readJSONBody(request);
+      const capabilities = buildDeployments(mode, input.agentId);
+      const deployment = capabilities?.deployments.find((candidate) => candidate.id === input.deploymentId);
+      if (!deployment) {
+        sendJSON(response, 404, { error: "fixture deployment not approved" });
+        return;
+      }
+      if (input.confirmation !== deployment.confirmation) {
+        sendJSON(response, 422, { error: "fixture confirmation mismatch" });
+        return;
+      }
+      const operation = {
+        id: `op_fixture_deployment_${fixtureOperations.length + 1}`,
+        agentId: input.agentId,
+        targetKey: deployment.stackKey,
+        kind: deployment.kind,
+        state: "running",
+        requestedBy: "session:fixture123456789",
+        requestedAt: "2026-08-08T00:00:00Z",
+        startedAt: "2026-08-08T00:00:01Z",
+      };
+      fixtureOperations.unshift(operation);
+      fixtureDeploymentPending.set(operation.id, 0);
+      sendJSON(response, 202, { operation });
+      return;
+    }
     if (requestURL.pathname === "/api/operations") {
       if (request.method !== "GET") {
         sendJSON(response, 405, { error: "fixture method not allowed" });
       } else if (mode === "error" || mode === "operations-error") {
         sendJSON(response, 503, { error: "fixture operations unavailable" });
       } else {
+        settleFixtureDeployments();
         const agentID = requestURL.searchParams.get("agent") || "";
         sendJSON(response, 200, {
           ...(agentID ? { agentId: agentID } : {}),

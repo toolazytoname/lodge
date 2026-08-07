@@ -37,6 +37,17 @@ func TestOperationLifecycleValidation(t *testing.T) {
 	if err := failed.Validate(); err == nil {
 		t.Fatal("raw error text was accepted as an audit category")
 	}
+
+	rolledBack := operation
+	rolledBack.Kind, rolledBack.WorkloadKey = OperationDeploy, "gateway"
+	rolledBack.State, rolledBack.ResultSummary, rolledBack.Error = OperationRolledBack, "已自动恢复到操作前版本", "health_verification_failed"
+	if err := rolledBack.Validate(); err != nil {
+		t.Fatalf("valid rolled-back deployment rejected: %v", err)
+	}
+	rolledBack.Error = ""
+	if err := rolledBack.Validate(); err == nil {
+		t.Fatal("rolled-back deployment without original failure category was accepted")
+	}
 }
 
 func TestOperationRejectsInconsistentOrOversizedAuditData(t *testing.T) {
