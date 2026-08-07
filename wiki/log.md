@@ -60,3 +60,12 @@
 - Hub 增加旧路由 404 后的一次有界重连回归保护并事务部署；认证失败不重试，重复 404 仍失败，生产 binary、回滚包和部署后 SQLite 备份均校验通过。
 - 最终 live SQLite 为 5/5 online、45 workloads、86 endpoints、0 unidentified、0 warnings，归因率 100.0%，完整性检查通过。
 - 五机远程 staging 目录均已精确删除；每台回滚包和两台 Tailscale 路由备份保留。
+
+## [2026-08-07] deployment | Compose 与完整 systemd 资产上线
+
+- Hub 先升级到 SQLite schema 3，新增 Compose project/service 持久字段并保持 Agent 0.2.0 向后兼容；迁移前后数据库备份、权限和完整性均通过。
+- Agent 0.3.0 发现 operator-managed active systemd 单元与全部 failed 单元；无监听服务也进入资产台账，vendor 单元仍默认折叠，已有监听归属不回退。
+- Compose 只通过 root-owned Agent 的固定自调用读取 Docker 官方 project/service 标签；输出为校验后的三元组，不读取或返回完整标签、环境变量、命令行、工作目录或配置路径。
+- 一版带复杂 Docker template 的 sudoers 在 tencent 真实服务上下文被安装器拒绝；主机原子恢复到 0.2.0。最终改为无动态参数的 root helper，五机逐台预检、安装、Hub 落库验收后发布完成。
+- 最新 live SQLite 为 5/5 online、全部 Agent 0.3.0、55 workloads、86 endpoints、0 warnings、0 unidentified，最大观测年龄 28.7 秒；Compose 精确识别 banwagong `new-api` 的 3 个服务，并发现 4 个 failed systemd 单元。
+- schema 3 `integrity_check=ok`；五枚 Agent token 在 SQLite、WAL、SHM 中均无命中；五机 staging 均已删除，逐机 root-only 回滚包保留。

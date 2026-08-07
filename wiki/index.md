@@ -3,7 +3,7 @@
 ## Sources
 
 - [[2026-08-06-lodge-readonly-audit]] — 本地代码、现有 Hub 状态与五台服务器的只读基线审计。
-- [[2026-08-07-m3-fleet-onboarding]] — tencent、banwagong 安全纳管与 5/5 实时资产验收。
+- [[2026-08-07-m3-fleet-onboarding]] — 五机安全纳管、100% 归属与 Compose/systemd 完整资产验收。
 
 ## Synthesis
 

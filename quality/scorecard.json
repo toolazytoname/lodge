@@ -21,7 +21,7 @@
       "target": 95,
       "unit": "percent",
       "direction": "increase",
-      "evidence": "Live SQLite latest observations: 45 known of 45 workloads across 5 hosts, with 0 discovery warnings, on 2026-08-07"
+      "evidence": "Live SQLite schema 3 latest observations: 55 known of 55 workloads across 5 Agent 0.3.0 hosts, with 0 discovery warnings, on 2026-08-07"
     },
     {
       "id": "public_management_endpoints",
@@ -81,7 +81,7 @@
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Live bytedragon Hub uses --history-retention 720h with SQLite schema 2 on 2026-08-07"
+      "evidence": "Live bytedragon Hub uses --history-retention 720h with SQLite schema 3 on 2026-08-07"
     },
     {
       "id": "web_operations",
@@ -117,11 +117,11 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": 31,
+      "current": 29,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "Post-Hub-deployment point-in-time live SQLite measurement across 5 hosts on 2026-08-07"
+      "evidence": "Post-Agent-0.3.0 point-in-time live SQLite measurement across 5 hosts: maximum 28.7 seconds on 2026-08-07"
     },
     {
       "id": "risk_detection_seconds",
