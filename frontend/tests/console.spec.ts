@@ -169,8 +169,8 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("读取日志");
     await expectNoHorizontalOverflow(page);
     // Preserve the complete page while neutralizing platform font-metric
-    // rounding (Linux is five pixels shorter than macOS for this fixture).
-    await page.addStyleTag({ content: "html, body { min-height: 1353px !important; }" });
+    // rounding (Linux is six pixels shorter than macOS for this fixture).
+    await page.addStyleTag({ content: "html, body { min-height: 1765px !important; }" });
     await expect(page).toHaveScreenshot("operations-result-1280.png", { fullPage: true });
 
     await dialog.locator("#cancelActionBtn").click();

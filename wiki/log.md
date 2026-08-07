@@ -226,3 +226,4 @@
 - terminal 审计覆盖 succeeded、failed、rolled_back；自动恢复保留原失败分类，恢复失败明确为 rollback_failed。
 - Operations 页面新增不可变发布区，展示当前/上一版本与缩短 sha256，精确确认后通过持久操作记录跟踪最终状态；390/1280 fixture 同时覆盖成功与已回滚呈现。
 - Agent 安全控制 8/8、发布 terminal audit 3/3、Hub 边界回归 51/51、关键端到端场景 26；production 空策略滚动和首个经确认业务目标仍待执行，M7 保持进行中。
+- 首轮 Linux CI 证明 Operations 结果页因平台字体度量比 macOS 短 6px；门禁继续比较完整页面，并把完整画布固定为 1765px，不裁图也不放宽像素阈值。
