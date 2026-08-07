@@ -17,11 +17,11 @@
       "id": "known_workload_attribution_percent",
       "dimension": "product",
       "name": "Known workload attribution",
-      "current": 80.4,
+      "current": 100,
       "target": 95,
       "unit": "percent",
       "direction": "increase",
-      "evidence": "Live latest observations: 41 known of 51 workloads across 5 hosts on 2026-08-07"
+      "evidence": "Live SQLite latest observations: 45 known of 45 workloads across 5 hosts, with 0 discovery warnings, on 2026-08-07"
     },
     {
       "id": "public_management_endpoints",
@@ -117,11 +117,11 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": 14,
+      "current": 26,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "Point-in-time live SQLite measurement across 5 hosts on 2026-08-07"
+      "evidence": "Post-rollout point-in-time live SQLite measurement across 5 hosts on 2026-08-07"
     },
     {
       "id": "risk_detection_seconds",

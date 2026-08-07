@@ -51,3 +51,11 @@
 - Hub 最新观测为 5/5 在线、51 个 workloads、86 个 endpoints；41 个 workload 已归因，归因率 80.4%，尚未达到 95% 目标。
 - banwagong 既有 `/etc/sudoers.d/hermes-ro` 为 0644 并被 sudo 忽略；Lodge 未修改或启用它，安装器验证没有增加新的 sudoers 诊断。
 - 两个新节点当前 Tailscale `Tags` 为空；管理端点不是公网且仍有 bearer token，但 `tag:lodge-agent` 与负向 grants 需要在 Tailscale 管理面补验，不能宣称已完成最小权限 ACL。
+
+## [2026-08-07] deployment | 五机 workload 归属升级
+
+- 五台 Agent 滚动升级到 `0.2.0`、同一 CGo-free 静态二进制 SHA；每台先建 root-only 回滚点，再做服务上下文、越权、脱敏和 Hub 端验收。
+- Docker systemd scope/host-network 监听归属与脱敏自定义进程来源上线；tencent 的 8 个 Node 端口归并成 4 个项目，bytebunny Nginx 和 banwagong cpa-manager-plus 归回容器。
+- bytebunny、ali 从旧 HTTP Serve 迁移到 TCP Serve；旧连接池造成的短暂 404/offline 观测被保留，Hub 一致性备份并重启连接池后恢复。
+- 最终 live SQLite 为 5/5 online、45 workloads、86 endpoints、0 unidentified、0 warnings，归因率 100.0%，完整性检查通过。
+- 五机远程 staging 目录均已精确删除；每台回滚包和两台 Tailscale 路由备份保留。

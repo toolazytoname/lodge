@@ -31,10 +31,11 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 
 - [x] Add tencent and banwagong Agents
 - [x] Docker containers and listening processes discovered on all five hosts
-- [ ] Compose, complete systemd/failed-unit, and custom-process attribution
+- [x] Privacy-preserving custom-process attribution
+- [ ] Compose and complete systemd/failed-unit attribution
 - [ ] Caddy/Nginx route discovery with redaction
 - [x] Reach 5/5 configured and online managed hosts
-- [ ] Reach at least 95% known-workload attribution (current live baseline: 80.4%)
+- [x] Reach at least 95% known-workload attribution (current live result: 100.0%)
 
 ## M4 — Product UI
 

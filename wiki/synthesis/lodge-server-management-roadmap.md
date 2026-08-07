@@ -38,7 +38,7 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 - 使用 SQLite 保存主机、快照、事件、注解和操作审计；给 schema 做版本迁移和备份。
 
 > [!note]
-> 2026-08-07 已完成领域契约、SQLite schema、顺序迁移、Hub 接线、旧 JSON 注解幂等导入、30 天观测裁剪和一致性备份，并通过事务安装器部署到 live Hub。随后 tencent、banwagong 完成安全纳管，当前 5/5 在线；51 个 workload 中 41 个已归因（80.4%），Compose、完整 systemd 和反向代理路由发现仍是 M3 的未完成项。
+> 2026-08-07 已完成领域契约、SQLite schema、顺序迁移、Hub 接线、旧 JSON 注解幂等导入、30 天观测裁剪和一致性备份，并通过事务安装器部署到 live Hub。随后五台 Agent 统一升级到 `0.2.0`，Docker systemd scope 与脱敏自定义进程归属上线；当前 5/5 在线、45/45 workload 已归因（100.0%）。Compose、完整 systemd/failed-unit 和反向代理路由发现仍是 M3 的产品完整性待办。
 
 ## Phase 2：让异常主动来找人
 
