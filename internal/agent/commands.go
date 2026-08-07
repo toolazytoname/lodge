@@ -8,7 +8,7 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.4.0"
+const AgentVersion = "0.4.1"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 var composeMetadataCommand = []string{"/usr/local/bin/lodge-agent", "--collect-compose-metadata"}

@@ -59,7 +59,11 @@
   Caddy/Nginx config, certificate/key paths, headers, authentication directives,
   URL credentials, queries, and upstream paths are never emitted. Only
   validated scheme/host/port/path plus credential-free upstream authorities are
-  accepted, with time and output bounds.
+  accepted, with time and output bounds. Host Nginx includes are followed only
+  inside `/etc/nginx` through a traversal-confined root, with file-count, depth,
+  regular-file, and aggregate-size limits; escaping symlinks and variable
+  include paths fail closed. The exact conventional Certbot TLS-policy include
+  is ignored without being read because it does not define routing.
 - The root-only process-origin collector reads only PID/UID, process and
   executable basenames, and a working-directory basename plus one-way
   fingerprint. It never reads or emits command lines, environments, or full

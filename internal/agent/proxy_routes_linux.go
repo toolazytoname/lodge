@@ -56,11 +56,10 @@ func collectProxyRoutes(ctx context.Context) proxyDiscovery {
 		}
 	}
 
-	if nginxPath, err := exec.LookPath("nginx"); err == nil {
-		stdout, runErr := runBoundedProxyCommand(ctx, []string{nginxPath, "-T"})
-		if runErr != nil {
-			discovery.Warnings = append(discovery.Warnings, "host Nginx effective config could not be read")
-		} else if routes, parseErr := parseNginxRoutes(stdout, "systemd:nginx.service"); parseErr != nil {
+	if content, found, err := readNginxConfigTree("/etc/nginx"); err != nil {
+		discovery.Warnings = append(discovery.Warnings, "host Nginx config tree could not be read safely")
+	} else if found {
+		if routes, parseErr := parseNginxRoutes(content, "systemd:nginx.service"); parseErr != nil {
 			discovery.Warnings = append(discovery.Warnings, proxyParseWarning("Nginx", "host"))
 		} else {
 			discovery.Routes = append(discovery.Routes, routes...)

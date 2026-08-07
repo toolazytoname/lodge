@@ -55,11 +55,17 @@ Nginx discovery. It reads only standard host configuration and explicit Docker
 bind mounts selected internally from validated container metadata. The helper
 does not accept a container, file, or command argument from `lodge`; it does not
 read container environment variables or execute a command inside a container.
-Raw configuration, includes, certificate/key paths, headers, and authentication
-directives remain in root memory. Output is limited to validated HTTP(S)
-scheme/host/port/path records and credential-free upstream `host:port`
-authorities. Unsupported imports/includes produce a bounded warning rather than
-raw content.
+For host Nginx, it expands at most 128 files and 16 include levels strictly
+beneath `/etc/nginx`, with a 4 MiB aggregate limit. In-tree relative or absolute
+symlinks are accepted; targets outside that root, variable includes, device
+files, and over-limit trees are rejected. The exact conventional Certbot TLS
+policy include is ignored without being read because it carries no route
+directives. This avoids `nginx -T` touching TLS material hidden by the Agent
+sandbox. Raw configuration, includes, certificate/key paths, headers, and
+authentication directives remain in root memory. Output is limited to validated
+HTTP(S) scheme/host/port/path records and credential-free upstream `host:port`
+authorities. Unsupported Docker imports/includes produce a bounded warning
+rather than raw content.
 
 ## Atomic Hub enrollment
 
