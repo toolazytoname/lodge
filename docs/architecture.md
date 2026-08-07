@@ -64,6 +64,17 @@ passes only an action ID over the one fixed sudo write boundary. The root helper
 revalidates policy, maps to fixed argv, serializes execution, and emits a typed
 bounded result. See [ADR 0010](adr/0010-root-policy-controlled-actions.md).
 
+The Hub never caches authority for execution. `GET /api/actions` projects the
+Agent's current policy, while every `POST /api/actions/execute` first re-reads
+that policy, compares the exact confirmation phrase, and then admits at most one
+fleet-wide operation. The Hub writes `requested` and `running` before the single
+non-retried Agent POST, then persists `succeeded` or a categorized `failed`
+result. Browser disconnect does not cancel this bounded finalization. On Hub
+restart, any remaining `requested`/`running` record becomes failed with
+`hub_restarted`; an uncertain remote action is never replayed. Recent logs are
+returned only in the immediate authenticated response and excluded from the
+audit database. The browser exposes this contract through the Operations page.
+
 Binding and reachability are separate. `0.0.0.0:PORT` means `wildcard-bound`;
 only an external probe or authoritative firewall/provider evidence can produce
 confirmed public reachability.

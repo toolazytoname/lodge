@@ -32,6 +32,7 @@ const (
 	maxNotesRunes          = 4000
 	maxURLBytes            = 2048
 	webLinkProbeBudget     = 15 * time.Second
+	actionExecutionBudget  = 30 * time.Second
 	historyDefaultLimit    = 120
 	historyMaximumLimit    = 500
 	eventsDefaultLimit     = 100
@@ -41,12 +42,15 @@ const (
 // Server is the Hub HTTP boundary. A configured authenticator protects every
 // API except login and session discovery.
 type Server struct {
-	store   Store
-	authn   *authenticator
-	mux     *http.ServeMux
-	limiter *loginLimiter
-	prober  webLinkProbeRunner
-	probeMu sync.Mutex
+	store    Store
+	authn    *authenticator
+	mux      *http.ServeMux
+	limiter  *loginLimiter
+	prober   webLinkProbeRunner
+	probeMu  sync.Mutex
+	actions  agentActionClient
+	actionMu sync.Mutex
+	now      func() time.Time
 }
 
 // NewServerWithAuth requires an Argon2id verifier and an independent signing
@@ -56,7 +60,10 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{store: store, authn: authn, limiter: newLoginLimiter(), prober: newWebLinkProber()}
+	s := &Server{
+		store: store, authn: authn, limiter: newLoginLimiter(), prober: newWebLinkProber(),
+		actions: newHTTPAgentActionClient(), now: time.Now,
+	}
 	s.mux = http.NewServeMux()
 
 	// 公开路由：登录、会话查询、前端静态资源。
@@ -75,6 +82,9 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	s.mux.HandleFunc("/api/history", s.auth(s.history))
 	s.mux.HandleFunc("/api/events", s.auth(s.events))
 	s.mux.HandleFunc("/api/events/ack", s.auth(s.acknowledgeEvent))
+	s.mux.HandleFunc("/api/actions", s.auth(s.agentActions))
+	s.mux.HandleFunc("/api/actions/execute", s.auth(s.executeAction))
+	s.mux.HandleFunc("/api/operations", s.auth(s.operations))
 	s.mux.HandleFunc("/api/annotation", s.auth(s.annotation))
 	s.mux.HandleFunc("/api/link-checks", s.auth(s.linkChecks))
 	return s, nil

@@ -68,16 +68,21 @@ production receiver is intentionally disabled until one is configured.
 
 ## M6 — Controlled operations
 
-- [ ] Hub action proxy with CSRF and authorization
+- [x] Hub action proxy with CSRF and authorization
 - [x] Root-owned target policy and narrow privileged helper
 - [x] Agent start, stop, restart, health verification, and bounded log reads
-- [ ] Confirmation, health verification, and complete audit records
+- [x] Confirmation, health verification, and complete audit records
 
 The Agent boundary is implemented in version 0.6.0: a missing policy disables
 all actions, direct legacy sudo writes are removed, and only a bounded action ID
-can reach the root helper. This capability is not yet exposed through the Hub
-or deployed to the fleet; M6 remains in progress until confirmation, durable
-audit, UI, CI, and production acceptance are complete.
+can reach the root helper. Hub 0.7.0 and the Web implementation are complete in
+the repository. Every execution re-lists live Agent authority, requires the
+exact phrase, sends one non-retried POST, and records a compare-and-set lifecycle
+with pseudonymous requester identity and sanitized result. The responsive
+Operations page covers policy, risk, Agent sync, confirmation, transient logs,
+and durable audit. M6 remains open until the complete gates pass and the
+five-host rolling release proves a low-risk action without persisting returned
+log lines.
 
 ## M7 — Declarative deployment
 

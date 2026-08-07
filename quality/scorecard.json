@@ -41,7 +41,7 @@
       "target": 5,
       "unit": "pages",
       "direction": "increase",
-      "evidence": "Sanitized browser acceptance covers Overview, Hosts, Services, Security, and Operations; Security includes durable host history plus active, acknowledged, and resolved event views while operations remain explicitly M6"
+      "evidence": "Sanitized browser acceptance covers Overview, Hosts, Services, Security, and Operations; Operations renders live root-policy capabilities, exact confirmation, transient results, and durable audit"
     },
     {
       "id": "public_management_endpoints",
@@ -67,11 +67,11 @@
       "id": "hub_security_regression_tests",
       "dimension": "engineering",
       "name": "Hub authentication and browser-boundary regression tests",
-      "current": 16,
-      "target": 16,
+      "current": 45,
+      "target": 45,
       "unit": "tests",
       "direction": "increase",
-      "evidence": "internal/hub test inventory"
+      "evidence": "Test functions in auth_security_test.go, hub_test.go, action_client_test.go, and operation_handlers_test.go"
     },
     {
       "id": "ssh_password_disabled_hosts",
@@ -108,10 +108,10 @@
       "dimension": "operations",
       "name": "Audited operations available from the Web UI",
       "current": 0,
-      "target": 3,
+      "target": 4,
       "unit": "operations",
       "direction": "increase",
-      "evidence": "Hub routes and embedded Web UI"
+      "evidence": "Repository implements approved start, stop, restart, and logs with exact confirmation and audit; current remains zero until Hub 0.7.0 and Agent 0.6.0 production acceptance"
     },
     {
       "id": "event_rule_kinds",
@@ -147,11 +147,11 @@
       "id": "critical_e2e_scenarios",
       "dimension": "engineering",
       "name": "Automated critical end-to-end scenarios",
-      "current": 17,
+      "current": 20,
       "target": 12,
       "unit": "scenarios",
       "direction": "increase",
-      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks and event acknowledgement, event lifecycle filters, durable history and host switching, isolated history/event API failures, 390/1280/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
+      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks and event acknowledgement, event lifecycle filters, durable history and host switching, isolated history/event API failures, exact action confirmation, transient log handling, durable operation audit, 390/1280/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
     },
     {
       "id": "web_visual_regression_widths",

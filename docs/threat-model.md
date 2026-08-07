@@ -73,6 +73,14 @@
   the non-root process and root helper re-resolve policy, serialize execution,
   bound time/output, and verify post-action state. Helper stderr and raw process
   errors never cross the HTTP boundary.
+- The Hub accepts only an Agent ID, action ID, and exact confirmation phrase in
+  a bounded CSRF-protected JSON request. It re-lists the live Agent policy before
+  every execution, rejects unknown fields/query parameters, and serializes
+  actions fleet-wide. The browser cannot submit a command, executable, target,
+  argument, Agent URL, bearer credential, or expected result.
+- A state-changing Agent POST is sent exactly once: redirects, environment
+  proxies, and retries are disabled. Timeout or lost response is recorded as an
+  uncertain categorized failure, never interpreted as permission to replay.
 - Compose discovery requests only Docker's official project/service labels;
   full label maps, working directories, config-file paths, commands, and
   environments are not collected. systemd discovery emits only validated unit
@@ -109,6 +117,11 @@
   workload text can still be sensitive, log lines are transient authenticated
   output and are never stored in the operation audit.
 - Every state-changing operation has an append-only logical audit entry.
+- Audit identity is a per-login pseudonymous session fingerprint (or the
+  explicit tailnet-only operator label when password authentication is
+  disabled), not the reversible session cookie. Durable records contain action,
+  host, target, lifecycle timestamps, bounded summary, and error category; they
+  exclude Agent credentials, commands, raw errors, and log lines.
 
 ### Secrets
 
@@ -156,6 +169,10 @@
   event/transition/channel, crash-reclaimable, and bounded to eight attempts.
   Retry state stores only sanitized categories. At-least-once delivery means
   receivers must deduplicate the `X-Lodge-Delivery` key.
+- Operation state transitions use compare-and-set persistence. Startup converts
+  interrupted `requested`/`running` rows to `failed/hub_restarted` and never
+  retries the remote action. Remote execution has its own deadline inside a
+  larger persistence budget, preserving time to durably finalize a timeout.
 
 ## Release review
 

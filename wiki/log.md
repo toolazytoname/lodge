@@ -196,3 +196,10 @@
 - 状态操作有 15 秒总限时、前后状态与 10 秒健康验证；日志限 200 行/64 KiB，脱敏后只作瞬时响应，原始 stderr 与错误不越界、不入持久审计。
 - 安装器把配置目录改为 `root:lodge 0750` 并移除服务写权限，阻断 `lodge` 通过 rename 替换 root 策略；真实安装将同时负向验证任意命令、旧写操作和动态 helper argv。
 - Agent 切片门禁通过后才提交/推送；Hub 审计、确认 UI 与生产发布仍待后续切片，M6 保持进行中。
+
+## [2026-08-08] implementation | M6 Hub 审计与 Operations 页面
+
+- Hub 0.7.0 新增认证动作清单、CSRF 执行与有界审计 API；执行前重新读取 root policy，只接受 agent/action/逐字确认，不接受命令、参数、目标或 Agent 凭据。
+- 非幂等 Agent POST 禁用 retry、redirect 和环境 proxy；全局串行动作以独立后台预算完成 `requested → running → succeeded|failed`，Hub 重启只标记 `hub_restarted`，不重放不确定动作。
+- SQLite compare-and-set、分类错误、伪匿名会话身份及日志 secret sentinel 覆盖 DB/WAL/SHM；最近日志仅在当前认证响应中存在。
+- Operations 页面完成实时权限、风险、Agent 同步、逐字确认、瞬时结果和持久审计，390/1280 视觉与行为测试通过；完整门禁、双 CI 和 production live 验收仍待完成。

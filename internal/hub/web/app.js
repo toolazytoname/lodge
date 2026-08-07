@@ -27,11 +27,14 @@ const state = {
         checks: [],
         summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 },
     },
+    operations: { operations: [] },
     agentsLoaded: false,
     servicesLoaded: false,
     eventsLoaded: false,
     eventsError: "",
     linkChecksLoaded: false,
+    operationsLoaded: false,
+    operationsError: "",
 };
 let authed = false;
 let csrfToken = "";
@@ -40,7 +43,11 @@ let refreshTimer = null;
 let refreshing = false;
 let editingService = null;
 let selectedHistoryAgent = "";
+let selectedActionAgent = "";
+let pendingAction = null;
+let actionExecuting = false;
 const historyByAgent = new Map();
+const actionsByAgent = new Map();
 function byID(id) {
     const node = document.getElementById(id);
     if (!node)
@@ -71,6 +78,15 @@ function safeWebURL(raw) {
     }
     catch {
         return null;
+    }
+}
+class APIRequestError extends Error {
+    status;
+    payload;
+    constructor(status, payload) {
+        super(`HTTP ${status}`);
+        this.status = status;
+        this.payload = payload;
     }
 }
 function errorMessage(error) {
@@ -125,8 +141,16 @@ async function api(path, options = {}) {
         showLogin();
         throw new Error("unauthorized");
     }
-    if (!response.ok)
-        throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+        let payload;
+        try {
+            payload = await response.json();
+        }
+        catch {
+            payload = null;
+        }
+        throw new APIRequestError(response.status, payload);
+    }
     return (await response.json());
 }
 function setNotice(message) {
@@ -233,6 +257,7 @@ async function refresh() {
         api("/api/services"),
         api("/api/link-checks"),
         api("/api/events?limit=100"),
+        api("/api/operations?limit=100"),
     ]);
     if (!authed) {
         setRefreshing(false);
@@ -243,6 +268,7 @@ async function refresh() {
     const servicesResult = results[1];
     const linkChecksResult = results[2];
     const eventsResult = results[3];
+    const operationsResult = results[4];
     if (agentsResult.status === "fulfilled") {
         state.agents = agentsResult.value;
         state.agentsLoaded = true;
@@ -273,9 +299,20 @@ async function refresh() {
         state.eventsError = errorMessage(eventsResult.reason);
         failures.push(`事件：${state.eventsError}`);
     }
+    if (operationsResult.status === "fulfilled") {
+        state.operations = operationsResult.value;
+        state.operationsLoaded = true;
+        state.operationsError = "";
+    }
+    else {
+        state.operationsError = errorMessage(operationsResult.reason);
+        failures.push(`操作记录：${state.operationsError}`);
+    }
     renderAll();
     if (activePage === "security")
         void loadSelectedHistory(true);
+    if (activePage === "operations")
+        void loadSelectedActions(true);
     updateConnectionState(failures.length > 0);
     if (failures.length) {
         const noUsableData = !state.agentsLoaded && !state.servicesLoaded;
@@ -312,6 +349,11 @@ function setPage(page, updateHash = true) {
         syncHistoryAgentSelect();
         renderHistory();
         void loadSelectedHistory(false);
+    }
+    if (page === "operations") {
+        syncActionAgentSelect();
+        renderOperations();
+        void loadSelectedActions(false);
     }
     window.scrollTo({ top: 0, behavior: "instant" });
 }
@@ -1124,25 +1166,364 @@ function renderSecurity() {
     replaceChildren(byID("publicSurface"), rows);
     renderHistory();
 }
-function renderOperations() {
-    if (!state.agentsLoaded) {
-        replaceChildren(byID("syncSummary"), [emptyState("资产同步状态暂时不可用。", "error")]);
+function syncActionAgentSelect() {
+    const select = byID("actionAgent");
+    const available = new Set(state.agents.map((agent) => agent.id));
+    if (!available.has(selectedActionAgent)) {
+        selectedActionAgent = state.agents.find((agent) => agent.online)?.id ?? state.agents[0]?.id ?? "";
+    }
+    const options = state.agents.map((agent) => {
+        const option = element("option", "", `${agent.name}${agent.online ? "" : " · 离线"}`);
+        option.value = agent.id;
+        return option;
+    });
+    replaceChildren(select, options);
+    select.value = selectedActionAgent;
+    select.disabled = !selectedActionAgent;
+}
+async function loadSelectedActions(force) {
+    syncActionAgentSelect();
+    const agentID = selectedActionAgent;
+    if (!agentID) {
+        renderOperations();
         return;
     }
-    if (!state.agents.length) {
-        replaceChildren(byID("syncSummary"), [emptyState("尚未纳管主机。")]);
+    const current = actionsByAgent.get(agentID) ?? { response: null, loading: false, error: "" };
+    if (current.loading || (!force && current.response))
+        return;
+    actionsByAgent.set(agentID, { ...current, loading: true, error: "" });
+    renderOperations();
+    try {
+        const response = await api(`/api/actions?agent=${encodeURIComponent(agentID)}`);
+        actionsByAgent.set(agentID, { response, loading: false, error: "" });
+    }
+    catch (actionError) {
+        actionsByAgent.set(agentID, {
+            response: current.response,
+            loading: false,
+            error: errorMessage(actionError),
+        });
+    }
+    if (selectedActionAgent === agentID)
+        renderOperations();
+}
+function actionKindLabel(kind) {
+    const labels = {
+        logs: "读取日志",
+        start: "启动",
+        restart: "重启",
+        stop: "停止",
+    };
+    return labels[kind];
+}
+function actionRiskLabel(risk) {
+    const labels = {
+        read: "只读",
+        change: "状态变更",
+        disruptive: "中断风险",
+    };
+    return labels[risk];
+}
+function operationStateLabel(stateValue) {
+    const labels = {
+        requested: "已请求",
+        running: "执行中",
+        succeeded: "成功",
+        failed: "失败",
+        rolled_back: "已回滚",
+    };
+    return labels[stateValue];
+}
+function operationKindLabel(kind) {
+    const labels = {
+        logs: "读取日志",
+        start: "启动",
+        restart: "重启",
+        stop: "停止",
+        deploy: "部署",
+        rollback: "回滚",
+    };
+    return labels[kind];
+}
+function operationErrorLabel(errorKind) {
+    if (!errorKind)
+        return "";
+    const labels = {
+        agent_unavailable: "Agent 不可用",
+        agent_timeout: "Agent 超时",
+        agent_auth_failed: "Agent 认证失败",
+        agent_incompatible: "Agent 版本不兼容",
+        agent_http_error: "Agent 响应异常",
+        agent_invalid_response: "Agent 返回不可信",
+        command_failed: "动作执行失败",
+        state_read_failed: "无法读取目标状态",
+        health_verification_failed: "执行后健康验证失败",
+        log_read_failed: "日志读取失败",
+        hub_restarted: "Hub 重启，结果不确定且未重放",
+    };
+    return labels[errorKind] ?? errorKind;
+}
+function operationDuration(operation) {
+    if (!operation.startedAt || !operation.finishedAt)
+        return "";
+    const duration = new Date(operation.finishedAt).getTime() - new Date(operation.startedAt).getTime();
+    if (!Number.isFinite(duration) || duration < 0)
+        return "";
+    return duration < 1000 ? `${duration} ms` : `${(duration / 1000).toFixed(1)} s`;
+}
+function renderOperationAudit() {
+    const audit = byID("operationAudit");
+    if (!state.operationsLoaded) {
+        replaceChildren(audit, [emptyState(state.operationsError ? `操作记录暂时不可用：${state.operationsError}` : "正在读取持久化操作记录…", state.operationsError ? "error" : "loading")]);
         return;
     }
-    const rows = state.agents.map((agent) => {
-        const group = state.groups.find((item) => item.agent.id === agent.id);
-        const row = element("div", "sync-row");
-        row.append(element("span", `status-dot ${agent.online ? "online" : "offline"}`), element("span", "sync-copy"), element("span", "sync-version", group?.agent.agentVersion ? `Agent ${group.agent.agentVersion}` : "版本未知"));
-        const copy = row.children.item(1);
-        if (copy)
-            copy.append(element("strong", "", agent.name), element("small", "", formatLastSeen(agent.lastSeen || group?.agent.lastSeen)));
+    const operations = state.operations.operations;
+    if (!operations.length) {
+        replaceChildren(audit, [emptyState("还没有受控操作记录。首个动作完成后会在这里留下审计轨迹。")]);
+        return;
+    }
+    const agentNames = new Map(state.agents.map((agent) => [agent.id, agent.name]));
+    const rows = operations.map((operation) => {
+        const row = element("article", `operation-row ${operation.state}`);
+        const stateCell = element("div", "operation-state-cell");
+        stateCell.append(element("span", `operation-state ${operation.state}`, operationStateLabel(operation.state)), element("small", "", operationKindLabel(operation.kind)));
+        const copy = element("div", "operation-copy");
+        copy.append(element("strong", "", operation.targetKey || "未指定目标"), element("p", "", operation.resultSummary || operationErrorLabel(operation.errorKind) || "等待执行结果"));
+        const metadata = element("div", "operation-meta");
+        metadata.append(element("span", "", agentNames.get(operation.agentId) ?? operation.agentId), element("span", "", formatLastSeen(operation.requestedAt)), element("span", "", operationDuration(operation) || "—"), element("span", "operation-requester", operation.requestedBy.startsWith("session:") ? `会话 ${operation.requestedBy.slice(8)}` : operation.requestedBy));
+        copy.append(metadata);
+        row.append(stateCell, copy);
         return row;
     });
-    replaceChildren(byID("syncSummary"), rows);
+    if (state.operationsError) {
+        rows.unshift(element("p", "operation-audit-warning", `最近更新失败，保留上次结果：${state.operationsError}`));
+    }
+    replaceChildren(audit, rows);
+}
+function renderOperations() {
+    syncActionAgentSelect();
+    const selectedAgent = state.agents.find((agent) => agent.id === selectedActionAgent);
+    const loaded = selectedActionAgent ? actionsByAgent.get(selectedActionAgent) : undefined;
+    const actions = loaded?.response?.actions ?? [];
+    const targetCount = new Set(actions.map((action) => action.targetKey)).size;
+    const inFlight = state.operations.operations.filter((operation) => operation.state === "requested" || operation.state === "running").length;
+    const failed = state.operations.operations.filter((operation) => operation.state === "failed").length;
+    replaceChildren(byID("operationsMetrics"), [
+        metricCard("当前权限", loaded?.response ? actions.length : "N/A", selectedAgent ? selectedAgent.name : "未选择主机", actions.length ? "good" : "calm"),
+        metricCard("批准目标", loaded?.response ? targetCount : "N/A", "来自 root-only 策略", targetCount ? "info" : "calm"),
+        metricCard("执行中", state.operationsLoaded ? inFlight : "N/A", "全局串行门禁", inFlight ? "warning" : "good"),
+        metricCard("最近失败", state.operationsLoaded ? failed : "N/A", `最近 ${state.operations.operations.length} 条记录`, failed ? "critical" : "good"),
+    ]);
+    if (!state.agentsLoaded) {
+        replaceChildren(byID("syncSummary"), [emptyState("资产同步状态暂时不可用。", "error")]);
+    }
+    else if (!state.agents.length) {
+        replaceChildren(byID("syncSummary"), [emptyState("尚未纳管主机。")]);
+    }
+    else {
+        const rows = state.agents.map((agent) => {
+            const group = state.groups.find((item) => item.agent.id === agent.id);
+            const row = element("div", "sync-row");
+            row.append(element("span", `status-dot ${agent.online ? "online" : "offline"}`), element("span", "sync-copy"), element("span", "sync-version", group?.agent.agentVersion ? `Agent ${group.agent.agentVersion}` : "版本未知"));
+            const copy = row.children.item(1);
+            if (copy)
+                copy.append(element("strong", "", agent.name), element("small", "", formatLastSeen(agent.lastSeen || group?.agent.lastSeen)));
+            return row;
+        });
+        replaceChildren(byID("syncSummary"), rows);
+    }
+    const status = byID("actionCapabilityStatus");
+    const list = byID("actionList");
+    if (!state.agentsLoaded || !selectedAgent) {
+        replaceChildren(status, []);
+        replaceChildren(list, [emptyState(state.agentsLoaded ? "尚未纳管主机。" : "主机列表暂时不可用。", state.agentsLoaded ? "" : "error")]);
+    }
+    else if (!loaded || (loaded.loading && !loaded.response)) {
+        replaceChildren(status, []);
+        replaceChildren(list, [emptyState("正在向 Agent 读取实时动作策略…", "loading")]);
+    }
+    else if (loaded.error && !loaded.response) {
+        replaceChildren(status, []);
+        replaceChildren(list, [emptyState(`动作策略暂时不可用：${loaded.error}`, "error")]);
+    }
+    else {
+        const statusLine = element("div", "capability-status-line");
+        statusLine.append(element("span", `status-dot ${selectedAgent.online ? "online" : "offline"}`), element("strong", "", `${actions.length} 个动作 / ${targetCount} 个目标`), element("span", "", loaded.loading ? "正在复核策略" : `Agent ${loaded.response?.agentVersion || "版本未知"}`));
+        if (loaded.error)
+            statusLine.append(element("span", "capability-error", `最近更新失败：${loaded.error}`));
+        replaceChildren(status, [statusLine]);
+        if (!actions.length) {
+            replaceChildren(list, [emptyState("这台主机没有安装动作策略，所有写操作保持禁用。", "success")]);
+        }
+        else {
+            const actionRows = actions.map((action) => {
+                const button = element("button", `action-row risk-${action.risk}`);
+                button.type = "button";
+                button.setAttribute("aria-label", `${actionKindLabel(action.kind)} ${action.targetLabel}`);
+                const icon = element("span", "action-kind", actionKindLabel(action.kind));
+                const copy = element("span", "action-copy");
+                copy.append(element("strong", "", action.targetLabel), element("small", "", action.description));
+                const risk = element("span", `action-risk ${action.risk}`, actionRiskLabel(action.risk));
+                button.append(icon, copy, risk);
+                button.disabled = !selectedAgent.online || inFlight > 0 || actionExecuting;
+                button.addEventListener("click", () => openActionDialog(selectedAgent, action));
+                return button;
+            });
+            replaceChildren(list, actionRows);
+        }
+    }
+    renderOperationAudit();
+}
+function openActionDialog(agent, definition) {
+    pendingAction = { agentID: agent.id, agentName: agent.name, definition };
+    actionExecuting = false;
+    byID("actionDialogTitle").textContent = `${actionKindLabel(definition.kind)} ${definition.targetLabel}`;
+    byID("actionDialogContext").textContent = `${agent.name} · ${definition.targetKey}`;
+    const risk = byID("actionDialogRisk");
+    replaceChildren(risk, [
+        element("span", `action-risk ${definition.risk}`, actionRiskLabel(definition.risk)),
+        element("span", "", definition.kind === "logs" ? "瞬时读取，不写入审计正文" : "执行后验证目标状态"),
+    ]);
+    byID("actionDialogDescription").textContent = definition.description;
+    byID("actionConfirmationPhrase").textContent = definition.confirmation;
+    const input = byID("actionConfirmation");
+    input.value = "";
+    input.disabled = false;
+    byID("actionConfirmationFields").classList.remove("hidden");
+    byID("actionResult").classList.add("hidden");
+    byID("actionLogNotice").classList.add("hidden");
+    const logs = byID("actionResultLogs");
+    logs.textContent = "";
+    logs.classList.add("hidden");
+    byID("actionError").classList.add("hidden");
+    const execute = byID("executeActionBtn");
+    execute.disabled = true;
+    execute.classList.remove("hidden");
+    execute.textContent = "确认执行";
+    const cancel = byID("cancelActionBtn");
+    cancel.disabled = false;
+    cancel.textContent = "取消";
+    byID("closeActionDialogBtn").disabled = false;
+    byID("actionDialog").showModal();
+    input.focus();
+}
+function closeActionDialog() {
+    if (actionExecuting)
+        return;
+    const dialog = byID("actionDialog");
+    if (dialog.open)
+        dialog.close();
+    pendingAction = null;
+    byID("actionConfirmation").value = "";
+    byID("actionResultLogs").textContent = "";
+}
+function rememberOperation(operation) {
+    state.operations.operations = [
+        operation,
+        ...state.operations.operations.filter((candidate) => candidate.id !== operation.id),
+    ].slice(0, 100);
+    state.operationsLoaded = true;
+    state.operationsError = "";
+}
+function executionResponseFromError(error) {
+    if (!(error instanceof APIRequestError) || !error.payload || typeof error.payload !== "object")
+        return null;
+    const candidate = error.payload;
+    return candidate.operation && typeof candidate.operation.id === "string"
+        ? candidate
+        : null;
+}
+function showActionExecutionResult(response) {
+    rememberOperation(response.operation);
+    const succeeded = response.operation.state === "succeeded";
+    const summary = byID("actionResultSummary");
+    replaceChildren(summary, [
+        element("strong", succeeded ? "success" : "failure", succeeded ? "动作完成" : "动作失败"),
+        element("span", "", response.operation.resultSummary || operationErrorLabel(response.errorKind || response.operation.errorKind)),
+    ]);
+    const logs = response.result?.logs ?? [];
+    const logOutput = byID("actionResultLogs");
+    logOutput.textContent = logs.join("\n");
+    logOutput.classList.toggle("hidden", !logs.length);
+    byID("actionLogNotice").classList.toggle("hidden", !logs.length);
+    byID("actionResult").classList.remove("hidden");
+    byID("actionConfirmationFields").classList.add("hidden");
+    byID("executeActionBtn").classList.add("hidden");
+    const cancel = byID("cancelActionBtn");
+    cancel.textContent = "关闭";
+    renderOperations();
+}
+async function refreshOperationAudit() {
+    try {
+        state.operations = await api("/api/operations?limit=100");
+        state.operationsLoaded = true;
+        state.operationsError = "";
+    }
+    catch (operationError) {
+        state.operationsError = errorMessage(operationError);
+    }
+    renderOperations();
+}
+async function executePendingAction(event) {
+    event.preventDefault();
+    if (!pendingAction || actionExecuting)
+        return;
+    const confirmation = byID("actionConfirmation").value;
+    if (confirmation !== pendingAction.definition.confirmation)
+        return;
+    const input = {
+        agentId: pendingAction.agentID,
+        actionId: pendingAction.definition.id,
+        confirmation,
+    };
+    actionExecuting = true;
+    const execute = byID("executeActionBtn");
+    const cancel = byID("cancelActionBtn");
+    const close = byID("closeActionDialogBtn");
+    const error = byID("actionError");
+    execute.disabled = true;
+    execute.textContent = "执行中";
+    cancel.disabled = true;
+    close.disabled = true;
+    byID("actionConfirmation").disabled = true;
+    error.classList.add("hidden");
+    try {
+        const response = await api("/api/actions/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(input),
+        });
+        showActionExecutionResult(response);
+        setNotice(response.operation.state === "succeeded"
+            ? `${pendingAction.agentName} · ${pendingAction.definition.targetLabel}：动作已完成并写入审计。`
+            : `${pendingAction.agentName} · ${pendingAction.definition.targetLabel}：动作失败，已记录类型化原因。`);
+    }
+    catch (actionError) {
+        const audited = executionResponseFromError(actionError);
+        if (audited) {
+            showActionExecutionResult(audited);
+            setNotice(`${pendingAction.agentName} · ${pendingAction.definition.targetLabel}：Agent 未完成动作，失败已写入审计。`);
+        }
+        else {
+            error.textContent = `无法提交动作：${errorMessage(actionError)}`;
+            error.classList.remove("hidden");
+        }
+    }
+    finally {
+        actionExecuting = false;
+        close.disabled = false;
+        if (!byID("actionConfirmationFields").classList.contains("hidden")) {
+            execute.disabled = confirmation !== pendingAction?.definition.confirmation;
+            execute.textContent = "确认执行";
+            cancel.disabled = false;
+            byID("actionConfirmation").disabled = false;
+        }
+        else {
+            cancel.disabled = false;
+        }
+        void refreshOperationAudit();
+        void loadSelectedActions(true);
+    }
 }
 async function probeWebLinks() {
     const button = byID("probeLinksBtn");
@@ -1239,6 +1620,11 @@ byID("historyAgent").addEventListener("change", (event) => {
 });
 byID("eventAgentFilter").addEventListener("change", renderEvents);
 byID("eventStateFilter").addEventListener("change", renderEvents);
+byID("actionAgent").addEventListener("change", (event) => {
+    selectedActionAgent = event.currentTarget.value;
+    renderOperations();
+    void loadSelectedActions(false);
+});
 byID("dismissNotice").addEventListener("click", () => setNotice(null));
 byID("pw").addEventListener("keydown", (event) => {
     if (event.key === "Enter")
@@ -1278,6 +1664,26 @@ byID("annotationDialog").addEventListener("click", (event) => {
 });
 byID("annotationDialog").addEventListener("close", () => {
     editingService = null;
+});
+byID("actionForm").addEventListener("submit", (event) => void executePendingAction(event));
+byID("closeActionDialogBtn").addEventListener("click", closeActionDialog);
+byID("cancelActionBtn").addEventListener("click", closeActionDialog);
+byID("actionConfirmation").addEventListener("input", (event) => {
+    const value = event.currentTarget.value;
+    byID("executeActionBtn").disabled = actionExecuting || value !== pendingAction?.definition.confirmation;
+    byID("actionError").classList.add("hidden");
+});
+byID("actionDialog").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget)
+        closeActionDialog();
+});
+byID("actionDialog").addEventListener("cancel", (event) => {
+    if (actionExecuting)
+        event.preventDefault();
+});
+byID("actionDialog").addEventListener("close", () => {
+    pendingAction = null;
+    byID("actionResultLogs").textContent = "";
 });
 window.addEventListener("hashchange", setPageFromHash);
 void boot();

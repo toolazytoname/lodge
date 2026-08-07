@@ -782,6 +782,201 @@ func newEventID() (string, error) {
 	return "evt_" + hex.EncodeToString(random[:]), nil
 }
 
+var ErrOperationState = errors.New("operation state transition is invalid")
+
+// CreateOperation appends one requested audit row. No API deletes operation
+// rows; later methods only advance its monotonic lifecycle.
+func (s *SQLite) CreateOperation(ctx context.Context, operation domain.Operation) error {
+	if operation.State != domain.OperationRequested {
+		return ErrOperationState
+	}
+	if err := operation.Validate(); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO operations(id, host_id, workload_key, kind, state, requested_by, requested_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)`, operation.ID, operation.HostID, operation.WorkloadKey,
+		operation.Kind, operation.State, operation.RequestedBy, formatTime(operation.RequestedAt))
+	if err != nil {
+		return fmt.Errorf("create operation %s: %w", operation.ID, err)
+	}
+	return nil
+}
+
+func (s *SQLite) StartOperation(ctx context.Context, id string, startedAt time.Time) (domain.Operation, bool, error) {
+	if strings.TrimSpace(id) == "" || len(id) > 128 || startedAt.IsZero() {
+		return domain.Operation{}, false, errors.New("operation start is invalid")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Operation{}, false, err
+	}
+	defer tx.Rollback()
+	operation, found, err := loadOperation(ctx, tx, id)
+	if err != nil || !found {
+		return operation, found, err
+	}
+	if operation.State != domain.OperationRequested {
+		return domain.Operation{}, true, ErrOperationState
+	}
+	startedAt = startedAt.UTC()
+	operation.State, operation.StartedAt = domain.OperationRunning, &startedAt
+	if err := operation.Validate(); err != nil {
+		return domain.Operation{}, true, err
+	}
+	result, err := tx.ExecContext(ctx, `
+UPDATE operations SET state = ?, started_at = ? WHERE id = ? AND state = ?`,
+		operation.State, formatTime(startedAt), operation.ID, domain.OperationRequested)
+	if err != nil {
+		return domain.Operation{}, true, err
+	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+		return domain.Operation{}, true, ErrOperationState
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Operation{}, true, err
+	}
+	return operation, true, nil
+}
+
+func (s *SQLite) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind string) (domain.Operation, bool, error) {
+	if strings.TrimSpace(id) == "" || len(id) > 128 || finishedAt.IsZero() {
+		return domain.Operation{}, false, errors.New("operation finish is invalid")
+	}
+	if state != domain.OperationSucceeded && state != domain.OperationFailed && state != domain.OperationRolledBack {
+		return domain.Operation{}, false, ErrOperationState
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Operation{}, false, err
+	}
+	defer tx.Rollback()
+	operation, found, err := loadOperation(ctx, tx, id)
+	if err != nil || !found {
+		return operation, found, err
+	}
+	if operation.State != domain.OperationRunning {
+		return domain.Operation{}, true, ErrOperationState
+	}
+	finishedAt = finishedAt.UTC()
+	operation.State, operation.FinishedAt = state, &finishedAt
+	operation.ResultSummary, operation.Error = summary, errorKind
+	if err := operation.Validate(); err != nil {
+		return domain.Operation{}, true, err
+	}
+	result, err := tx.ExecContext(ctx, `
+UPDATE operations SET state = ?, finished_at = ?, result_summary = ?, error = ?
+WHERE id = ? AND state = ?`, state, formatTime(finishedAt), summary, errorKind, id, domain.OperationRunning)
+	if err != nil {
+		return domain.Operation{}, true, err
+	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+		return domain.Operation{}, true, ErrOperationState
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Operation{}, true, err
+	}
+	return operation, true, nil
+}
+
+// FailInterruptedOperations closes accepted work that could not outlive a Hub
+// restart. It never retries a possibly completed remote action.
+func (s *SQLite) FailInterruptedOperations(ctx context.Context, finishedAt time.Time) (int64, error) {
+	if finishedAt.IsZero() {
+		return 0, errors.New("operation recovery time must not be zero")
+	}
+	result, err := s.db.ExecContext(ctx, `
+UPDATE operations
+SET state = 'failed',
+    finished_at = CASE
+        WHEN coalesce(started_at, requested_at) > ? THEN coalesce(started_at, requested_at)
+        ELSE ?
+    END,
+    result_summary = '', error = 'hub_restarted'
+WHERE state IN ('requested', 'running')`, formatTime(finishedAt.UTC()), formatTime(finishedAt.UTC()))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// Operations returns a bounded audit timeline. Empty hostID means all hosts.
+func (s *SQLite) Operations(ctx context.Context, hostID domain.HostID, limit int) ([]domain.Operation, error) {
+	if limit < 1 || limit > 500 {
+		return nil, errors.New("operation limit must be between 1 and 500")
+	}
+	query := "SELECT " + operationColumns + " FROM operations"
+	args := make([]any, 0, 2)
+	if hostID != "" {
+		query += " WHERE host_id = ?"
+		args = append(args, string(hostID))
+	}
+	query += " ORDER BY requested_at DESC, id DESC LIMIT ?"
+	args = append(args, limit)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	operations := make([]domain.Operation, 0, limit)
+	for rows.Next() {
+		operation, err := scanOperation(rows)
+		if err != nil {
+			return nil, err
+		}
+		operations = append(operations, operation)
+	}
+	return operations, rows.Err()
+}
+
+const operationColumns = `id, host_id, workload_key, kind, state, requested_by,
+requested_at, started_at, finished_at, result_summary, error`
+
+func loadOperation(ctx context.Context, queryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, id string) (domain.Operation, bool, error) {
+	row := queryer.QueryRowContext(ctx, "SELECT "+operationColumns+" FROM operations WHERE id = ?", id)
+	operation, err := scanOperation(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Operation{}, false, nil
+	}
+	return operation, err == nil, err
+}
+
+func scanOperation(scanner rowScanner) (domain.Operation, error) {
+	var operation domain.Operation
+	var requestedAt string
+	var startedAt, finishedAt sql.NullString
+	if err := scanner.Scan(&operation.ID, &operation.HostID, &operation.WorkloadKey, &operation.Kind,
+		&operation.State, &operation.RequestedBy, &requestedAt, &startedAt, &finishedAt,
+		&operation.ResultSummary, &operation.Error); err != nil {
+		return domain.Operation{}, err
+	}
+	var err error
+	operation.RequestedAt, err = parseTime(requestedAt)
+	if err != nil {
+		return domain.Operation{}, err
+	}
+	if startedAt.Valid {
+		parsed, err := parseTime(startedAt.String)
+		if err != nil {
+			return domain.Operation{}, err
+		}
+		operation.StartedAt = &parsed
+	}
+	if finishedAt.Valid {
+		parsed, err := parseTime(finishedAt.String)
+		if err != nil {
+			return domain.Operation{}, err
+		}
+		operation.FinishedAt = &parsed
+	}
+	if err := operation.Validate(); err != nil {
+		return domain.Operation{}, fmt.Errorf("stored operation is invalid: %w", err)
+	}
+	return operation, nil
+}
+
 func (s *SQLite) LatestObservation(ctx context.Context, hostID domain.HostID) (domain.Observation, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

@@ -1,9 +1,70 @@
 package domain
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestOperationLifecycleValidation(t *testing.T) {
+	requestedAt := time.Date(2026, 8, 8, 1, 2, 3, 0, time.UTC)
+	operation := Operation{
+		ID: "op_0123456789abcdef", HostID: "host-a", WorkloadKey: "systemd:caddy.service",
+		Kind: OperationRestart, State: OperationRequested, RequestedBy: "session:0123456789abcdef",
+		RequestedAt: requestedAt,
+	}
+	if err := operation.Validate(); err != nil {
+		t.Fatalf("valid requested operation rejected: %v", err)
+	}
+	startedAt := requestedAt.Add(time.Second)
+	operation.State, operation.StartedAt = OperationRunning, &startedAt
+	if err := operation.Validate(); err != nil {
+		t.Fatalf("valid running operation rejected: %v", err)
+	}
+	finishedAt := startedAt.Add(2 * time.Second)
+	operation.State, operation.FinishedAt = OperationSucceeded, &finishedAt
+	operation.ResultSummary = "Caddy：running → running"
+	if err := operation.Validate(); err != nil {
+		t.Fatalf("valid successful operation rejected: %v", err)
+	}
+
+	failed := operation
+	failed.State, failed.ResultSummary, failed.Error = OperationFailed, "", "health_verification_failed"
+	if err := failed.Validate(); err != nil {
+		t.Fatalf("valid failed operation rejected: %v", err)
+	}
+	failed.Error = "raw stderr: password=secret"
+	if err := failed.Validate(); err == nil {
+		t.Fatal("raw error text was accepted as an audit category")
+	}
+}
+
+func TestOperationRejectsInconsistentOrOversizedAuditData(t *testing.T) {
+	now := time.Now().UTC()
+	base := Operation{
+		ID: "op_1", HostID: "host-a", WorkloadKey: "docker:api", Kind: OperationStart,
+		State: OperationRequested, RequestedBy: "tailnet-operator", RequestedAt: now,
+	}
+	cases := map[string]Operation{
+		"missing target":        func() Operation { value := base; value.WorkloadKey = ""; return value }(),
+		"running without start": func() Operation { value := base; value.State = OperationRunning; return value }(),
+		"requested with result": func() Operation { value := base; value.ResultSummary = "done"; return value }(),
+		"oversized summary": func() Operation {
+			value := base
+			started, finished := now, now.Add(time.Second)
+			value.State, value.StartedAt, value.FinishedAt = OperationSucceeded, &started, &finished
+			value.ResultSummary = strings.Repeat("界", 241)
+			return value
+		}(),
+	}
+	for name, operation := range cases {
+		t.Run(name, func(t *testing.T) {
+			if err := operation.Validate(); err == nil {
+				t.Fatal("invalid operation was accepted")
+			}
+		})
+	}
+}
 
 func TestObservationRequiresReachabilityEvidence(t *testing.T) {
 	now := time.Now().UTC()

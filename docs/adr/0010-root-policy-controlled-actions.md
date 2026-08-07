@@ -50,6 +50,23 @@ definition lookup, permits one in-flight action, validates the typed root
 result, and replaces helper/sudo errors with stable categories. Raw stderr,
 argv, and process errors do not cross the Agent API.
 
+The Hub treats that list as live authority, not a cache. The authenticated
+browser can submit only Agent ID, action ID, and the definition's exact
+confirmation phrase through a bounded CSRF-protected JSON request. Immediately
+before execution, the Hub re-lists the policy and rejects removed or changed
+definitions. It permits one fleet-wide in-flight action and sends a single
+empty-body POST with redirects, proxies, and retries disabled.
+
+Before contacting the Agent, the Hub durably creates `requested` and transitions
+it to `running`. It then records either `succeeded` or a categorized `failed`
+result using compare-and-set transitions. The Agent call has a smaller deadline
+than the overall operation budget so final persistence retains time after a
+timeout. Browser cancellation does not abandon this bounded finalization.
+Startup marks interrupted records `failed/hub_restarted` and never replays an
+uncertain action. Audit rows retain only typed identity, pseudonymous requester,
+timestamps, bounded summary, and error category; log lines remain only in the
+immediate response.
+
 ## Consequences
 
 - Adding a target requires an explicit root-owned host policy change; adding a
@@ -63,3 +80,6 @@ argv, and process errors do not cross the Agent API.
 - Generic diagnostics, package upgrades, Docker prune, journal vacuum, and
   arbitrary command execution remain SSH responsibilities until separately
   designed typed operations exist.
+- A lost response may leave the remote state uncertain, but it cannot create an
+  automatic duplicate execution. The operator must inspect current state before
+  choosing a new explicit action.

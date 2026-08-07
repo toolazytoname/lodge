@@ -55,6 +55,10 @@ func generate() ([]byte, error) {
 			reflect.TypeOf(hub.HostHistoryResponse{}),
 			reflect.TypeOf(hub.EventsResponse{}),
 			reflect.TypeOf(hub.WebLinkChecksResponse{}),
+			reflect.TypeOf(hub.AgentActionsResponse{}),
+			reflect.TypeOf(hub.ActionExecutionInput{}),
+			reflect.TypeOf(hub.ActionExecutionResponse{}),
+			reflect.TypeOf(hub.OperationsResponse{}),
 		},
 		seen:  make(map[reflect.Type]bool),
 		types: make(map[string]string),
@@ -104,6 +108,16 @@ func (generator *typeGenerator) add(value reflect.Type) error {
 			generator.types[value.Name()] = "export type Severity = \"info\" | \"warning\" | \"critical\";\n"
 		case reflect.TypeOf(domain.EventState("")):
 			generator.types[value.Name()] = "export type EventState = \"active\" | \"acknowledged\" | \"resolved\";\n"
+		case reflect.TypeOf(domain.OperationKind("")):
+			generator.types[value.Name()] = "export type OperationKind = \"start\" | \"stop\" | \"restart\" | \"logs\" | \"deploy\" | \"rollback\";\n"
+		case reflect.TypeOf(domain.OperationState("")):
+			generator.types[value.Name()] = "export type OperationState = \"requested\" | \"running\" | \"succeeded\" | \"failed\" | \"rolled_back\";\n"
+		case reflect.TypeOf(shared.ActionKind("")):
+			generator.types[value.Name()] = "export type ActionKind = \"start\" | \"stop\" | \"restart\" | \"logs\";\n"
+		case reflect.TypeOf(shared.ActionTargetKind("")):
+			generator.types[value.Name()] = "export type ActionTargetKind = \"systemd\" | \"docker\";\n"
+		case reflect.TypeOf(shared.ActionRisk("")):
+			generator.types[value.Name()] = "export type ActionRisk = \"read\" | \"change\" | \"disruptive\";\n"
 		default:
 			generator.types[value.Name()] = fmt.Sprintf("export type %s = string;\n", value.Name())
 		}

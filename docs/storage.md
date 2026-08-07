@@ -43,6 +43,14 @@ failure count, and at most 20 canonical source IP/count pairs. Usernames,
 destination/source ports, accepted logins, authentication-log fields, and raw
 messages are not stored.
 
+The operation table has existed since schema v1. M6 activates its typed
+lifecycle without a schema change: `requested → running → succeeded|failed`
+for start, stop, restart, and logs. Each row stores a random operation ID, Host,
+policy target key, typed action, pseudonymous requester, monotonic lifecycle
+timestamps, bounded summary, and sanitized error category. Transient log lines,
+Agent URL/token, commands, argv, helper stderr, and raw transport errors are not
+stored.
+
 ## Database invariants
 
 - Foreign keys and WAL mode are enabled on every connection.
@@ -73,6 +81,11 @@ messages are not stored.
   remain within five minutes of Hub observation time, and have bounded,
   internally consistent counts. Invalid Agent input becomes an explicit
   partial-telemetry warning rather than an event.
+- Operation creation and state changes validate the complete domain object and
+  use compare-and-set transitions. A completed action cannot move backwards.
+  On startup, interrupted `requested` or `running` rows are finalized as
+  `failed/hub_restarted`; Lodge deliberately never replays an operation whose
+  remote outcome may be uncertain.
 - The database, `-wal`, `-shm`, and backup files are owner-only (`0600`). An
   existing database with broader permissions or a symlinked path is rejected.
 

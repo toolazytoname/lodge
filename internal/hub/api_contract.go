@@ -1,6 +1,9 @@
 package hub
 
-import "github.com/toolazytoname/lodge/internal/domain"
+import (
+	"github.com/toolazytoname/lodge/internal/domain"
+	"github.com/toolazytoname/lodge/internal/shared"
+)
 
 // SessionResponse is the browser-visible authentication state.
 type SessionResponse struct {
@@ -115,4 +118,44 @@ type WebLinkCheckSummary struct {
 type WebLinkChecksResponse struct {
 	Checks  []WebLinkCheckView  `json:"checks"`
 	Summary WebLinkCheckSummary `json:"summary"`
+}
+
+// AgentActionsResponse is a live capability projection. It contains no Agent
+// URL, bearer token, executable, command line, or policy file path.
+type AgentActionsResponse struct {
+	AgentID      string                    `json:"agentId"`
+	AgentName    string                    `json:"agentName"`
+	AgentVersion string                    `json:"agentVersion,omitempty"`
+	Actions      []shared.ActionDefinition `json:"actions"`
+}
+
+type ActionExecutionInput struct {
+	AgentID      string `json:"agentId"`
+	ActionID     string `json:"actionId"`
+	Confirmation string `json:"confirmation"`
+}
+
+type OperationView struct {
+	ID            string                `json:"id"`
+	AgentID       string                `json:"agentId"`
+	TargetKey     string                `json:"targetKey,omitempty"`
+	Kind          domain.OperationKind  `json:"kind"`
+	State         domain.OperationState `json:"state"`
+	RequestedBy   string                `json:"requestedBy"`
+	RequestedAt   string                `json:"requestedAt"`
+	StartedAt     string                `json:"startedAt,omitempty"`
+	FinishedAt    string                `json:"finishedAt,omitempty"`
+	ResultSummary string                `json:"resultSummary,omitempty"`
+	ErrorKind     string                `json:"errorKind,omitempty"`
+}
+
+type OperationsResponse struct {
+	AgentID    string          `json:"agentId,omitempty"`
+	Operations []OperationView `json:"operations"`
+}
+
+type ActionExecutionResponse struct {
+	Operation OperationView                 `json:"operation"`
+	Result    *shared.ActionExecutionResult `json:"result,omitempty"`
+	ErrorKind string                        `json:"errorKind,omitempty"`
 }

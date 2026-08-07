@@ -72,7 +72,7 @@ function buildFixture(mode) {
         online: !offline,
         lastSeen: "2026-08-08T00:00:00Z",
         ...(offline ? { lastError: "fixture: agent connection timed out" } : {}),
-        agentVersion: "0.4.1",
+        agentVersion: "0.6.0",
       },
       services,
     };
@@ -142,7 +142,7 @@ function buildHistory(mode, agentID) {
       observedAt: new Date(baseTime - index * 30_000).toISOString(),
       online,
       ...(online ? {
-        agentVersion: "0.4.1",
+        agentVersion: "0.6.0",
         cpus: hostDefinitions[hostIndex].cpus,
         load1: Number(Math.max(0.01, hostDefinitions[hostIndex].load1 + wave * 0.08).toFixed(2)),
         memoryUsedPct: memory,
@@ -164,6 +164,113 @@ function buildHistory(mode, agentID) {
 }
 
 const acknowledgedFixtureEvents = new Set();
+
+function seededOperations() {
+  return [
+    {
+      id: "op_fixture_west_restart",
+      agentId: "west",
+      targetKey: "docker:gateway",
+      kind: "restart",
+      state: "succeeded",
+      requestedBy: "session:9b1d4e73a2f011c8",
+      requestedAt: "2026-08-07T23:48:00Z",
+      startedAt: "2026-08-07T23:48:01Z",
+      finishedAt: "2026-08-07T23:48:03Z",
+      resultSummary: "Gateway：running → running",
+    },
+    {
+      id: "op_fixture_east_logs",
+      agentId: "east",
+      targetKey: "docker:gateway",
+      kind: "logs",
+      state: "succeeded",
+      requestedBy: "session:9b1d4e73a2f011c8",
+      requestedAt: "2026-08-07T22:31:00Z",
+      startedAt: "2026-08-07T22:31:00Z",
+      finishedAt: "2026-08-07T22:31:01Z",
+      resultSummary: "返回 2 行有界脱敏日志",
+    },
+    {
+      id: "op_fixture_harbor_failed",
+      agentId: "harbor",
+      targetKey: "docker:gateway",
+      kind: "restart",
+      state: "failed",
+      requestedBy: "session:4a88713bc410e2d4",
+      requestedAt: "2026-08-07T20:18:00Z",
+      startedAt: "2026-08-07T20:18:01Z",
+      finishedAt: "2026-08-07T20:18:11Z",
+      errorKind: "health_verification_failed",
+    },
+    {
+      id: "op_fixture_north_start",
+      agentId: "north",
+      targetKey: "docker:gateway",
+      kind: "start",
+      state: "succeeded",
+      requestedBy: "session:4a88713bc410e2d4",
+      requestedAt: "2026-08-07T18:02:00Z",
+      startedAt: "2026-08-07T18:02:00Z",
+      finishedAt: "2026-08-07T18:02:01Z",
+      resultSummary: "Gateway：running → running",
+    },
+  ];
+}
+
+let fixtureOperations = seededOperations();
+
+function buildActions(mode, agentID) {
+  const agent = buildFixture(mode).agents.find((candidate) => candidate.id === agentID);
+  if (!agent) return null;
+  const common = {
+    targetKey: "docker:gateway",
+    targetLabel: "Gateway",
+    targetKind: "docker",
+  };
+  return {
+    agentId: agent.id,
+    agentName: agent.name,
+    agentVersion: "0.6.0",
+    actions: [
+      {
+        ...common,
+        id: "logs:docker:gateway",
+        kind: "logs",
+        description: "读取最多 200 行脱敏日志：Gateway",
+        confirmation: "确认读取日志 Gateway",
+        risk: "read",
+      },
+      {
+        ...common,
+        id: "start:docker:gateway",
+        kind: "start",
+        description: "启动并验证运行状态：Gateway",
+        confirmation: "确认启动 Gateway",
+        risk: "change",
+      },
+      {
+        ...common,
+        id: "restart:docker:gateway",
+        kind: "restart",
+        description: "重启并验证恢复运行：Gateway",
+        confirmation: "确认重启 Gateway",
+        risk: "disruptive",
+      },
+    ],
+  };
+}
+
+async function readJSONBody(request) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 8192) throw new Error("fixture request too large");
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
 
 function buildEvents(mode, agentID = "") {
   if (mode === "empty") return { events: [] };
@@ -311,6 +418,7 @@ const server = createServer(async (request, response) => {
         sendJSON(response, 405, { error: "fixture method not allowed" });
       } else {
         acknowledgedFixtureEvents.clear();
+        fixtureOperations = seededOperations();
         sendJSON(response, 200, { ok: true });
       }
       return;
@@ -376,6 +484,84 @@ const server = createServer(async (request, response) => {
         acknowledgedFixtureEvents.add(id);
         const updated = buildEvents(mode).events.find((candidate) => candidate.id === id);
         sendJSON(response, 200, updated);
+      }
+      return;
+    }
+    if (requestURL.pathname === "/api/actions") {
+      if (request.method !== "GET") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+      } else if (mode === "error" || mode === "actions-error") {
+        sendJSON(response, 503, { error: "fixture actions unavailable" });
+      } else {
+        const actions = buildActions(mode, requestURL.searchParams.get("agent") || "");
+        if (!actions) sendJSON(response, 404, { error: "fixture unknown agent" });
+        else sendJSON(response, 200, actions);
+      }
+      return;
+    }
+    if (requestURL.pathname === "/api/actions/execute") {
+      if (request.method !== "POST") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+        return;
+      }
+      if (request.headers["x-csrf-token"] !== "fixture-csrf") {
+        sendJSON(response, 403, { error: "fixture csrf" });
+        return;
+      }
+      const input = await readJSONBody(request);
+      const capabilities = buildActions(mode, input.agentId);
+      const action = capabilities?.actions.find((candidate) => candidate.id === input.actionId);
+      if (!action) {
+        sendJSON(response, 404, { error: "fixture action not approved" });
+        return;
+      }
+      if (input.confirmation !== action.confirmation) {
+        sendJSON(response, 422, { error: "fixture confirmation mismatch" });
+        return;
+      }
+      const finishedAt = new Date(Date.parse("2026-08-08T00:00:02Z") + fixtureOperations.length * 1000).toISOString();
+      const operation = {
+        id: `op_fixture_live_${fixtureOperations.length + 1}`,
+        agentId: input.agentId,
+        targetKey: action.targetKey,
+        kind: action.kind,
+        state: "succeeded",
+        requestedBy: "session:fixture123456789",
+        requestedAt: "2026-08-08T00:00:00Z",
+        startedAt: "2026-08-08T00:00:01Z",
+        finishedAt,
+        resultSummary: action.kind === "logs" ? "返回 2 行有界脱敏日志" : "Gateway：running → running",
+      };
+      fixtureOperations.unshift(operation);
+      sendJSON(response, 200, {
+        operation,
+        result: {
+          ok: true,
+          actionId: action.id,
+          targetKey: action.targetKey,
+          kind: action.kind,
+          ...(action.kind === "logs"
+            ? { summary: operation.resultSummary, logs: ["2026-08-08T00:00:00Z gateway ready", "2026-08-08T00:00:01Z health check passed"] }
+            : { stateBefore: "running", stateAfter: "running", summary: operation.resultSummary }),
+        },
+      });
+      return;
+    }
+    if (requestURL.pathname === "/api/operations") {
+      if (request.method !== "GET") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+      } else if (mode === "error" || mode === "operations-error") {
+        sendJSON(response, 503, { error: "fixture operations unavailable" });
+      } else {
+        const agentID = requestURL.searchParams.get("agent") || "";
+        sendJSON(response, 200, {
+          ...(agentID ? { agentId: agentID } : {}),
+          operations: mode === "empty"
+            ? []
+            : agentID
+              ? fixtureOperations.filter((operation) => operation.agentId === agentID)
+              : fixtureOperations,
+        });
       }
       return;
     }

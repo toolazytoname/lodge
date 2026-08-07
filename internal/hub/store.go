@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,27 +28,34 @@ type Store interface {
 	AcknowledgeEvent(context.Context, string, time.Time) (domain.Event, bool, error)
 	WebLinkChecks(context.Context) ([]domain.WebLinkCheck, error)
 	ReplaceWebLinkChecks(context.Context, []domain.WebLinkCheck) error
+	CreateOperation(context.Context, domain.Operation) error
+	StartOperation(context.Context, string, time.Time) (domain.Operation, bool, error)
+	FinishOperation(context.Context, string, domain.OperationState, time.Time, string, string) (domain.Operation, bool, error)
+	Operations(context.Context, domain.HostID, int) ([]domain.Operation, error)
 }
 
 var ErrEventResolved = errors.New("event already resolved")
+var ErrOperationState = errors.New("operation state transition is invalid")
 
 // MemStore is the non-durable runtime projection used by tests and wrapped by
 // SQLiteStore in production. It deliberately has no file path or Save method,
 // so Agent bearer tokens cannot accidentally be serialized by this layer.
 type MemStore struct {
-	mu      sync.RWMutex
-	agents  []AgentConfig
-	snaps   map[string]*AgentSnapshot
-	anns    map[string]map[string]Annotation
-	checks  []domain.WebLinkCheck
-	history map[string][]domain.ObservationSummary
+	mu         sync.RWMutex
+	agents     []AgentConfig
+	snaps      map[string]*AgentSnapshot
+	anns       map[string]map[string]Annotation
+	checks     []domain.WebLinkCheck
+	history    map[string][]domain.ObservationSummary
+	operations map[string]domain.Operation
 }
 
 func NewMemStore() *MemStore {
 	return &MemStore{
-		snaps:   make(map[string]*AgentSnapshot),
-		anns:    make(map[string]map[string]Annotation),
-		history: make(map[string][]domain.ObservationSummary),
+		snaps:      make(map[string]*AgentSnapshot),
+		anns:       make(map[string]map[string]Annotation),
+		history:    make(map[string][]domain.ObservationSummary),
+		operations: make(map[string]domain.Operation),
 	}
 }
 
@@ -237,4 +245,95 @@ func (s *MemStore) ReplaceWebLinkChecks(ctx context.Context, checks []domain.Web
 	s.checks = append([]domain.WebLinkCheck(nil), checks...)
 	s.mu.Unlock()
 	return nil
+}
+
+func (s *MemStore) CreateOperation(ctx context.Context, operation domain.Operation) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if operation.State != domain.OperationRequested {
+		return ErrOperationState
+	}
+	if err := operation.Validate(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, duplicate := s.operations[operation.ID]; duplicate {
+		return errors.New("operation ID already exists")
+	}
+	s.operations[operation.ID] = operation
+	return nil
+}
+
+func (s *MemStore) StartOperation(ctx context.Context, id string, startedAt time.Time) (domain.Operation, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Operation{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	operation, found := s.operations[id]
+	if !found {
+		return domain.Operation{}, false, nil
+	}
+	if operation.State != domain.OperationRequested {
+		return domain.Operation{}, true, ErrOperationState
+	}
+	startedAt = startedAt.UTC()
+	operation.State, operation.StartedAt = domain.OperationRunning, &startedAt
+	if err := operation.Validate(); err != nil {
+		return domain.Operation{}, true, err
+	}
+	s.operations[id] = operation
+	return operation, true, nil
+}
+
+func (s *MemStore) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind string) (domain.Operation, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Operation{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	operation, found := s.operations[id]
+	if !found {
+		return domain.Operation{}, false, nil
+	}
+	if operation.State != domain.OperationRunning || state != domain.OperationSucceeded && state != domain.OperationFailed && state != domain.OperationRolledBack {
+		return domain.Operation{}, true, ErrOperationState
+	}
+	finishedAt = finishedAt.UTC()
+	operation.State, operation.FinishedAt = state, &finishedAt
+	operation.ResultSummary, operation.Error = summary, errorKind
+	if err := operation.Validate(); err != nil {
+		return domain.Operation{}, true, err
+	}
+	s.operations[id] = operation
+	return operation, true, nil
+}
+
+func (s *MemStore) Operations(ctx context.Context, hostID domain.HostID, limit int) ([]domain.Operation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > 500 {
+		return nil, errors.New("operation limit must be between 1 and 500")
+	}
+	s.mu.RLock()
+	operations := make([]domain.Operation, 0, len(s.operations))
+	for _, operation := range s.operations {
+		if hostID == "" || operation.HostID == hostID {
+			operations = append(operations, operation)
+		}
+	}
+	s.mu.RUnlock()
+	sort.Slice(operations, func(left, right int) bool {
+		if !operations[left].RequestedAt.Equal(operations[right].RequestedAt) {
+			return operations[left].RequestedAt.After(operations[right].RequestedAt)
+		}
+		return operations[left].ID > operations[right].ID
+	})
+	if len(operations) > limit {
+		operations = operations[:limit]
+	}
+	return operations, nil
 }

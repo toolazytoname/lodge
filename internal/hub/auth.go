@@ -139,6 +139,21 @@ func (s *Server) validCSRF(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
 
+// operationRequester is a pseudonymous session identifier for the single-user
+// audit trail. It cannot be reversed into the HttpOnly cookie and changes with
+// each login. Passwordless mode is explicitly identified as a tailnet session.
+func (s *Server) operationRequester(r *http.Request) string {
+	if !s.authn.enabled() {
+		return "tailnet-operator"
+	}
+	cookie, err := r.Cookie(cookieName)
+	if err != nil || !s.authn.validCookie(cookie.Value) {
+		return "unknown-session"
+	}
+	digest := s.authn.sign("operator:" + cookie.Value)
+	return "session:" + hex.EncodeToString(digest[:8])
+}
+
 // handleLogin POST /api/login {password}. Consecutive failures trigger the
 // per-IP exponential backoff implemented in ratelimit.go.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {

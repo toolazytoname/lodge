@@ -17,9 +17,11 @@ are deliberate:
   host/lifecycle, and performs explicit acknowledgement. Event transitions can
   feed an optional reliable Webhook. SSH brute-force events show the bounded
   ten-minute failure count and up to three leading source IPs.
-- **Operations** currently reports only read-only synchronization state. Any
-  restart, deployment, or rollback remains M6/M7 and must use typed policy,
-  confirmation, verification, and audit records.
+- **Operations** reads each selected Agent's live root-owned capability policy,
+  exposes approved start/stop/restart/recent-log actions, requires the exact
+  per-action confirmation phrase, and shows durable lifecycle audit. Recent log
+  lines exist only in the current result dialog and are cleared when it closes.
+  Declarative deployment and rollback remain M7.
 
 The UI must not describe a discovered link as reachable until an active probe
 has supplied evidence. It must not turn a failed API request into a misleading
@@ -100,7 +102,10 @@ The deterministic fixture server uses only invented host names and
 - host-scoped 120-point history, host switching, responsive trend charts, and
   an isolated history-API error that preserves current inventory.
 - event rendering, host/lifecycle filters, CSRF-protected acknowledgement,
-  retained acknowledged risk, and an isolated event-API error.
+  retained acknowledged risk, and an isolated event-API error;
+- live action-policy rendering, exact confirmation, CSRF-protected execution,
+  transient log display, durable audit refresh, and the complete Operations
+  page at 390px.
 
 Reference screenshots live in `frontend/tests/__screenshots__`. Time, locale,
 timezone, data, and viewport are fixed. Update screenshots only for an intended

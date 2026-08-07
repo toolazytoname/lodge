@@ -202,17 +202,44 @@
         </section>
 
         <section id="operationsPage" class="page hidden" data-page-panel="operations" aria-labelledby="pageTitle">
-          <div class="boundary-grid">
-            <section class="panel">
-              <div class="panel-heading"><div><p class="eyebrow">READ-ONLY NOW</p><h2>资产同步</h2></div></div>
+          <div id="operationsMetrics" class="metric-grid metric-grid-compact"></div>
+          <div class="operations-grid">
+            <section class="panel action-panel" aria-labelledby="controlledActionTitle">
+              <div class="panel-heading action-heading">
+                <div>
+                  <p class="eyebrow">POLICY CAPABILITIES</p>
+                  <h2 id="controlledActionTitle">已批准动作</h2>
+                </div>
+                <label class="compact-select" for="actionAgent">主机
+                  <select id="actionAgent"></select>
+                </label>
+              </div>
+              <p class="action-boundary-copy">清单实时来自主机上的 root-only 策略；Hub 不能提交命令、参数或路径。</p>
+              <div id="actionCapabilityStatus" class="action-capability-status" aria-live="polite"></div>
+              <div id="actionList" class="action-list"></div>
+            </section>
+            <section class="panel operation-boundary-panel" aria-labelledby="operationBoundaryTitle">
+              <div><p class="eyebrow">SAFETY BOUNDARY</p><h2 id="operationBoundaryTitle">执行边界</h2></div>
+              <ul class="boundary-checks">
+                <li><strong>策略在主机</strong><span>策略缺失即禁用，页面不能扩大权限。</span></li>
+                <li><strong>逐字确认</strong><span>每次执行都需输入当前动作的确认短语。</span></li>
+                <li><strong>串行与验后</strong><span>全局一次一个动作，变更后验证目标状态。</span></li>
+                <li><strong>日志不落库</strong><span>有界脱敏日志只在本次结果窗口显示。</span></li>
+              </ul>
+              <div class="sync-divider"><span>Agent 同步</span></div>
               <div id="syncSummary" class="sync-summary"></div>
             </section>
-            <section class="panel planned-panel">
-              <span class="planned-badge">M6 计划</span>
-              <h2>受控运维动作</h2>
-              <p>重启、部署和回滚只会通过白名单动作、二次确认和完整审计开放。当前版本保持只读，页面不会提供任意命令入口。</p>
-            </section>
           </div>
+          <section class="panel operation-audit-panel section-block" aria-labelledby="operationAuditTitle">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">DURABLE AUDIT</p>
+                <h2 id="operationAuditTitle">操作记录</h2>
+                <p>仅保存动作、目标、状态、会话标识和类型化结果；不保存日志正文。</p>
+              </div>
+            </div>
+            <div id="operationAudit" class="operation-audit" aria-live="polite"></div>
+          </section>
         </section>
       </main>
     </section>
@@ -239,6 +266,34 @@
       <div class="dialog-actions">
         <button id="cancelDialogBtn" class="button button-secondary" type="button">取消</button>
         <button id="saveAnnotationBtn" class="button button-primary" type="submit">保存配置</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="actionDialog" class="annotation-dialog action-dialog" aria-labelledby="actionDialogTitle">
+    <form id="actionForm">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">CONTROLLED OPERATION</p><h2 id="actionDialogTitle">确认受控动作</h2></div>
+        <button id="closeActionDialogBtn" class="dialog-close" type="button" aria-label="关闭">关闭</button>
+      </div>
+      <p id="actionDialogContext" class="dialog-context"></p>
+      <div id="actionDialogRisk" class="action-dialog-risk"></div>
+      <p id="actionDialogDescription" class="action-dialog-description"></p>
+      <div id="actionConfirmationFields">
+        <p class="confirmation-help">为避免误触，请逐字输入：</p>
+        <code id="actionConfirmationPhrase" class="confirmation-phrase"></code>
+        <label for="actionConfirmation">确认短语</label>
+        <input id="actionConfirmation" type="text" maxlength="512" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="actionResult" class="action-result hidden" aria-live="polite">
+        <div id="actionResultSummary" class="action-result-summary"></div>
+        <p id="actionLogNotice" class="action-log-notice hidden">敏感日志只在此窗口显示，关闭后即清除，不进入操作记录。</p>
+        <pre id="actionResultLogs" class="action-result-logs hidden"></pre>
+      </div>
+      <p id="actionError" class="form-message error-text hidden" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="cancelActionBtn" class="button button-secondary" type="button">取消</button>
+        <button id="executeActionBtn" class="button button-primary" type="submit" disabled>确认执行</button>
       </div>
     </form>
   </dialog>

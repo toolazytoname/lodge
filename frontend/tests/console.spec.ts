@@ -138,6 +138,44 @@ test.describe("Lodge Web console", () => {
     await expect(page).toHaveScreenshot("security-history-390.png", { fullPage: true });
   });
 
+  test("operations page enforces exact confirmation and keeps logs transient", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/?fixture=normal#operations");
+
+    await expect(page.getByRole("heading", { name: "已批准动作" })).toBeVisible();
+    await expect(page.locator("#actionList .action-row")).toHaveCount(3);
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(4);
+    await expect(page.locator("#operationsMetrics .metric-value")).toHaveText(["3", "1", "0", "1"]);
+    await page.getByRole("button", { name: "读取日志 Gateway", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "读取日志 Gateway" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator("#actionConfirmationPhrase")).toHaveText("确认读取日志 Gateway");
+    const confirmation = dialog.getByLabel("确认短语");
+    const execute = dialog.getByRole("button", { name: "确认执行", exact: true });
+    await expect(execute).toBeDisabled();
+    await confirmation.fill("确认读取日志");
+    await expect(execute).toBeDisabled();
+    await confirmation.fill("确认读取日志 Gateway");
+    await expect(execute).toBeEnabled();
+    await execute.click();
+
+    await expect(dialog.locator("#actionResultSummary")).toContainText("动作完成");
+    await expect(dialog.locator("#actionResultLogs")).toContainText("gateway ready");
+    await expect(dialog.locator("#actionLogNotice")).toContainText("关闭后即清除");
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(5);
+    await expect(page.locator("#operationAudit .operation-row").first()).toContainText("读取日志");
+    await expectNoHorizontalOverflow(page);
+    await expect(page).toHaveScreenshot("operations-result-1280.png", { fullPage: true });
+
+    await dialog.locator("#cancelActionBtn").click();
+    await expect(dialog).not.toBeVisible();
+    await expect(page.locator("#actionResultLogs")).toHaveText("");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator("#actionList .action-row")).toHaveCount(3);
+    await expectNoHorizontalOverflow(page);
+    await expect(page).toHaveScreenshot("operations-390.png", { fullPage: true });
+  });
+
   test("empty, offline, partial, and total-error fixtures stay truthful", async ({ page }) => {
     const failedAPIs: string[] = [];
     page.on("response", (response) => {
@@ -179,6 +217,6 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#historySummary")).toContainText("历史数据暂时不可用");
     await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(0);
     await expect(page.locator("#eventList .event-row")).toHaveCount(4);
-    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/events", "/api/events", "/api/history", "/api/link-checks", "/api/services", "/api/services"]);
+    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/events", "/api/events", "/api/history", "/api/link-checks", "/api/operations", "/api/services", "/api/services"]);
   });
 });

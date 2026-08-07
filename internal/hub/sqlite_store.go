@@ -44,6 +44,14 @@ func OpenSQLiteStore(ctx context.Context, path string, agents []AgentConfig, not
 		_ = database.Close()
 		return nil, err
 	}
+	interrupted, err := database.FailInterruptedOperations(ctx, time.Now().UTC())
+	if err != nil {
+		_ = database.Close()
+		return nil, fmt.Errorf("recover interrupted operations: %w", err)
+	}
+	if interrupted > 0 {
+		log.Printf("lodge hub operation recovery: marked %d interrupted operations failed", interrupted)
+	}
 	if err := store.reloadAnnotations(ctx); err != nil {
 		_ = database.Close()
 		return nil, err
@@ -165,6 +173,30 @@ func (s *SQLiteStore) AcknowledgeEvent(ctx context.Context, id string, acknowled
 		return domain.Event{}, found, ErrEventResolved
 	}
 	return event, found, err
+}
+
+func (s *SQLiteStore) CreateOperation(ctx context.Context, operation domain.Operation) error {
+	return s.database.CreateOperation(ctx, operation)
+}
+
+func (s *SQLiteStore) StartOperation(ctx context.Context, id string, startedAt time.Time) (domain.Operation, bool, error) {
+	operation, found, err := s.database.StartOperation(ctx, id, startedAt)
+	if errors.Is(err, storage.ErrOperationState) {
+		return domain.Operation{}, found, ErrOperationState
+	}
+	return operation, found, err
+}
+
+func (s *SQLiteStore) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind string) (domain.Operation, bool, error) {
+	operation, found, err := s.database.FinishOperation(ctx, id, state, finishedAt, summary, errorKind)
+	if errors.Is(err, storage.ErrOperationState) {
+		return domain.Operation{}, found, ErrOperationState
+	}
+	return operation, found, err
+}
+
+func (s *SQLiteStore) Operations(ctx context.Context, hostID domain.HostID, limit int) ([]domain.Operation, error) {
+	return s.database.Operations(ctx, hostID, limit)
 }
 
 func (s *SQLiteStore) ClaimEventNotification(ctx context.Context, channel string, now, leaseUntil time.Time) (domain.EventNotificationDelivery, bool, error) {

@@ -32,8 +32,23 @@ root helper 从有界 stdin 读取一个 action ID，重新解析策略，以固
 安全会直接阻断安装，而不是自动“修复”为可信。服务上下文验收新增动作清单，
 并负向验证任意 Docker run、三条旧直连写操作及 helper 动态 argv 全部被拒。
 
+## Hub、审计与 Web 闭环
+
+Hub `0.7.0` 不缓存执行权限：列出动作与真正执行都会访问 Agent 当前策略；浏览器
+只能发送 agent ID、action ID 和逐字确认语，CSRF、JSON 字段、query、大小与身份
+都在边界验证。全 fleet 同时只允许一个动作，Agent 的非幂等 POST 禁 redirect、
+环境 proxy 和重试；丢失响应只会形成分类失败，绝不会自动重放。
+
+SQLite 复用 schema 1 已有的 operation 表，按 compare-and-set 保存
+`requested → running → succeeded|failed`。操作者是每次登录变化、不可逆推出 cookie
+的会话指纹；持久记录只有 host、目标、动作、时间、摘要和 error category。Agent
+日志只存在于本次认证响应，secret sentinel 测试证明不进入 DB/WAL/SHM。Hub 启动
+时把中断记录改为 `failed/hub_restarted`，不猜测远程结果，也不重试。
+
+Operations 页面现在展示选中主机的实时 root policy、风险级别、Agent 同步、逐字
+确认对话框、瞬时结果与完整审计；390/1280 截图和异常路径均纳入门禁。
+
 ## 当前边界
 
-这一切片只完成 Agent capability 与部署约束，尚未把能力接到 Hub。Hub 代理、
-CSRF、确认短语、`requested → running → success/fail` 持久审计、Web 操作页、
-五机发布和低风险 live 验收完成前，M6 不能标记完成。
+代码、文档和本地定向验收已经完成；完整 `npm test`、双 CI、五机 Agent 0.6.0
+滚动发布、Hub 0.7.0 事务发布与低风险 live 动作完成前，M6 仍不能标记完成。

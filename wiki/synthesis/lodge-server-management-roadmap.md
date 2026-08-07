@@ -90,6 +90,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M6 Agent 权限边界实现：旧 Docker prune、journal vacuum、直接 Caddy restart 写规则已移除，改为 root-only 策略 + 单一固定执行 helper。策略缺失即禁用全部动作；`lodge` 不可写策略父目录；HTTP 只处理动作 ID 和类型化有界结果。start/stop/restart/logs 的固定映射、串行锁、超时、状态验证与日志脱敏已有测试，但 Hub CSRF 代理、确认短语、持久审计、Web 页面和五机 live 验收尚未完成，不能从页面执行任何动作。
 
+> 2026-08-08 M6 Hub/Web 闭环实现：Hub 0.7.0 每次执行前重新读取 Agent 实时策略，只接受 agent ID、action ID 与逐字确认语；非幂等 POST 不走 proxy/redirect/retry。operation 以 compare-and-set 持久化请求、运行和分类结果，重启中断只标记 `hub_restarted` 而不重放，瞬时日志由 sentinel 测试证明不进入 DB/WAL/SHM。Operations 页面在 390/1280 完成权限、风险、确认、结果与审计验收；完整 CI 和生产低风险动作完成前 M6 仍保持进行中。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

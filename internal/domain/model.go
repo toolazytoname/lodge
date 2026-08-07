@@ -323,6 +323,97 @@ type Operation struct {
 	Error         string         `json:"error,omitempty"`
 }
 
+// Validate keeps the durable audit row monotonic and secret-free. Error is a
+// bounded category, never raw stderr or a remote process message.
+func (operation Operation) Validate() error {
+	if err := validateIdentifier("operation id", operation.ID, 128); err != nil {
+		return err
+	}
+	if err := validateIdentifier("operation host id", string(operation.HostID), 128); err != nil {
+		return err
+	}
+	switch operation.Kind {
+	case OperationStart, OperationStop, OperationRestart, OperationLogs:
+		if err := validateIdentifier("operation workload key", operation.WorkloadKey, 512); err != nil {
+			return err
+		}
+	case OperationDeploy, OperationRollback:
+		if operation.WorkloadKey != "" {
+			if err := validateIdentifier("operation workload key", operation.WorkloadKey, 512); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("invalid operation kind %q", operation.Kind)
+	}
+	if err := validateIdentifier("operation requester", operation.RequestedBy, 128); err != nil {
+		return err
+	}
+	if operation.RequestedAt.IsZero() {
+		return errors.New("operation request time must not be zero")
+	}
+	if operation.StartedAt != nil && operation.StartedAt.Before(operation.RequestedAt) {
+		return errors.New("operation start predates request")
+	}
+	if operation.FinishedAt != nil {
+		if operation.FinishedAt.Before(operation.RequestedAt) || operation.StartedAt != nil && operation.FinishedAt.Before(*operation.StartedAt) {
+			return errors.New("operation finish time is invalid")
+		}
+	}
+	if !utf8.ValidString(operation.ResultSummary) || utf8.RuneCountInString(operation.ResultSummary) > 240 || containsControl(operation.ResultSummary) {
+		return errors.New("operation result summary is invalid")
+	}
+	if operation.Error != "" && !validOperationErrorCategory(operation.Error) {
+		return errors.New("operation error category is invalid")
+	}
+	switch operation.State {
+	case OperationRequested:
+		if operation.StartedAt != nil || operation.FinishedAt != nil || operation.ResultSummary != "" || operation.Error != "" {
+			return errors.New("requested operation contains execution state")
+		}
+	case OperationRunning:
+		if operation.StartedAt == nil || operation.FinishedAt != nil || operation.ResultSummary != "" || operation.Error != "" {
+			return errors.New("running operation timestamps or result are inconsistent")
+		}
+	case OperationSucceeded:
+		if operation.StartedAt == nil || operation.FinishedAt == nil || operation.Error != "" || strings.TrimSpace(operation.ResultSummary) == "" {
+			return errors.New("succeeded operation timestamps or result are inconsistent")
+		}
+	case OperationFailed:
+		if operation.FinishedAt == nil || operation.Error == "" {
+			return errors.New("failed operation must have finish time and error category")
+		}
+	case OperationRolledBack:
+		if operation.StartedAt == nil || operation.FinishedAt == nil || operation.Error != "" || strings.TrimSpace(operation.ResultSummary) == "" {
+			return errors.New("rolled-back operation timestamps or result are inconsistent")
+		}
+	default:
+		return fmt.Errorf("invalid operation state %q", operation.State)
+	}
+	return nil
+}
+
+func validOperationErrorCategory(value string) bool {
+	if len(value) > 64 {
+		return false
+	}
+	for _, character := range value {
+		if character != '_' && (character < 'a' || character > 'z') && (character < '0' || character > '9') {
+			return false
+		}
+	}
+	return value != ""
+}
+
+func containsControl(value string) bool {
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return true
+		}
+	}
+	return false
+}
+
 func (h Host) Validate() error {
 	if err := validateIdentifier("host id", string(h.ID), 128); err != nil {
 		return err

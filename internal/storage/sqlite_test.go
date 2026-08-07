@@ -112,6 +112,73 @@ func TestSQLiteMigrationAndHostSync(t *testing.T) {
 	}
 }
 
+func TestSQLiteOperationAuditLifecycleAndRecovery(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}, {ID: "host-b", Name: "Host B"}}); err != nil {
+		t.Fatal(err)
+	}
+	requestedAt := time.Date(2026, 8, 8, 1, 2, 3, 0, time.UTC)
+	operation := domain.Operation{
+		ID: "op_success", HostID: "host-a", WorkloadKey: "systemd:caddy.service",
+		Kind: domain.OperationRestart, State: domain.OperationRequested,
+		RequestedBy: "session:0123456789abcdef", RequestedAt: requestedAt,
+	}
+	if err := store.CreateOperation(ctx, operation); err != nil {
+		t.Fatal(err)
+	}
+	startedAt := requestedAt.Add(time.Second)
+	running, found, err := store.StartOperation(ctx, operation.ID, startedAt)
+	if err != nil || !found || running.State != domain.OperationRunning || running.StartedAt == nil {
+		t.Fatalf("start operation failed: found=%v operation=%+v err=%v", found, running, err)
+	}
+	finishedAt := startedAt.Add(2 * time.Second)
+	finished, found, err := store.FinishOperation(ctx, operation.ID, domain.OperationSucceeded, finishedAt, "Caddy：running → running", "")
+	if err != nil || !found || finished.State != domain.OperationSucceeded || finished.FinishedAt == nil {
+		t.Fatalf("finish operation failed: found=%v operation=%+v err=%v", found, finished, err)
+	}
+	if _, _, err := store.FinishOperation(ctx, operation.ID, domain.OperationFailed, finishedAt, "", "command_failed"); !errors.Is(err, ErrOperationState) {
+		t.Fatalf("terminal operation advanced twice: %v", err)
+	}
+
+	requested := operation
+	requested.ID, requested.Kind, requested.WorkloadKey = "op_interrupted_requested", domain.OperationLogs, "docker:api"
+	requested.RequestedAt = requestedAt.Add(3 * time.Second)
+	if err := store.CreateOperation(ctx, requested); err != nil {
+		t.Fatal(err)
+	}
+	runningInterrupted := requested
+	runningInterrupted.ID, runningInterrupted.Kind = "op_interrupted_running", domain.OperationStart
+	runningInterrupted.RequestedAt = requestedAt.Add(4 * time.Second)
+	if err := store.CreateOperation(ctx, runningInterrupted); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := store.StartOperation(ctx, runningInterrupted.ID, requestedAt.Add(5*time.Second)); err != nil || !found {
+		t.Fatalf("prepare interrupted running operation: found=%v err=%v", found, err)
+	}
+
+	recovered, err := store.FailInterruptedOperations(ctx, requestedAt.Add(6*time.Second))
+	if err != nil || recovered != 2 {
+		t.Fatalf("recovered operations = %d, err=%v", recovered, err)
+	}
+	timeline, err := store.Operations(ctx, "host-a", 20)
+	if err != nil || len(timeline) != 3 {
+		t.Fatalf("operation timeline mismatch: %+v err=%v", timeline, err)
+	}
+	if timeline[0].ID != runningInterrupted.ID || timeline[0].State != domain.OperationFailed || timeline[0].Error != "hub_restarted" || timeline[0].StartedAt == nil {
+		t.Fatalf("running recovery mismatch: %+v", timeline[0])
+	}
+	if timeline[1].ID != requested.ID || timeline[1].State != domain.OperationFailed || timeline[1].Error != "hub_restarted" || timeline[1].StartedAt != nil {
+		t.Fatalf("requested recovery mismatch: %+v", timeline[1])
+	}
+	if all, err := store.Operations(ctx, "", 20); err != nil || len(all) != 3 {
+		t.Fatalf("fleet operation timeline mismatch: %+v err=%v", all, err)
+	}
+	if missing, found, err := store.StartOperation(ctx, "op_missing", time.Now()); err != nil || found || missing.ID != "" {
+		t.Fatalf("missing operation start mismatch: found=%v operation=%+v err=%v", found, missing, err)
+	}
+}
+
 func TestWebLinkChecksReplaceAtomically(t *testing.T) {
 	store, _ := openTestSQLite(t)
 	ctx := context.Background()

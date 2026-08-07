@@ -100,6 +100,39 @@ func TestSQLiteStoreReloadsAnnotationsButNotStaleOnlineState(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreFailsInterruptedOperationOnRestartWithoutRetry(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	agents := []AgentConfig{{ID: "host-a", Name: "Host A", URL: "http://agent", Token: "runtime-only"}}
+	first, err := OpenSQLiteStore(context.Background(), path, agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Add(-time.Minute)
+	operation := domain.Operation{
+		ID: "op_interrupted", HostID: "host-a", WorkloadKey: "docker:api", Kind: domain.OperationRestart,
+		State: domain.OperationRequested, RequestedBy: "session:0123456789abcdef", RequestedAt: now,
+	}
+	if err := first.CreateOperation(context.Background(), operation); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := first.StartOperation(context.Background(), operation.ID, now.Add(time.Second)); err != nil || !found {
+		t.Fatalf("start interrupted operation: found=%v err=%v", found, err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := OpenSQLiteStore(context.Background(), path, agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	operations, err := second.Operations(context.Background(), "host-a", 10)
+	if err != nil || len(operations) != 1 || operations[0].State != domain.OperationFailed || operations[0].Error != "hub_restarted" || operations[0].FinishedAt == nil {
+		t.Fatalf("interrupted operation recovery mismatch: %+v err=%v", operations, err)
+	}
+}
+
 func TestSQLiteStoreEvaluatesAndPersistsEventLifecycle(t *testing.T) {
 	store, _ := openTestSQLiteStore(t, []AgentConfig{{ID: "host-a", Name: "Host A"}})
 	ctx := context.Background()
