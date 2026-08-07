@@ -134,7 +134,7 @@ test.describe("Lodge Web console", () => {
     // Linux and macOS round the final mobile text line one pixel differently.
     // Pin only the visual-regression canvas so the snapshot still compares the
     // complete page without turning host font metrics into a false failure.
-    await page.addStyleTag({ content: "html, body { min-height: 2211px !important; }" });
+    await page.addStyleTag({ content: "html, body { min-height: 2226px !important; }" });
     await expect(page).toHaveScreenshot("security-history-390.png", { fullPage: true });
   });
 
