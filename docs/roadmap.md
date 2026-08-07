@@ -43,7 +43,13 @@ The detailed findings are archived in the Wiki. This file is the normative engin
 - [x] Overview, Hosts, Services, Security, and Operations navigation and page boundaries
 - [x] Responsive, accessible loading/empty/offline/error states
 - [x] End-to-end and visual regression tests
-- [ ] Active reachability measurement for registered Web links
+- [x] Active reachability measurement for registered Web links
+
+Live acceptance on 2026-08-08 measured 6 reachable, 1 degraded, and 4
+unreachable among 11 discovered proxy routes (54.5% reachable). The M4 product
+capability is complete; the fleet remains below the 95% operational target and
+the failed DNS/TLS/route evidence must stay visible until each service owner
+repairs or retires it.
 
 ## M5 — History and alerts
 

@@ -1,7 +1,7 @@
 ---
 type: source
 date: 2026-08-07
-status: in-progress
+status: complete
 sources:
   - current embedded Web source audit
   - live 5-host and 55-service sanitized browser fixture
@@ -56,3 +56,9 @@ Security 只汇总当前公网监听、Web 链接、待归因与离线节点；�
 100–499 表示“Hub 收到 HTTP 响应”，包括登录页、重定向和权限拒绝；500–599 表示 degraded；网络/TLS/DNS/超时表示 unreachable。它不声称公网可达、业务语义正常或用户浏览器一定可达。POST 需要登录与 CSRF，同一时刻只运行一轮；最新完整结果集原子替换，响应正文、header、解析 IP 与原始错误从不保存。
 
 前端 Go→TypeScript 生成契约同步增加精确状态 union。Overview 指标、快速入口和服务行显示未检查/Hub 可达/5xx/Hub 不可达；offline fixture 明确出现 4/5 Hub 可达，全错误仍为 N/A。Playwright 增加一次带 fixture CSRF 校验的真实点击场景，因此关键场景从 9 增至 10，并重新生成、人工检查 390/1280/1920 视觉基线。实现门禁已通过；真实 Hub 部署和生产视角测量仍是 M4 完成前的最后证据。
+
+## 生产发布与真实基线
+
+提交 `1a8a698` 的 push/PR 两套 GitHub CI 均通过完整质量门禁与 `govulncheck` 后，使用 Go 1.26.5、CGo-free x86-64 Hub `0.5.0` 事务发布到 bytedragon，SHA-256 为 `cc3ee4bf9c65b61d088a1d0eb4e3d096169920534010d96afdf92edaa22274fa`。安装器创建 root-only 回滚包 `/var/lib/lodge-deploy-backups/hub-20260807T165354Z-SYGxkc` 与一致性备份 `/var/lib/lodge-hub/backups/post-deploy-20260807T165358Z-3896860.db`；schema 4→5、`integrity_check=ok`、5/5 online、55 workloads、11 routes、0 warnings、0 unidentified 和 Tailnet-only Serve 均通过，未触发回滚。
+
+首次生产 Hub 检查覆盖 16 个当前展示入口：7 reachable、1 degraded、8 unreachable。按质量指标限定到 11 条实际发现的 Caddy/Nginx 路由：6 reachable、1 degraded、4 unreachable，即 54.5%，低于 95% 目标。主要证据类别包括 DNS、TLS、timeout 和一条 HTTP 502；原始错误未保存。M4 的“能测量、能辨别、能如实展示”能力完成，但资产质量不因功能完成而视为达标，后续必须逐条修复或退役错误路由。

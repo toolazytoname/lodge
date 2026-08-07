@@ -108,3 +108,11 @@
 - UI 区分未检查、Hub 可达、HTTP 5xx 与 Hub 不可达，并明确不把 Hub 视角等同于公网或浏览器视角。
 - fixture 验证 CSRF 请求头与主动检查交互，关键端到端场景增至 10；三档宽度视觉基线已更新并人工检查。
 - 实现已通过局部门禁，真实 Hub 部署和 live 可达率证据仍待事务发布后记录。
+
+## [2026-08-08] deployment | M4 主动入口检查上线
+
+- 提交 `1a8a698` 的 push/PR CI 与漏洞扫描通过后，事务发布 Hub `0.5.0` 静态二进制；SHA-256 为 `cc3ee4bf9c65b61d088a1d0eb4e3d096169920534010d96afdf92edaa22274fa`。
+- 安装器保留 root-only 回滚包与 schema 4 一致性备份，迁移到 schema 5 后再创建发布后备份；数据库完整性、权限、5 台主机、Tailnet-only Serve、受保护 API 未认证 401 和新静态资源均通过。
+- 发布后 fleet 保持 5/5 online、55 workloads、11 routes、0 warnings、0 unidentified，最大观测年龄 2.4 秒。
+- 首次 Hub 检查的 16 个展示入口为 7 reachable、1 degraded、8 unreachable；其中 11 条注册代理路由为 6/1/4，可达率 54.5%，未达到 95% 目标。
+- M4 产品能力完成；DNS、TLS、timeout、502 等真实资产问题保留为显式治理差距，没有删除失败证据来美化指标。

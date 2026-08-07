@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "measuredAt": "2026-08-07",
+  "measuredAt": "2026-08-08",
   "scope": "Lodge live delivery scorecard",
   "metrics": [
     {
@@ -27,11 +27,11 @@
       "id": "registered_web_link_success_percent",
       "dimension": "product",
       "name": "Registered Web link success",
-      "current": null,
+      "current": 54.5,
       "target": 95,
       "unit": "percent",
       "direction": "increase",
-      "evidence": "11 redacted Caddy/Nginx routes are registered in live schema 4; active reachability probes are an M4 acceptance item and have not yet been measured"
+      "evidence": "First live Hub-scoped probe on 2026-08-08: 6 reachable, 1 degraded, and 4 unreachable across 11 discovered Caddy/Nginx routes; all 16 displayed links were 7 reachable, 1 degraded, and 8 unreachable"
     },
     {
       "id": "web_console_page_boundaries",
@@ -101,7 +101,7 @@
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Live bytedragon Hub uses --history-retention 720h with SQLite schema 4 on 2026-08-07"
+      "evidence": "Live bytedragon Hub 0.5.0 uses --history-retention 720h with SQLite schema 5 on 2026-08-08"
     },
     {
       "id": "web_operations",
