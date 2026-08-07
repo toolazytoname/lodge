@@ -21,8 +21,24 @@ func main() {
 	collectComposeMetadata := flag.Bool("collect-compose-metadata", false, "以 JSONL 输出校验后的 Compose 身份并退出（仅供精确 sudoers 调用）")
 	collectProxyRoutes := flag.Bool("collect-proxy-routes", false, "以 JSONL 输出脱敏的 Caddy/Nginx 路由并退出（仅供精确 sudoers 调用）")
 	collectSSHAuth := flag.Bool("collect-ssh-auth", false, "输出最近 SSH 认证失败来源聚合并退出（仅供精确 sudoers 调用）")
+	listActions := flag.Bool("list-actions", false, "列出 root 策略批准的受控动作并退出（仅供精确 sudoers 调用）")
+	executeAction := flag.Bool("execute-action", false, "从标准输入执行一个 root 策略批准的动作并退出（仅供精确 sudoers 调用）")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
+
+	modeCount := 0
+	for _, enabled := range []bool{
+		*check, *printSudoers, *collectProcessOrigins, *collectComposeMetadata,
+		*collectProxyRoutes, *collectSSHAuth, *listActions, *executeAction, *showVersion,
+	} {
+		if enabled {
+			modeCount++
+		}
+	}
+	if modeCount > 1 || flag.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "只能选择一个运行模式，且不接受位置参数")
+		os.Exit(2)
+	}
 
 	switch {
 	case *showVersion:
@@ -57,6 +73,18 @@ func main() {
 	case *collectSSHAuth:
 		if err := agent.WriteSSHAuthSummary(os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "采集 SSH 认证失败摘要失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *listActions:
+		if err := agent.WriteActionDefinitions(os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "读取受控动作策略失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *executeAction:
+		if err := agent.ExecutePolicyAction(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "执行受控动作失败:", err)
 			os.Exit(1)
 		}
 		return

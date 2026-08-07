@@ -9,8 +9,8 @@
 #   1. 创建系统账号 lodge（nologin、无 home、不进 docker/wheel/sudo 组）；
 #   2. 安装二进制到 /usr/local/bin/lodge-agent；
 #   3. 从二进制自身生成 sudoers（单一真相来源，杜绝手写漂移）；
-#   4. 安装 systemd unit（加固：见 lodge-agent.service 注释）；
-#   5. 启动服务，token 首次启动时由 agent 写入 /etc/lodge-agent/token。
+#   4. 校验 root-only 动作策略（缺省即禁用全部写操作）；
+#   5. 安装 systemd unit 并完成真实服务上下文验收。
 #
 # 幂等：可重复运行。
 
@@ -22,6 +22,7 @@ UNIT_SRC="$(dirname "$0")/lodge-agent.service"
 UNIT_DST="/etc/systemd/system/lodge-agent.service"
 CONF_DIR="/etc/lodge-agent"
 TOKEN_FILE="$CONF_DIR/token"
+ACTION_POLICY_FILE="$CONF_DIR/actions.json"
 
 err()  { echo "✗ $*" >&2; exit 1; }
 info() { echo "  $*"; }
@@ -41,6 +42,7 @@ command -v systemctl >/dev/null || err "未发现 systemd，本脚本仅支持 s
 command -v python3 >/dev/null || err "未发现 python3，无法执行服务进程验收"
 command -v visudo >/dev/null || err "未发现 visudo，无法验证 sudoers 策略"
 command -v cmp >/dev/null || err "未发现 cmp，无法比较 sudoers 安全基线"
+command -v stat >/dev/null || err "未发现 stat，无法验证 root-only 动作策略"
 [ -f "$UNIT_SRC" ] || err "找不到 unit 文件：$UNIT_SRC"
 
 echo "▸ 安装 lodge-agent"
@@ -67,13 +69,51 @@ info "已确认 lodge 不在任何特权组"
 install -m 0755 "$BIN_SRC" "$INSTALL_DIR/lodge-agent"
 info "二进制 → $INSTALL_DIR/lodge-agent"
 
-# ── 3. 配置目录与 token ───────────────────────────────────
-install -d -o lodge -g lodge -m 0750 "$CONF_DIR"
-# 若已有 token，保留（重装不应让旧 token 失效）
-if [ -f "$TOKEN_FILE" ]; then
-  info "token 已存在，保留"
+# ── 3. 配置目录、token 与 root-only 动作策略 ──────────────
+# 目录必须由 root 拥有，否则受限 lodge 账号可 rename 掉 root-owned 策略，
+# 再用自己创建的文件替换。lodge 仅通过组权限穿越目录并读取自己的 token。
+[ ! -L "$CONF_DIR" ] || err "配置目录不能是符号链接：$CONF_DIR"
+install -d -o root -g lodge -m 0750 "$CONF_DIR"
+if [ -e "$TOKEN_FILE" ] || [ -L "$TOKEN_FILE" ]; then
+  [ -f "$TOKEN_FILE" ] && [ ! -L "$TOKEN_FILE" ] || err "token 必须是普通文件且不能是符号链接"
+  [ -s "$TOKEN_FILE" ] || err "现有 token 为空，拒绝静默轮换"
+  chown lodge:lodge "$TOKEN_FILE"
+  chmod 0600 "$TOKEN_FILE"
+  info "token 已存在，按 lodge:lodge 0600 保留"
 else
-  info "token 将在服务首次启动时由 agent 生成"
+  python3 - "$TOKEN_FILE" "$(id -u lodge)" "$(id -g lodge)" <<'PY'
+import os
+import secrets
+import sys
+
+path, uid, gid = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+if hasattr(os, "O_NOFOLLOW"):
+    flags |= os.O_NOFOLLOW
+fd = os.open(path, flags, 0o600)
+try:
+    os.fchown(fd, uid, gid)
+    os.write(fd, (secrets.token_hex(32) + "\n").encode("ascii"))
+finally:
+    os.close(fd)
+PY
+  info "已生成 owner-only token（内容未输出）"
+fi
+
+# 缺少策略文件是明确的 fail-closed 状态：Agent 返回空动作列表。若存在，则
+# 不自动修复 owner/mode，以免把 lodge 或其他账号可控的内容提升为 root 策略。
+if [ -e "$ACTION_POLICY_FILE" ] || [ -L "$ACTION_POLICY_FILE" ]; then
+  [ -f "$ACTION_POLICY_FILE" ] && [ ! -L "$ACTION_POLICY_FILE" ] \
+    || err "动作策略必须是普通文件且不能是符号链接：$ACTION_POLICY_FILE"
+  [ "$(stat -c '%u' "$ACTION_POLICY_FILE")" = 0 ] \
+    || err "动作策略必须归 root 所有：$ACTION_POLICY_FILE"
+  [ "$(stat -c '%a' "$ACTION_POLICY_FILE")" = 600 ] \
+    || err "动作策略权限必须精确为 0600：$ACTION_POLICY_FILE"
+  "$INSTALL_DIR/lodge-agent" --list-actions >/dev/null \
+    || err "动作策略格式或内容无效：$ACTION_POLICY_FILE"
+  info "root-only 动作策略已验证 ✓"
+else
+  info "未配置动作策略：所有写操作保持禁用（fail closed）✓"
 fi
 
 # ── 4. sudoers（从二进制生成，单一真相来源）──────────────
@@ -168,7 +208,7 @@ with open(sys.argv[1], encoding="utf-8") as stream:
     token = stream.read().strip()
 
 payloads = {}
-for path in ("/v1/status", "/v1/services"):
+for path in ("/v1/status", "/v1/services", "/v1/actions"):
     request = urllib.request.Request(
         "http://127.0.0.1:9101" + path,
         headers={"Authorization": "Bearer " + token},
@@ -183,13 +223,16 @@ privilege_warnings = [
 ]
 services = payloads["/v1/services"].get("services", [])
 ssh = payloads["/v1/status"].get("ssh")
+actions = payloads["/v1/actions"].get("actions")
 if privilege_warnings:
     raise SystemExit("service-context collection has privilege warnings")
 if not services:
     raise SystemExit("service-context collection found no services")
 if not isinstance(ssh, dict) or not isinstance(ssh.get("failedTotal"), int) or not isinstance(ssh.get("sources"), list):
     raise SystemExit("service-context SSH authentication summary is missing or invalid")
-print(f"  服务进程采集通过：services={len(services)} warnings={len(warnings)} ssh_failures={ssh['failedTotal']} ✓")
+if not isinstance(actions, list):
+    raise SystemExit("service-context controlled action list is missing or invalid")
+print(f"  服务进程采集通过：services={len(services)} warnings={len(warnings)} ssh_failures={ssh['failedTotal']} actions={len(actions)} ✓")
 PY
 then
   :
@@ -197,16 +240,21 @@ else
   err "真实服务进程采集验收失败"
 fi
 
-# ── 越权验证：lodge 不能 docker run 提权 ──────────────────
+# ── 越权验证：任意命令、旧直连写操作和动态参数均须拒绝 ───
 if sudo -u lodge sudo -n docker run --rm hello-world >/dev/null 2>&1 \
-   || sudo -u lodge sudo -n -n docker run --rm alpine cat /etc/shadow >/dev/null 2>&1; then
-  err "安全验证失败：lodge 能跑 docker run —— sudoers 白名单可能有漏洞"
+   || sudo -u lodge sudo -n -n docker run --rm alpine cat /etc/shadow >/dev/null 2>&1 \
+   || sudo -u lodge sudo -n docker system prune -f >/dev/null 2>&1 \
+   || sudo -u lodge sudo -n journalctl --vacuum-time=7d >/dev/null 2>&1 \
+   || sudo -u lodge sudo -n systemctl restart caddy >/dev/null 2>&1 \
+   || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-action restart:systemd:caddy.service >/dev/null 2>&1; then
+  err "安全验证失败：lodge 命中了未批准命令、旧直连写操作或动态参数"
 else
-  info "越权验证：lodge 无法 docker run（白名单生效）✓"
+  info "越权验证：任意命令、旧直连写操作与动态参数均被拒绝 ✓"
 fi
 
 echo
 echo "▸ 完成。下一步："
 echo "    1. 按 docs/agent-onboarding.md 将 owner-only token 安全导入 Hub（不要打印或放进命令参数）"
-echo "    2. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
-echo "    3. 从 Hub 验证 tailnet 路由和采集状态"
+echo "    2. 如需受控动作，审阅 deploy/agent-actions.example.json 后以 root:root 0600 安装为 $ACTION_POLICY_FILE"
+echo "    3. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
+echo "    4. 从 Hub 验证 tailnet 路由、采集状态和动作清单"

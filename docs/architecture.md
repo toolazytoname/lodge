@@ -58,6 +58,12 @@ remain available to internal rule evaluation without multiplying browser data.
   operator awareness; only later observation truth resolves it.
 - **Operation**: a requested, authorized, executed, and audited state change.
 
+Agent actions are capabilities derived from a root-owned per-host policy, not
+commands supplied by the Hub. The non-root Agent exposes typed definitions and
+passes only an action ID over the one fixed sudo write boundary. The root helper
+revalidates policy, maps to fixed argv, serializes execution, and emits a typed
+bounded result. See [ADR 0010](adr/0010-root-policy-controlled-actions.md).
+
 Binding and reachability are separate. `0.0.0.0:PORT` means `wildcard-bound`;
 only an external probe or authoritative firewall/provider evidence can produce
 confirmed public reachability.

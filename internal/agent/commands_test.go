@@ -28,7 +28,7 @@ func TestGenerateSudoers(t *testing.T) {
 		{"/usr/bin/ss", "-tlnpH"},
 	}
 	write := [][]string{
-		{"/usr/bin/docker", "system", "prune", "-f"},
+		{"/usr/local/bin/lodge-agent", "--execute-action"},
 	}
 
 	out := GenerateSudoers(read, write)
@@ -94,7 +94,7 @@ func TestCommandByName(t *testing.T) {
 	if ok {
 		t.Fatal("进程来源 helper 被追加参数后不应命中白名单")
 	}
-	for _, command := range [][]string{composeMetadataCommand, proxyRoutesCommand, sshAuthCommand, systemdUnitsCommand} {
+	for _, command := range [][]string{composeMetadataCommand, proxyRoutesCommand, sshAuthCommand, listActionsCommand, systemdUnitsCommand} {
 		definition, found := commandByName(command)
 		if !found || definition.Write {
 			t.Fatalf("orchestration metadata command should be read-only: %v", command)
@@ -102,6 +102,23 @@ func TestCommandByName(t *testing.T) {
 		_, found = commandByName(append(append([]string{}, command...), "EXTRA"))
 		if found {
 			t.Fatalf("orchestration command with extra args matched allowlist: %v", command)
+		}
+	}
+	definition, found := commandByName(executeActionCommand)
+	if !found || !definition.Write {
+		t.Fatal("fixed action executor should be the only write command")
+	}
+	_, found = commandByName(append(append([]string{}, executeActionCommand...), "restart:systemd:caddy.service"))
+	if found {
+		t.Fatal("action executor with an argv action ID must be rejected")
+	}
+	for _, removed := range [][]string{
+		{"docker", "system", "prune", "-f"},
+		{"journalctl", "--vacuum-time=7d"},
+		{"systemctl", "restart", "caddy"},
+	} {
+		if _, found := commandByName(removed); found {
+			t.Fatalf("legacy direct write command still allowlisted: %v", removed)
 		}
 	}
 }

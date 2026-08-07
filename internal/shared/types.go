@@ -81,6 +81,65 @@ type SSHAuthSource struct {
 	Count   int    `json:"count"`
 }
 
+type ActionKind string
+
+const (
+	ActionStart   ActionKind = "start"
+	ActionStop    ActionKind = "stop"
+	ActionRestart ActionKind = "restart"
+	ActionLogs    ActionKind = "logs"
+)
+
+type ActionTargetKind string
+
+const (
+	ActionTargetSystemd ActionTargetKind = "systemd"
+	ActionTargetDocker  ActionTargetKind = "docker"
+)
+
+type ActionRisk string
+
+const (
+	ActionRiskRead       ActionRisk = "read"
+	ActionRiskChange     ActionRisk = "change"
+	ActionRiskDisruptive ActionRisk = "disruptive"
+)
+
+// ActionDefinition is a policy-approved operation exposed by an Agent. It
+// contains no command line, executable path, or caller-controlled argument.
+type ActionDefinition struct {
+	ID           string           `json:"id"`
+	TargetKey    string           `json:"targetKey"`
+	TargetLabel  string           `json:"targetLabel"`
+	TargetKind   ActionTargetKind `json:"targetKind"`
+	Kind         ActionKind       `json:"kind"`
+	Description  string           `json:"description"`
+	Confirmation string           `json:"confirmation"`
+	Risk         ActionRisk       `json:"risk"`
+}
+
+type ActionsResponse struct {
+	Actions []ActionDefinition `json:"actions"`
+}
+
+type ActionExecutionRequest struct {
+	ID string `json:"id"`
+}
+
+// ActionExecutionResult returns only typed state and bounded, sanitized log
+// lines. Command output and raw process errors never cross the root boundary.
+type ActionExecutionResult struct {
+	OK          bool       `json:"ok"`
+	ActionID    string     `json:"actionId"`
+	TargetKey   string     `json:"targetKey"`
+	Kind        ActionKind `json:"kind"`
+	StateBefore string     `json:"stateBefore,omitempty"`
+	StateAfter  string     `json:"stateAfter,omitempty"`
+	Summary     string     `json:"summary,omitempty"`
+	Logs        []string   `json:"logs,omitempty"`
+	ErrorKind   string     `json:"errorKind,omitempty"`
+}
+
 // Load 是 /proc/loadavg 的三个平均负载。
 type Load struct {
 	One     float64 `json:"one"`

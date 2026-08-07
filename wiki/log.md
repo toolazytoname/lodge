@@ -188,3 +188,11 @@
 - schema 7 全量终验为 5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified，数据库完整性 `ok`；Hub 与四台远程 Agent 的 Serve 均为 Tailnet-only，同机 Agent 不发布 8443，未认证 Hub API 为 401。
 - bytebunny 自然流量在部署开始后 27.9 秒形成 `critical/active` SSH 事件；同期 bytedragon 为 `warning/active`。终验窗口分别为 154/7 与 26/2（失败数/来源数），真实 IP 未写入 Git 或进度记录，事件也未被自动确认。
 - 生产 Webhook 未配置，因此 outbox 为 0 且没有外发；适配器能力由自动化门禁验收。M5 完成，下一里程碑为 M6 受控运维动作。
+
+## [2026-08-08] implementation | M6 Agent 受控动作边界
+
+- Agent 0.6.0 移除 Docker prune、journal vacuum、直接 Caddy restart 三条旧写权限，只保留一个从有界 stdin 接收 action ID 的固定 root helper；Hub/HTTP 不能提交命令、参数或路径。
+- root-only 0600 策略逐目标批准 systemd/Docker 的 start/stop/restart/logs；缺失即空清单，unsafe owner/mode/symlink、重复身份、路径/flag 注入和未知字段全部 fail closed。
+- 状态操作有 15 秒总限时、前后状态与 10 秒健康验证；日志限 200 行/64 KiB，脱敏后只作瞬时响应，原始 stderr 与错误不越界、不入持久审计。
+- 安装器把配置目录改为 `root:lodge 0750` 并移除服务写权限，阻断 `lodge` 通过 rename 替换 root 策略；真实安装将同时负向验证任意命令、旧写操作和动态 helper argv。
+- Agent 切片门禁通过后才提交/推送；Hub 审计、确认 UI 与生产发布仍待后续切片，M6 保持进行中。

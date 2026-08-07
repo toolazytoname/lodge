@@ -13,7 +13,17 @@ required_patterns=(
   '完整 sudoers 策略出现新增错误，已恢复安装前 Lodge 策略'
   'NO_NEW_PRIVS="$(awk'
   '服务进程采集通过：services='
-	'service-context SSH authentication summary is missing or invalid'
+  'service-context SSH authentication summary is missing or invalid'
+  'service-context controlled action list is missing or invalid'
+  'install -d -o root -g lodge -m 0750 "$CONF_DIR"'
+  '[ ! -L "$CONF_DIR" ]'
+  "stat -c '%u' \"\$ACTION_POLICY_FILE\""
+  "stat -c '%a' \"\$ACTION_POLICY_FILE\""
+  '所有写操作保持禁用（fail closed）'
+  'docker system prune -f'
+  'journalctl --vacuum-time=7d'
+  'systemctl restart caddy'
+  '--execute-action restart:systemd:caddy.service'
   'docs/agent-onboarding.md'
 )
 for pattern in "${required_patterns[@]}"; do
@@ -22,6 +32,23 @@ for pattern in "${required_patterns[@]}"; do
     exit 1
   }
 done
+
+if grep -Eq '^[[:space:]]*ReadWritePaths=/etc/lodge-agent' deploy/lodge-agent.service; then
+  printf 'lodge-agent must not be able to replace its root-owned action policy\n' >&2
+  exit 1
+fi
+
+python3 - <<'PY'
+import json
+
+with open("deploy/agent-actions.example.json", encoding="utf-8") as stream:
+    policy = json.load(stream)
+assert policy["version"] == 1
+assert isinstance(policy["targets"], list)
+for target in policy["targets"]:
+    assert set(target) == {"key", "label", "kind", "resource", "actions"}
+    assert set(target["actions"]) <= {"start", "stop", "restart", "logs"}
+PY
 
 for forbidden_directive in \
   NoNewPrivileges CapabilityBoundingSet PrivateDevices ProtectClock \

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "key": "systemd:caddy.service",
+      "label": "Caddy",
+      "kind": "systemd",
+      "resource": "caddy.service",
+      "actions": ["logs", "start", "restart"]
+    }
+  ]
+}

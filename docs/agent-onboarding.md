@@ -20,8 +20,8 @@ each server:
    and the complete host policy, restores the prior Lodge policy on any new
    error (without silently enabling unrelated invalid host policy),
    checks the real service process has `NoNewPrivs=0`, and requires discovery
-   through the authenticated service API to return assets and a valid SSH
-   failure summary without sudo errors;
+   through the authenticated service API to return assets, a valid SSH failure
+   summary, and a typed controlled-action list without sudo errors;
 4. run `deploy/tailnet-management.sh apply agent`, verify Tailscale Funnel is
    disabled, and test port 8443 from the Hub;
 5. transfer the token as an owner-only file, atomically add it to the Hub
@@ -80,6 +80,23 @@ recognizes failed password/public-key/keyboard-interactive and maximum-attempt
 records. It does not accept a unit, time window, filter, or file path argument
 from `lodge`.
 
+Controlled operations use two additional exact self-invocations. The read-only
+`--list-actions` helper projects `/etc/lodge-agent/actions.json`; the sole write
+entry, `--execute-action`, reads one bounded JSON action ID from standard input.
+Neither accepts a target, command, path, or action as an argv value. The root
+helper resolves the ID against the policy and maps only approved systemd units
+or Docker containers to internally fixed start/stop/restart/log argv arrays.
+
+The installer makes `/etc/lodge-agent` root-owned mode `0750` with group
+`lodge`, preserves or creates the token as `lodge:lodge` mode `0600`, and leaves
+the directory read-only to the service. If `actions.json` exists, installation
+requires it to be a regular, non-symlink, `root:root` mode `0600` file and
+validates it before restarting. If it is absent, the action list is empty. To
+enable a reviewed policy, start from `deploy/agent-actions.example.json`, then
+install it with exact ownership and mode before rerunning the Agent installer.
+Never make the directory writable by `lodge`: file ownership alone does not
+prevent a writable-directory rename replacement.
+
 ## Atomic Hub enrollment
 
 Copy `/etc/lodge-agent/token` through a trusted channel into a uniquely named,
@@ -124,4 +141,7 @@ Enrollment is complete only when all of these are true:
 - Hub reports a current successful observation, not merely a configured host;
 - the authenticated Agent status contains a current `ssh` summary and no SSH
   collector warning;
+- the authenticated Agent actions response is typed; an absent policy returns
+  an empty list, and direct legacy write commands plus extra helper argv are
+  rejected by sudo;
 - deployment/checksum/backup or recovery evidence is recorded without secrets.

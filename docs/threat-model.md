@@ -64,6 +64,15 @@
 - `lodge` is not in `docker`, `sudo`, `wheel`, or equivalent groups.
 - Action targets must be discovered and permitted by a root-owned policy.
 - Commands use fixed argv, deadlines, bounded output, and no shell.
+- Sudoers contains one exact action executor, not per-target Docker/systemd
+  commands. It reads only a bounded action ID from stdin and resolves it against
+  a regular, non-symlink, root-owned mode `0600` policy beneath a root-owned
+  non-writable directory. A missing/invalid policy fails closed; target identity
+  must exactly match a narrow systemd-service or Docker-name grammar.
+- Agent HTTP action requests contain no body, command, argument, or path. Both
+  the non-root process and root helper re-resolve policy, serialize execution,
+  bound time/output, and verify post-action state. Helper stderr and raw process
+  errors never cross the HTTP boundary.
 - Compose discovery requests only Docker's official project/service labels;
   full label maps, working directories, config-file paths, commands, and
   environments are not collected. systemd discovery emits only validated unit
@@ -95,11 +104,18 @@
   source IP/count pairs. It never emits usernames, accepted logins, ports,
   arbitrary log fields, or raw log text. The helper is an exact sudoers
   self-invocation with no dynamic args.
+- Controlled log output is limited, UTF-8 normalized, stripped of control
+  characters, and redacted for common credential patterns. Because arbitrary
+  workload text can still be sensitive, log lines are transient authenticated
+  output and are never stored in the operation audit.
 - Every state-changing operation has an append-only logical audit entry.
 
 ### Secrets
 
-- Secrets never appear in API payloads, logs, operation output, screenshots, or Git.
+- Lodge-managed secrets never appear in API payloads, service logs, durable
+  operation audit, screenshots, or Git. Approved workload log reads may contain
+  application-authored sensitive text despite defense-in-depth redaction; they
+  are explicitly sensitive, authenticated, bounded, and non-durable.
 - Config files containing Agent credentials are mode `0600` and owned only by
   the dedicated Hub service account (or delivered as systemd credentials).
 - Agent URLs and bearer tokens exist only in the private config and process

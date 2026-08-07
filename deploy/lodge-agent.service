@@ -26,8 +26,8 @@ ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 ProtectControlGroups=true
-# token 落在 /etc/lodge-agent，agent 首次启动时写入；其余路径只读。
-ReadWritePaths=/etc/lodge-agent
+# 安装器预先生成 token；配置目录由 root 拥有且在 ProtectSystem=strict 下只读。
+# root-only actions.json 因此不能被受限 lodge 账号替换。
 
 [Install]
 WantedBy=multi-user.target

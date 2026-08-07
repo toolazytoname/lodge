@@ -69,9 +69,15 @@ production receiver is intentionally disabled until one is configured.
 ## M6 — Controlled operations
 
 - [ ] Hub action proxy with CSRF and authorization
-- [ ] Root-owned target policy and narrow privileged helper
-- [ ] Start, stop, restart, and bounded log reads
+- [x] Root-owned target policy and narrow privileged helper
+- [x] Agent start, stop, restart, health verification, and bounded log reads
 - [ ] Confirmation, health verification, and complete audit records
+
+The Agent boundary is implemented in version 0.6.0: a missing policy disables
+all actions, direct legacy sudo writes are removed, and only a bounded action ID
+can reach the root helper. This capability is not yet exposed through the Hub
+or deployed to the fleet; M6 remains in progress until confirmation, durable
+audit, UI, CI, and production acceptance are complete.
 
 ## M7 — Declarative deployment
 

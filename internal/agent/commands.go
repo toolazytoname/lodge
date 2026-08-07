@@ -8,12 +8,14 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.5.1"
+const AgentVersion = "0.6.0"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 var composeMetadataCommand = []string{"/usr/local/bin/lodge-agent", "--collect-compose-metadata"}
 var proxyRoutesCommand = []string{"/usr/local/bin/lodge-agent", "--collect-proxy-routes"}
 var sshAuthCommand = []string{"/usr/local/bin/lodge-agent", "--collect-ssh-auth"}
+var listActionsCommand = []string{"/usr/local/bin/lodge-agent", "--list-actions"}
+var executeActionCommand = []string{"/usr/local/bin/lodge-agent", "--execute-action"}
 var systemdUnitsCommand = []string{
 	"systemctl", "show", "--type=service", "--all",
 	"--property=Id,LoadState,ActiveState,SubState,FragmentPath",
@@ -28,9 +30,6 @@ type PrivCommand struct {
 	// Write 为 true 表示有副作用（动作），UI 上对应一个需二次确认的按钮；
 	// false 表示纯只读采集。
 	Write bool
-	// ID 是动作的稳定标识（仅 Write 命令需要），用于 POST /v1/actions/{id}。
-	// 不参与 sudoers 生成，纯 API 路由用。
-	ID string
 	// Argv 是固定命令行。注意：
 	//   - 第一项是命令短名（docker/ss/...），部署时解析为绝对路径写进 sudoers
 	//   - 必须「逐字」与 sudoers 对应 —— agent 内部也是用这同一份 argv 去跑，
@@ -46,20 +45,16 @@ var privilegedRead = []PrivCommand{
 	{Argv: composeMetadataCommand, Desc: "输出校验后的 Compose project/service 身份"},
 	{Argv: proxyRoutesCommand, Desc: "输出脱敏的 Caddy/Nginx Web 路由"},
 	{Argv: sshAuthCommand, Desc: "输出最近 SSH 认证失败的来源 IP 聚合"},
+	{Argv: listActionsCommand, Desc: "列出 root 策略批准的受控动作"},
 	{Argv: []string{"ss", "-tlnpH"}, Desc: "监听套接字（含 PID，需 root 才能跨用户）"},
 	{Argv: systemdUnitsCommand, Desc: "读取 systemd service 状态与 unit 来源分类"},
 	{Argv: processOriginsCommand, Desc: "输出脱敏进程来源（不含参数、环境变量或完整路径）"},
 }
 
-// privilegedWrite 是有副作用的白名单动作。
-//
-// 原则：宁可少，不可多。每一条都应是「运维高频且安全边界清晰」的操作。
-// 当前清单对应三台目标机器的实际需求：清理 docker 垃圾、回收日志、重启 caddy。
-var privilegedWrite = []PrivCommand{
-	{Write: true, ID: "docker-prune", Argv: []string{"docker", "system", "prune", "-f"}, Desc: "清理悬空镜像/停止容器/无用网络"},
-	{Write: true, ID: "journalctl-vacuum", Argv: []string{"journalctl", "--vacuum-time=7d"}, Desc: "清理 7 天前的 journal 日志"},
-	{Write: true, ID: "restart-caddy", Argv: []string{"systemctl", "restart", "caddy"}, Desc: "重启 caddy"},
-}
+// privilegedWrite 只授权一个固定的 root 策略执行入口。具体目标和允许的
+// start/stop/restart/logs 动作由 root 拥有的 actions.json 决定；Hub 和 Agent
+// HTTP 请求都不能提交命令、参数或路径。
+var privilegedWrite = []PrivCommand{{Write: true, Argv: executeActionCommand, Desc: "执行 root 策略批准的单个受控动作"}}
 
 // AllPrivileged 返回只读 + 写命令的合集，按声明顺序。
 func AllPrivileged() []PrivCommand {
@@ -74,16 +69,6 @@ func AllPrivileged() []PrivCommand {
 func commandByName(argv []string) (PrivCommand, bool) {
 	for _, c := range AllPrivileged() {
 		if argvEqual(c.Argv, argv) {
-			return c, true
-		}
-	}
-	return PrivCommand{}, false
-}
-
-// commandByID 按 ID 查找一条写命令，用于 POST /v1/actions/{id}。
-func commandByID(id string) (PrivCommand, bool) {
-	for _, c := range privilegedWrite {
-		if c.ID == id {
 			return c, true
 		}
 	}

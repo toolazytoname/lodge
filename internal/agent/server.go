@@ -2,6 +2,8 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,10 +17,17 @@ import (
 // Server 是 lodge-agent 的 HTTP 服务。只应监听 127.0.0.1，由 tailscale serve
 // 套 TLS 暴露到 tailnet —— 绝不直接监听 0.0.0.0。
 type Server struct {
-	token   string
-	limiter *failureLimiter
-	mux     *http.ServeMux
+	token          string
+	limiter        *failureLimiter
+	mux            *http.ServeMux
+	actionMu       sync.Mutex
+	actionsHandler http.Handler
 }
+
+var (
+	listApprovedActions       = collectApprovedActionDefinitions
+	executeApprovedActionByID = executeApprovedActionDefinition
+)
 
 // NewServer 构造一个挂好路由的 agent 服务。
 func NewServer(token string) *Server {
@@ -32,13 +41,22 @@ func NewServer(token string) *Server {
 	s.mux.HandleFunc("/v1/services", s.handle(s.services))
 	// /v1/actions 精确匹配列出；/v1/actions/ 子树匹配执行 {id}。
 	// Go 1.19 ServeMux 不带尾斜杠的模式只匹配精确路径，故两个都注册。
-	s.mux.HandleFunc("/v1/actions", s.handle(s.actions))
-	s.mux.HandleFunc("/v1/actions/", s.handle(s.actions))
+	s.actionsHandler = s.handle(s.actions)
+	s.mux.Handle("/v1/actions", s.actionsHandler)
+	s.mux.Handle("/v1/actions/", s.actionsHandler)
 	return s
 }
 
 // ServeHTTP 让 Server 直接满足 http.Handler。
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// ServeMux canonicalizes paths before dispatch and can redirect a POST such
+	// as /v1/actions//id to /v1/actions/id. Action paths must reach the strict
+	// parser unchanged so ambiguous or encoded separators are rejected, not
+	// normalized into an executable capability.
+	if r.URL.Path == "/v1/actions" || strings.HasPrefix(r.URL.Path, "/v1/actions/") {
+		s.actionsHandler.ServeHTTP(w, r)
+		return
+	}
 	s.mux.ServeHTTP(w, r)
 }
 
@@ -83,60 +101,103 @@ func (s *Server) services(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, Discover())
 }
 
-// actionDef 是 GET /v1/actions 的元素：把白名单动作以安全形式暴露给前端。
-type actionDef struct {
-	ID   string `json:"id"`
-	Desc string `json:"desc"`
-	// Cmd 是给用户看的命令摘要（不含完整路径），便于二次确认时心里有数。
-	Cmd string `json:"cmd"`
-}
-
 func (s *Server) actions(w http.ResponseWriter, r *http.Request) {
 	// 路径 /v1/actions → 列出；/v1/actions/{id} → 执行（POST）。
-	rest := strings.TrimPrefix(r.URL.Path, "/v1/actions")
-	rest = strings.Trim(rest, "/")
-	if rest == "" {
+	if r.URL.RawQuery != "" {
+		writeErr(w, http.StatusBadRequest, "query_not_allowed")
+		return
+	}
+	suffix := strings.TrimPrefix(r.URL.Path, "/v1/actions")
+	if suffix == "" || suffix == "/" {
 		if r.Method != http.MethodGet {
 			writeErr(w, http.StatusMethodNotAllowed, "GET 列出动作")
 			return
 		}
-		defs := make([]actionDef, 0, len(privilegedWrite))
-		for _, c := range privilegedWrite {
-			defs = append(defs, actionDef{ID: c.ID, Desc: c.Desc, Cmd: strings.Join(c.Argv, " ")})
+		response, err := listApprovedActions()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "action_policy_unavailable")
+			return
 		}
-		writeJSON(w, http.StatusOK, defs)
+		writeJSON(w, http.StatusOK, response)
 		return
 	}
+	if !strings.HasPrefix(suffix, "/") || strings.Contains(suffix[1:], "/") {
+		writeErr(w, http.StatusNotFound, "action_not_found")
+		return
+	}
+	rest := suffix[1:]
 
 	// 执行动作
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "POST 执行动作")
 		return
 	}
-	c, ok := commandByID(rest)
-	if !ok {
-		writeErr(w, http.StatusNotFound, "未知动作: "+rest)
+	if !requestBodyIsEmpty(r.Body) {
+		writeErr(w, http.StatusBadRequest, "request_body_must_be_empty")
 		return
 	}
-	// 二次防线：runPriv 内部会再校验 argv 命中白名单。双重保险。
-	stdout, stderr, err := runPriv(c.Argv)
-	type actionResult struct {
-		OK     bool   `json:"ok"`
-		Stdout string `json:"stdout,omitempty"`
-		Stderr string `json:"stderr,omitempty"`
-		Error  string `json:"error,omitempty"`
-	}
-	res := actionResult{OK: err == nil}
-	res.Stdout = strings.TrimSpace(string(stdout))
-	res.Stderr = strings.TrimSpace(string(stderr))
+	response, err := listApprovedActions()
 	if err != nil {
-		res.Error = err.Error()
+		writeErr(w, http.StatusServiceUnavailable, "action_policy_unavailable")
+		return
 	}
-	code := http.StatusOK
+	definition, found := findActionDefinition(response.Actions, rest)
+	if !found {
+		writeErr(w, http.StatusNotFound, "action_not_found")
+		return
+	}
+	if !s.actionMu.TryLock() {
+		writeErr(w, http.StatusConflict, "action_in_progress")
+		return
+	}
+	defer s.actionMu.Unlock()
+	result, err := executeApprovedActionByID(definition)
 	if err != nil {
-		code = http.StatusInternalServerError
+		writeErr(w, http.StatusBadGateway, "action_execution_unavailable")
+		return
 	}
-	writeJSON(w, code, res)
+	if !result.OK {
+		writeJSON(w, http.StatusBadGateway, result)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func collectApprovedActionDefinitions() (shared.ActionsResponse, error) {
+	stdout, _, err := runPrivileged(listActionsCommand)
+	if err != nil {
+		return shared.ActionsResponse{}, errors.New("action policy helper failed")
+	}
+	return decodeActionsResponse(stdout)
+}
+
+func executeApprovedActionDefinition(definition shared.ActionDefinition) (shared.ActionExecutionResult, error) {
+	request, err := json.Marshal(shared.ActionExecutionRequest{ID: definition.ID})
+	if err != nil {
+		return shared.ActionExecutionResult{}, errors.New("action request encoding failed")
+	}
+	stdout, _, err := runPrivilegedInput(executeActionCommand, request)
+	if err != nil {
+		return shared.ActionExecutionResult{}, errors.New("action execution helper failed")
+	}
+	return decodeActionExecutionResult(stdout, definition)
+}
+
+func requestBodyIsEmpty(body io.Reader) bool {
+	if body == nil {
+		return true
+	}
+	content, err := io.ReadAll(io.LimitReader(body, 1))
+	return err == nil && len(content) == 0
+}
+
+func findActionDefinition(definitions []shared.ActionDefinition, id string) (shared.ActionDefinition, bool) {
+	for _, definition := range definitions {
+		if definition.ID == id {
+			return definition, true
+		}
+	}
+	return shared.ActionDefinition{}, false
 }
 
 func writeJSON(w http.ResponseWriter, code int, v interface{}) {

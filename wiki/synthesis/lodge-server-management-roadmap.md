@@ -88,6 +88,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M5 完成：双 CI 通过后，Hub 0.6.0/schema 7 与五台 Agent 0.5.1 统一发布，终验 5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified。bytebunny 自然 critical SSH 信号从部署开始到持久化为 27.9 秒，bytedragon 同期 warning；真实来源只在认证事件页中可见且未自动确认。Webhook 未配置所以没有生产外发。下一步进入 M6 受控动作，不能把已有 Agent 只读 sudo 白名单误宣称为 Web 运维能力。
 
+> 2026-08-08 M6 Agent 权限边界实现：旧 Docker prune、journal vacuum、直接 Caddy restart 写规则已移除，改为 root-only 策略 + 单一固定执行 helper。策略缺失即禁用全部动作；`lodge` 不可写策略父目录；HTTP 只处理动作 ID 和类型化有界结果。start/stop/restart/logs 的固定映射、串行锁、超时、状态验证与日志脱敏已有测试，但 Hub CSRF 代理、确认短语、持久审计、Web 页面和五机 live 验收尚未完成，不能从页面执行任何动作。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	maxPrivilegedStdin  = 4 << 10
 	maxPrivilegedStdout = 4 << 20
 	maxPrivilegedStderr = 64 << 10
 )
@@ -24,10 +25,27 @@ const (
 // 校验：传入的 argv 必须命中白名单，否则拒绝 —— 这是「agent 不支持任意命令」
 // 这一硬约束的执行点。
 func runPrivileged(argv []string) (stdout []byte, stderr []byte, err error) {
-	if _, ok := commandByName(argv); !ok {
+	return runPrivilegedInput(argv, nil)
+}
+
+// runPrivilegedInput is reserved for the single policy action helper. Keeping
+// stdin bounded and refusing it for read commands prevents this channel from
+// becoming an argument-smuggling escape hatch.
+func runPrivilegedInput(argv []string, input []byte) (stdout []byte, stderr []byte, err error) {
+	definition, ok := commandByName(argv)
+	if !ok {
 		return nil, nil, errors.New("命令不在 sudoers 白名单内，拒绝执行: " + joinArgv(argv))
 	}
+	if len(input) > maxPrivilegedStdin {
+		return nil, nil, errors.New("特权命令输入超过限制")
+	}
+	if len(input) > 0 && !definition.Write {
+		return nil, nil, errors.New("只读特权命令不接受标准输入")
+	}
 	cmd := exec.Command("sudo", append([]string{"-n", "--"}, argv...)...)
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	out := boundedBuffer{limit: maxPrivilegedStdout}
 	errb := boundedBuffer{limit: maxPrivilegedStderr}
 	cmd.Stdout = &out
