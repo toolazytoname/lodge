@@ -28,3 +28,15 @@ The full gates, rollout order, rollback evidence and acceptance record are in [S
 ## Current posture implementation
 
 Agent `0.8.0` adds a fifth exact root self-invocation, `--collect-security-posture`. It has no caller input and reduces fixed local OpenSSH/listener/UFW/Fail2Ban/Tailscale checks to seven closed enum fields before data crosses root. Users, keys, firewall rules, addresses, raw command output and cloud edge evidence are excluded. Hub exposes this only in its live runtime host summary; it intentionally does not write a potentially stale SSH setting into historical observations. Security UI covers normal, unavailable, unknown and offline states across desktop and mobile visual acceptance.
+
+## Ali pilot outcome
+
+After the operator confirmed console recovery and approved the named non-root
+key administrator, Ali became the single completed M8 pilot. Its `lodge-admin`
+Tailnet login passed Tailscale SSH check mode; a root-owned drop-in then passed
+`sshd -t` and reload. Effective password, keyboard-interactive, and root login
+are disabled; public-key authentication remains enabled and 3/30 are the new
+attempt/grace limits. A fresh Tailnet administrator session succeeded while
+public root-key and password-only attempts were rejected. The Agent reports the
+same minimized current posture. No claim is made about its cloud edge, and no
+setting on the remaining four hosts changed.

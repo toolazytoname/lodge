@@ -104,6 +104,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 可见性已上线：最后双 CI 后，五台 Agent 0.8.0 和 Hub 0.9.0 完成事务升级。逐机验证服务态、7 项 closed-enum posture 与拒绝额外 helper 参数；Hub 验证 schema 7、5 configured hosts、14,154 observations、备份/rollback、未登录 401、loopback + Tailnet Serve 和日志不含已配置 secret 值。它使风险立即可见，但并不替代逐机 recovery/admin key 门禁，也没有收口任何 SSH 入口。
 
+> 2026-08-08 M8 Ali 试点完成：在已确认 console/recovery、Mac key、Tailnet check-mode 和新非 root 会话后，root-owned drop-in 经 `sshd -t`+reload 生效：password/root/keyboard-interactive 均关闭，public-key 保留，尝试和宽限期收紧。新 Tailnet `lodge-admin` 成功，公网 root key 与 password-only 均被拒绝；Agent posture 同步为 password/root disabled。云端 22、UFW/Fail2Ban 与其余四机仍保持待逐机验收，不能由本试点外推。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

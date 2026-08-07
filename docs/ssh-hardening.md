@@ -31,7 +31,7 @@ Hub-local authenticated posture pull were verified. This is
 an observability acceptance record only: no SSH daemon, account, password,
 firewall, Fail2Ban, or cloud-edge setting was changed.
 
-## Ali pilot checkpoint — 2026-08-08
+## Ali pilot acceptance — 2026-08-08
 
 With an explicitly approved console/recovery path, the Ali pilot now has a
 locked-password `lodge-admin` account with the operator's existing Mac public
@@ -42,12 +42,22 @@ rejected. The Tailnet endpoint's ED25519 fingerprint was independently matched
 against the host key obtained through the pre-existing access path before being
 trusted locally.
 
-The fresh Tailnet key login reached Tailscale SSH's additional interactive
-authentication gate, so it is deliberately **not yet recorded as successful**.
-No SSH daemon setting has been changed and the original operator entry remains
-available. Complete that one-time Tailnet approval, then rerun the fresh login
-and only after it succeeds apply the tested SSH drop-in with `sshd -t` followed
-by `systemctl reload ssh.service`.
+The fresh `lodge-admin` Tailnet key login subsequently passed Tailscale SSH
+check-mode verification. A root-owned drop-in then set `PasswordAuthentication
+no`, `KbdInteractiveAuthentication no`, `PermitRootLogin no`,
+`PubkeyAuthentication yes`, `MaxAuthTries 3`, and `LoginGraceTime 30`.
+`sshd -t` passed before `systemctl reload ssh.service`; the resulting effective
+settings were read back. A new Tailnet `lodge-admin` login remained successful,
+while both public root-key and password-only login attempts were rejected.
+Lodge's current security posture also reports password/root disabled and
+public-key enabled. The local `lodge-ali` SSH alias points to the MagicDNS host
+as this non-root account, and its exact sudo commands work; extra arguments and
+arbitrary sudo remain rejected.
+
+This pilot does not yet claim that public port 22 is closed at the cloud edge,
+or that the other four hosts are hardened. Its rollback material remains under
+the root-only Ali pilot backup directory and console recovery remains the
+break-glass path.
 
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 

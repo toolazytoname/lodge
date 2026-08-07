@@ -258,4 +258,9 @@
 ## [2026-08-08] pilot | Ali key-only 管理员前置验证
 
 - 经操作者确认 Ali 有 console/recovery 后，创建 locked-password `lodge-admin`，安装现有 Mac 公钥；home/`.ssh`/`authorized_keys` 为 owner-only。sudoers 经 `visudo` 验证，只精确允许 `sshd -t`、SSH service status/reload 与有界 journal，任意 sudo 已拒绝。
-- 从原有入口取得的 ED25519 host fingerprint 与 Tailnet endpoint 一致后才写入本机 known_hosts。新 key Tailnet 登录抵达 Tailscale SSH 的额外交互认证门，尚未获得成功证据；因此没有触碰 sshd、firewall、Fail2Ban 或云规则，原入口保持可用。
+- 从原有入口取得的 ED25519 host fingerprint 与 Tailnet endpoint 一致后才写入本机 known_hosts。新 key Tailnet 登录抵达 Tailscale SSH 的额外交互认证门，后续成功完成 check-mode 验证。
+
+## [2026-08-08] pilot | Ali SSH 访问收口完成
+
+- 已用 `sshd -t` 后 reload 写入 root-owned drop-in：password、keyboard-interactive 与 root remote login 关闭；public-key 保留，`MaxAuthTries=3`、`LoginGraceTime=30`。从新 Tailnet `lodge-admin` 会话再次验证成功；公网 root 公钥和 password-only 连接均被拒绝。
+- `lodge-admin` 是 locked-password 非 root 账号；其精确 SSH maintenance sudo 被允许，扩展参数与任意 sudo 均拒绝。Agent 当前 posture 已验证 password/root disabled、public-key enabled。云边界、UFW、Fail2Ban 和其他四台主机未在本次修改。

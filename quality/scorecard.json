@@ -77,21 +77,21 @@
       "id": "ssh_password_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with SSH password authentication disabled",
-      "current": 0,
+      "current": 1,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Effective sshd configuration audit"
+      "evidence": "Ali pilot on 2026-08-08: effective sshd -T reports PasswordAuthentication no after sshd -t and reload; public password login was rejected and a fresh lodge-admin Tailnet session succeeded"
     },
     {
       "id": "ssh_root_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with remote root login disabled",
-      "current": 0,
+      "current": 1,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Effective sshd configuration audit"
+      "evidence": "Ali pilot on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected while the non-root Tailnet path remained available"
     },
     {
       "id": "current_security_posture_controls",
