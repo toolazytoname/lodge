@@ -161,11 +161,24 @@
               <div class="panel-heading"><div><p class="eyebrow">CURRENT SURFACE</p><h2>当前暴露面</h2></div></div>
               <div id="publicSurface" class="surface-list"></div>
             </section>
-            <section class="panel planned-panel">
-              <span class="planned-badge">M5 计划</span>
-              <h2>历史事件与主动告警</h2>
-              <p>登录失败来源、暴露面变化和通知状态需要历史事件模型支持。当前页面只展示实时资产，不会把尚未采集的数据伪装成安全结论。</p>
-            </section>
+            <div class="security-side-stack">
+              <section class="panel history-panel" aria-labelledby="historyTitle">
+                <div class="panel-heading history-heading">
+                  <div><p class="eyebrow">OBSERVATION HISTORY</p><h2 id="historyTitle">最近观测趋势</h2></div>
+                  <label class="compact-select" for="historyAgent">主机
+                    <select id="historyAgent"></select>
+                  </label>
+                </div>
+                <div id="historySummary" class="history-summary"></div>
+                <div id="historyTrends" class="history-trends"></div>
+                <div id="historyIncidents" class="history-incidents"></div>
+              </section>
+              <section class="panel planned-panel security-next-panel">
+                <span class="planned-badge">M5 下一步</span>
+                <h2>事件确认与主动告警</h2>
+                <p>趋势数据已来自持久化观测；登录失败来源、暴露面变化、事件确认与通知状态仍需事件生命周期支持，不会把未实现能力伪装成安全结论。</p>
+              </section>
+            </div>
           </div>
         </section>
 

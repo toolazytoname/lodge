@@ -41,7 +41,7 @@
       "target": 5,
       "unit": "pages",
       "direction": "increase",
-      "evidence": "Sanitized live-data browser acceptance covers Overview, Hosts, Services, Security, and Operations; unavailable history and actions are explicitly marked M5/M6"
+      "evidence": "Sanitized browser acceptance covers Overview, Hosts, Services, Security, and Operations; Security now includes durable host history while unavailable event alerts and actions remain explicitly marked M5/M6"
     },
     {
       "id": "public_management_endpoints",
@@ -117,11 +117,11 @@
       "id": "critical_e2e_scenarios",
       "dimension": "engineering",
       "name": "Automated critical end-to-end scenarios",
-      "current": 10,
+      "current": 13,
       "target": 12,
       "unit": "scenarios",
       "direction": "increase",
-      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks, 390/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
+      "evidence": "Playwright covers live-density inventory, search, safe annotation validation, CSRF-protected Web-link checks, durable history and host switching, history API isolation, 390/1280/1920 responsive layouts, empty inventory, offline host, partial API failure, and total API failure"
     },
     {
       "id": "web_visual_regression_widths",

@@ -11,8 +11,9 @@ are deliberate:
   versions, and last observation times.
 - **Services** is the searchable and filterable workload directory. Annotation
   editing supports an alias, a safe http(s) URL, notes, and a visual hidden flag.
-- **Security** currently reports only the observed public surface, unidentified
-  workloads, and offline nodes. Historical login sources and alerts remain M5.
+- **Security** reports the observed public surface, unidentified workloads,
+  offline nodes, and a host-scoped recent 120-point trend from durable observation
+  summaries. Historical login sources, event acknowledgement, and alerts remain M5.
 - **Operations** currently reports only read-only synchronization state. Any
   restart, deployment, or rollback remains M6/M7 and must use typed policy,
   confirmation, verification, and audit records.
@@ -74,8 +75,10 @@ The deterministic fixture server uses only invented host names and
 - one offline node;
 - a partial services API failure with usable host data;
 - a total API failure with explicit unavailable values;
-- service search, risk ordering, dialog focus, and URL protocol rejection.
-- persisted link status plus the CSRF-protected active-check interaction.
+- service search, risk ordering, dialog focus, and URL protocol rejection;
+- persisted link status plus the CSRF-protected active-check interaction;
+- host-scoped 120-point history, host switching, responsive trend charts, and
+  an isolated history-API error that preserves current inventory.
 
 Reference screenshots live in `frontend/tests/__screenshots__`. Time, locale,
 timezone, data, and viewport are fixed. Update screenshots only for an intended
@@ -83,7 +86,7 @@ design change, inspect every resulting image, then run the test again without
 the update flag:
 
 ```bash
-npx playwright test --update-snapshots
+npx playwright test --update-snapshots=all
 npm run test:web:e2e
 ```
 

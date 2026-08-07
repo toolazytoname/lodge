@@ -122,6 +122,47 @@ function buildLinkChecks(mode) {
   };
 }
 
+function buildHistory(mode, agentID) {
+  const fixture = buildFixture(mode);
+  const group = fixture.groups.find((candidate) => candidate.agent.id === agentID);
+  if (!group) return null;
+  const hostIndex = hostDefinitions.findIndex((host) => host.id === agentID);
+  const publicBindings = group.services.flatMap((service) => service.ports || [])
+    .filter((port) => port.exposure === "public").length;
+  const baseTime = Date.parse("2026-08-08T00:00:00Z");
+  const points = Array.from({ length: 120 }, (_, index) => {
+    const normalGap = agentID === "east" && index >= 36 && index <= 38;
+    const currentOffline = mode === "offline" && agentID === "harbor" && index <= 8;
+    const online = !normalGap && !currentOffline;
+    const wave = Math.sin((119 - index + hostIndex * 7) / 9);
+    const memory = Math.max(8, Math.min(94, hostDefinitions[hostIndex].memUsedPct + Math.round(wave * 4)));
+    const disk = Math.max(8, Math.min(96, hostDefinitions[hostIndex].diskUsedPct + Math.round(wave * 2)));
+    const failed = hostIndex === 1 ? 1 : hostIndex === 4 ? 3 : 0;
+    return {
+      observedAt: new Date(baseTime - index * 30_000).toISOString(),
+      online,
+      ...(online ? {
+        agentVersion: "0.4.1",
+        cpus: hostDefinitions[hostIndex].cpus,
+        load1: Number(Math.max(0.01, hostDefinitions[hostIndex].load1 + wave * 0.08).toFixed(2)),
+        memoryUsedPct: memory,
+        diskUsedPct: disk,
+        workloadCount: group.services.length,
+        failedWorkloadCount: failed,
+        wildcardEndpointCount: publicBindings,
+        warningCount: agentID === "south" && index === 27 ? 1 : 0,
+      } : {
+        lastError: "fixture: agent connection timed out",
+        workloadCount: 0,
+        failedWorkloadCount: 0,
+        wildcardEndpointCount: 0,
+        warningCount: 0,
+      }),
+    };
+  });
+  return { agentId: agentID, points };
+}
+
 function fixtureMode(requestURL, cookieHeader = "") {
   const requested = requestURL.searchParams.get("fixture");
   if (requested) return requested;
@@ -190,6 +231,16 @@ const server = createServer(async (request, response) => {
         sendJSON(response, 503, { error: "fixture link checks unavailable" });
       } else {
         sendJSON(response, 200, buildLinkChecks(mode));
+      }
+      return;
+    }
+    if (requestURL.pathname === "/api/history") {
+      if (mode === "error" || mode === "history-error") {
+        sendJSON(response, 503, { error: "fixture history unavailable" });
+      } else {
+        const history = buildHistory(mode, requestURL.searchParams.get("agent") || "");
+        if (!history) sendJSON(response, 404, { error: "fixture unknown agent" });
+        else sendJSON(response, 200, history);
       }
       return;
     }

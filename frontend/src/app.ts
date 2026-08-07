@@ -3,6 +3,8 @@ import type {
   AgentSummary,
   AnnotationInput,
   Exposure,
+  HostHistoryResponse,
+  ObservationHistoryPoint,
   ServiceView,
   SessionResponse,
   WebLinkChecksResponse,
@@ -52,6 +54,12 @@ interface EditingService {
   service: ServiceView;
 }
 
+interface HistoryLoadState {
+  response: HostHistoryResponse | null;
+  loading: boolean;
+  error: string;
+}
+
 const exposureLabel: Record<ServiceExposure, string> = {
   public: "公网",
   tailnet: "Tailnet",
@@ -94,6 +102,8 @@ let activePage: PageID = "overview";
 let refreshTimer: number | null = null;
 let refreshing = false;
 let editingService: EditingService | null = null;
+let selectedHistoryAgent = "";
+const historyByAgent = new Map<string, HistoryLoadState>();
 
 function byID<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -325,6 +335,7 @@ async function refresh(): Promise<void> {
   }
 
   renderAll();
+  if (activePage === "security") void loadSelectedHistory(true);
   updateConnectionState(failures.length > 0);
   if (failures.length) {
     const noUsableData = !state.agentsLoaded && !state.servicesLoaded;
@@ -353,6 +364,11 @@ function setPage(page: PageID, updateHash = true): void {
   document.title = `Lodge · ${pageMeta[page].title}`;
   if (updateHash && window.location.hash !== `#${page}`) window.location.hash = page;
   if (page === "services") byID<HTMLInputElement>("serviceSearch").focus({ preventScroll: true });
+  if (page === "security") {
+    syncHistoryAgentSelect();
+    renderHistory();
+    void loadSelectedHistory(false);
+  }
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
@@ -838,6 +854,186 @@ function serviceRow(entry: ServiceEntry): HTMLElement {
   return row;
 }
 
+function syncHistoryAgentSelect(): void {
+  const select = byID<HTMLSelectElement>("historyAgent");
+  const available = new Set(state.agents.map((agent) => agent.id));
+  if (!available.has(selectedHistoryAgent)) selectedHistoryAgent = state.agents[0]?.id ?? "";
+  const options = state.agents.map((agent) => {
+    const option = element("option", "", agent.name);
+    option.value = agent.id;
+    return option;
+  });
+  replaceChildren(select, options);
+  select.value = selectedHistoryAgent;
+  select.disabled = !selectedHistoryAgent;
+}
+
+async function loadSelectedHistory(force: boolean): Promise<void> {
+  syncHistoryAgentSelect();
+  const agentID = selectedHistoryAgent;
+  if (!agentID) {
+    renderHistory();
+    return;
+  }
+  const current = historyByAgent.get(agentID) ?? { response: null, loading: false, error: "" };
+  if (current.loading || (!force && current.response)) return;
+  historyByAgent.set(agentID, { ...current, loading: true, error: "" });
+  renderHistory();
+  try {
+    const response = await api<HostHistoryResponse>(`/api/history?agent=${encodeURIComponent(agentID)}&limit=120`);
+    historyByAgent.set(agentID, { response, loading: false, error: "" });
+  } catch (historyError) {
+    historyByAgent.set(agentID, {
+      response: current.response,
+      loading: false,
+      error: errorMessage(historyError),
+    });
+  }
+  if (selectedHistoryAgent === agentID) renderHistory();
+}
+
+function svgElement<K extends keyof SVGElementTagNameMap>(tag: K): SVGElementTagNameMap[K] {
+  return document.createElementNS("http://www.w3.org/2000/svg", tag);
+}
+
+function historySparkline(values: Array<number | undefined>, tone: string, label: string): SVGSVGElement {
+  const svg = svgElement("svg");
+  svg.classList.add("history-sparkline", tone);
+  svg.setAttribute("viewBox", "0 0 240 54");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", label);
+  const baseline = svgElement("line");
+  baseline.setAttribute("x1", "0");
+  baseline.setAttribute("x2", "240");
+  baseline.setAttribute("y1", "52");
+  baseline.setAttribute("y2", "52");
+  baseline.setAttribute("class", "sparkline-baseline");
+  svg.append(baseline);
+
+  let segment: string[] = [];
+  const flush = (): void => {
+    if (!segment.length) return;
+    if (segment.length === 1) segment.push(segment[0] ?? "");
+    const polyline = svgElement("polyline");
+    polyline.setAttribute("points", segment.join(" "));
+    polyline.setAttribute("class", "sparkline-line");
+    svg.append(polyline);
+    segment = [];
+  };
+  const denominator = Math.max(1, values.length - 1);
+  values.forEach((value, index) => {
+    if (value === undefined || !Number.isFinite(value)) {
+      flush();
+      return;
+    }
+    const bounded = Math.max(0, Math.min(100, value));
+    segment.push(`${(index * 240 / denominator).toFixed(2)},${(52 - bounded * 0.5).toFixed(2)}`);
+  });
+  flush();
+  return svg;
+}
+
+function historyTrendCard(
+  label: string,
+  value: string,
+  detail: string,
+  values: Array<number | undefined>,
+  tone: string,
+): HTMLElement {
+  const card = element("article", "history-trend-card");
+  const heading = element("div", "history-trend-heading");
+  heading.append(element("span", "", label), element("strong", "", value));
+  card.append(heading, historySparkline(values, tone, `${label}趋势：${detail}`), element("small", "", detail));
+  return card;
+}
+
+function latestDefined(points: ObservationHistoryPoint[], select: (point: ObservationHistoryPoint) => number | undefined): number | undefined {
+  for (const point of points) {
+    const value = select(point);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function renderHistory(): void {
+  syncHistoryAgentSelect();
+  const summary = byID("historySummary");
+  const trends = byID("historyTrends");
+  const incidents = byID("historyIncidents");
+  if (!state.agentsLoaded) {
+    replaceChildren(summary, [emptyState("历史主机列表暂时不可用。", "error")]);
+    replaceChildren(trends, []);
+    replaceChildren(incidents, []);
+    return;
+  }
+  if (!selectedHistoryAgent) {
+    replaceChildren(summary, [emptyState("尚未纳管主机，暂无历史趋势。")]);
+    replaceChildren(trends, []);
+    replaceChildren(incidents, []);
+    return;
+  }
+  const loaded = historyByAgent.get(selectedHistoryAgent);
+  if (!loaded || (loaded.loading && !loaded.response)) {
+    replaceChildren(summary, [emptyState("正在读取持久化观测…", "loading")]);
+    replaceChildren(trends, []);
+    replaceChildren(incidents, []);
+    return;
+  }
+  if (loaded.error && !loaded.response) {
+    replaceChildren(summary, [emptyState(`历史数据暂时不可用：${loaded.error}`, "error")]);
+    replaceChildren(trends, []);
+    replaceChildren(incidents, []);
+    return;
+  }
+  const points = loaded.response?.points ?? [];
+  if (!points.length) {
+    replaceChildren(summary, [emptyState("这台主机还没有可用的历史观测。")]);
+    replaceChildren(trends, []);
+    replaceChildren(incidents, []);
+    return;
+  }
+  const chronological = [...points].reverse();
+  const onlinePoints = points.filter((point) => point.online).length;
+  const availability = onlinePoints * 100 / points.length;
+  const oldest = chronological[0];
+  const newest = points[0];
+  const windowText = oldest && newest
+    ? `${formatLastSeen(oldest.observedAt)} → ${formatLastSeen(newest.observedAt)}`
+    : "观测窗口未知";
+  const summaryLine = element("div", "history-window");
+  summaryLine.append(
+    element("strong", "", `${availability.toFixed(1)}% 在线`),
+    element("span", "", `${points.length} 个观测点`),
+    element("span", "", windowText),
+  );
+  if (loaded.loading) summaryLine.append(element("span", "history-refreshing", "正在更新"));
+  if (loaded.error) summaryLine.append(element("span", "history-error", `最近更新失败：${loaded.error}`));
+  replaceChildren(summary, [summaryLine]);
+
+  const memoryLatest = latestDefined(points, (point) => point.memoryUsedPct);
+  const diskLatest = latestDefined(points, (point) => point.diskUsedPct);
+  const loadLatest = latestDefined(points, (point) => point.load1);
+  const cpuLatest = latestDefined(points, (point) => point.cpus);
+  const onlineSeries = chronological.map((point) => point.online ? 100 : 0);
+  const loadSeries = chronological.map((point) =>
+    point.load1 !== undefined && point.cpus ? Math.min(100, point.load1 * 100 / point.cpus) : undefined);
+  replaceChildren(trends, [
+    historyTrendCard("在线", `${availability.toFixed(1)}%`, `${points.length - onlinePoints} 个离线采样`, onlineSeries, availability === 100 ? "good" : "critical"),
+    historyTrendCard("负载", loadLatest === undefined ? "—" : loadLatest.toFixed(2), cpuLatest ? `最近 ${cpuLatest} CPU` : "暂无 CPU 数据", loadSeries, "info"),
+    historyTrendCard("内存", memoryLatest === undefined ? "—" : `${memoryLatest}%`, "最近有效采样", chronological.map((point) => point.memoryUsedPct), memoryLatest !== undefined && memoryLatest >= 80 ? "warning" : "good"),
+    historyTrendCard("磁盘", diskLatest === undefined ? "—" : `${diskLatest}%`, "根文件系统", chronological.map((point) => point.diskUsedPct), diskLatest !== undefined && diskLatest >= 85 ? "critical" : "calm"),
+  ]);
+
+  const failedPeak = Math.max(...points.map((point) => point.failedWorkloadCount));
+  const warningPeak = Math.max(...points.map((point) => point.warningCount));
+  const wildcardPeak = Math.max(...points.map((point) => point.wildcardEndpointCount));
+  replaceChildren(incidents, [
+    element("span", failedPeak ? "history-pill critical" : "history-pill", `失败服务峰值 ${failedPeak}`),
+    element("span", warningPeak ? "history-pill warning" : "history-pill", `采集警告峰值 ${warningPeak}`),
+    element("span", "history-pill", `公网绑定峰值 ${wildcardPeak}`),
+  ]);
+}
+
 function renderSecurity(): void {
   const entries = allServiceEntries();
   const publicEntries = entries.filter((entry) => serviceExposure(entry.service) === "public");
@@ -861,10 +1057,12 @@ function renderSecurity(): void {
 
   if (!state.servicesLoaded) {
     replaceChildren(byID("publicSurface"), [emptyState("公网暴露面数据暂时不可用。", "error")]);
+    renderHistory();
     return;
   }
   if (!publicEntries.length) {
     replaceChildren(byID("publicSurface"), [emptyState("当前没有检测到公网监听服务。", "success")]);
+    renderHistory();
     return;
   }
   const rows = publicEntries.slice(0, 12).map((entry) => {
@@ -885,6 +1083,7 @@ function renderSecurity(): void {
     return row;
   });
   replaceChildren(byID("publicSurface"), rows);
+  renderHistory();
 }
 
 function renderOperations(): void {
@@ -1002,6 +1201,11 @@ byID<HTMLButtonElement>("loginBtn").addEventListener("click", () => void login()
 byID<HTMLButtonElement>("logoutBtn").addEventListener("click", () => void logout());
 byID<HTMLButtonElement>("refreshBtn").addEventListener("click", () => void refresh());
 byID<HTMLButtonElement>("probeLinksBtn").addEventListener("click", () => void probeWebLinks());
+byID<HTMLSelectElement>("historyAgent").addEventListener("change", (event) => {
+  selectedHistoryAgent = (event.currentTarget as HTMLSelectElement).value;
+  renderHistory();
+  void loadSelectedHistory(false);
+});
 byID<HTMLButtonElement>("dismissNotice").addEventListener("click", () => setNotice(null));
 byID<HTMLInputElement>("pw").addEventListener("keydown", (event) => {
   if (event.key === "Enter") void login();

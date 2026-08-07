@@ -5,8 +5,8 @@
 `internal/storage` provides the SQLite persistence adapter for Lodge's durable
 domain model. The Hub opens `/var/lib/lodge-hub/lodge.db` by default, records
 every complete, partial, and offline observation, and keeps only the latest UI
-projection in memory. M5 exposes a bounded observation-summary API; the Web
-timeline and alert lifecycle remain in progress.
+projection in memory. M5 exposes the bounded observation-summary API in the
+Security Web timeline; the event and alert lifecycle remains in progress.
 
 The schema stores:
 

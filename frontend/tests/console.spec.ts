@@ -94,6 +94,27 @@ test.describe("Lodge Web console", () => {
     await expect(page).toHaveScreenshot("overview-1920.png", { fullPage: true });
   });
 
+  test("security page renders bounded durable history and host switching", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/?fixture=normal#security");
+
+    await expect(page.getByRole("heading", { name: "最近观测趋势" })).toBeVisible();
+    await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(4);
+    await expect(page.locator("#historySummary")).toContainText("100.0% 在线");
+    await expect(page.locator("#historySummary")).toContainText("120 个观测点");
+
+    await page.locator("#historyAgent").selectOption("east");
+    await expect(page.locator("#historySummary")).toContainText("97.5% 在线");
+    await expect(page.locator("#historyIncidents")).toContainText("失败服务峰值 1");
+    await expectNoHorizontalOverflow(page);
+    await expect(page).toHaveScreenshot("security-history-1280.png", { fullPage: true });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(4);
+    await expectNoHorizontalOverflow(page);
+    await expect(page).toHaveScreenshot("security-history-390.png", { fullPage: true });
+  });
+
   test("empty, offline, partial, and total-error fixtures stay truthful", async ({ page }) => {
     const failedAPIs: string[] = [];
     page.on("response", (response) => {
@@ -125,6 +146,10 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#overviewMetrics .metric-value")).toHaveText(["N/A", "N/A", "N/A", "N/A"]);
     await expect(page.locator("#hostPreview")).toContainText("主机数据暂时不可用");
     await expect(page).toHaveScreenshot("overview-error-1280.png", { fullPage: true });
-    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/link-checks", "/api/services", "/api/services"]);
+
+    await page.goto("/?fixture=history-error#security");
+    await expect(page.locator("#historySummary")).toContainText("历史数据暂时不可用");
+    await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(0);
+    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/history", "/api/link-checks", "/api/services", "/api/services"]);
   });
 });
