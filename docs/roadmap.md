@@ -55,8 +55,8 @@ repairs or retires it.
 
 - [x] Observation history and event transitions
 - [ ] Offline, resource, listener, service, and SSH rules
-- [ ] Deduplication, recovery, acknowledgement, and cooldown
-- [ ] Webhook notification adapter
+- [x] Deduplication, recovery, acknowledgement, and cooldown
+- [x] Webhook notification adapter
 
 ## M6 — Controlled operations
 

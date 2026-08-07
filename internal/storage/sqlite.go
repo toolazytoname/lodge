@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 5
+	currentSchemaVersion = 6
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -419,7 +419,20 @@ func (s *SQLite) RecordObservation(ctx context.Context, observation domain.Obser
 // rule truth in one transaction. A failed event write can therefore never
 // leave an observation without its corresponding lifecycle transition.
 func (s *SQLite) RecordObservationWithEvents(ctx context.Context, observation domain.Observation, signals []domain.EventSignal) (int64, []domain.EventTransition, error) {
+	return s.recordObservationWithEvents(ctx, observation, signals, nil)
+}
+
+// RecordObservationWithNotifications adds durable outbox rows in the same
+// transaction as the observation and event transitions.
+func (s *SQLite) RecordObservationWithNotifications(ctx context.Context, observation domain.Observation, signals []domain.EventSignal, policies []NotificationChannelPolicy) (int64, []domain.EventTransition, error) {
+	return s.recordObservationWithEvents(ctx, observation, signals, policies)
+}
+
+func (s *SQLite) recordObservationWithEvents(ctx context.Context, observation domain.Observation, signals []domain.EventSignal, policies []NotificationChannelPolicy) (int64, []domain.EventTransition, error) {
 	if err := observation.Validate(); err != nil {
+		return 0, nil, err
+	}
+	if err := validateNotificationPolicies(policies); err != nil {
 		return 0, nil, err
 	}
 	seen := make(map[string]struct{}, len(signals))
@@ -446,6 +459,9 @@ func (s *SQLite) RecordObservationWithEvents(ctx context.Context, observation do
 	}
 	transitions, err := reconcileEventSignalsTx(ctx, tx, observation.HostID, observation.ObservedAt, signals)
 	if err != nil {
+		return 0, nil, err
+	}
+	if err := enqueueEventNotificationsTx(ctx, tx, transitions, policies, observation.ObservedAt); err != nil {
 		return 0, nil, err
 	}
 	if err := tx.Commit(); err != nil {

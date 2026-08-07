@@ -25,6 +25,8 @@ test.describe("Lodge Web console", () => {
     });
     page.on("pageerror", (error) => errors.push(error.message));
     await page.clock.setFixedTime(new Date("2026-08-08T00:00:00+08:00"));
+    const reset = await page.request.post("/__fixture/reset");
+    expect(reset.ok()).toBeTruthy();
   });
 
   test.afterEach(async ({ page }) => {
@@ -130,7 +132,7 @@ test.describe("Lodge Web console", () => {
     // Linux and macOS round the final mobile text line one pixel differently.
     // Pin only the visual-regression canvas so the snapshot still compares the
     // complete page without turning host font metrics into a false failure.
-    await page.addStyleTag({ content: "html, body { min-height: 1713px !important; }" });
+    await page.addStyleTag({ content: "html, body { min-height: 2211px !important; }" });
     await expect(page).toHaveScreenshot("security-history-390.png", { fullPage: true });
   });
 

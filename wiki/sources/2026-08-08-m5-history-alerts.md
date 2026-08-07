@@ -50,3 +50,11 @@ API 集成测试使用真实 SQLite 生命周期验证未认证 401、缺 CSRF 4
 页面首要安全指标从派生的公网 Web/离线数量调整为公网服务、待归因、待确认事件、严重进行中，其中严重数包含已确认但未恢复事件。事件 API 独立失败只让事件区域显示 N/A/局部错误，当前暴露面与 120 点历史保持可用。完全虚构 fixture 覆盖确认交互、生命周期筛选、独立事件 503，并在 1280/390 更新人工检查的视觉基线；关键端到端场景从 13 增至 17。
 
 按设计审计保持现有暗色、绿色主强调、10/6px 圆角层级和五页 IA；事件列表使用稀疏分隔而不是新增一排通用卡片，720px 以下明确单列。没有引入第三方前端运行时。当前量化差距为 observation 规则 6/7（缺 SSH 来源）与 notification adapter 0/1。
+
+## 可靠 Webhook 通知
+
+第六个切片没有在采集线程里直接“发一次 HTTP”，而是建立 SQLite schema 6 的持久化 outbox。Observation、事件 opened/recovered transition 与每个已配置 channel 的投递行在同一事务提交；相同 event/transition/channel 有唯一约束。独立 worker 用 30 秒租约领取到期行，进程在 HTTP 成功后、落库前崩溃时允许再次领取，因此契约明确为 at-least-once，并用 `event-id:transition:webhook` 作为稳定的 `X-Lodge-Delivery` 幂等键。
+
+成功 2xx 才标记 delivered；408、425、429、5xx、timeout 和 network 按 5 秒、30 秒、2 分钟、10 分钟、30 分钟、1 小时退避，最多 8 次；其他状态直接进入 failed。数据库和日志只保存 `status_NNN`、`timeout`、`network` 等小范围分类，不保存 Webhook URL、bearer、response body/header 或 raw error。客户端强制 HTTPS、禁 redirect、禁环境 proxy，body 为显式 version 1 事件投影且排除内部 dedupe key。
+
+同一风险复发时，以此前成功发送 opened 的时间计算 30–86400 秒冷却。若新事件在延迟期间已经恢复，pending open 会被取消，并且不会制造一条从未看到 open 的 recovery；若 open 已经 leased/delivered，则 recovery 单独入队。存储、Hub 接线、配置边界、secret 文件、HTTP 状态、redirect、租约回收和冷却均有自动化测试。notification adapter 达到 1/1；M5 只剩 SSH 来源规则与真实发布验收。

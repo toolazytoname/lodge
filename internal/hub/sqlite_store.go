@@ -17,17 +17,29 @@ import (
 // projection required by the current v1 Web API. Agent URLs and bearer tokens
 // exist only in the runtime projection.
 type SQLiteStore struct {
-	database *storage.SQLite
-	runtime  *MemStore
-	eventMu  sync.Mutex
+	database             *storage.SQLite
+	runtime              *MemStore
+	notificationPolicies []storage.NotificationChannelPolicy
+	eventMu              sync.Mutex
 }
 
-func OpenSQLiteStore(ctx context.Context, path string, agents []AgentConfig) (*SQLiteStore, error) {
+type NotificationPolicy struct {
+	Channel  string
+	Cooldown time.Duration
+}
+
+func OpenSQLiteStore(ctx context.Context, path string, agents []AgentConfig, notifications ...NotificationPolicy) (*SQLiteStore, error) {
 	database, err := storage.OpenSQLite(path)
 	if err != nil {
 		return nil, err
 	}
-	store := &SQLiteStore{database: database, runtime: NewMemStore()}
+	policies := make([]storage.NotificationChannelPolicy, 0, len(notifications))
+	for _, notification := range notifications {
+		policies = append(policies, storage.NotificationChannelPolicy{
+			Channel: notification.Channel, Cooldown: notification.Cooldown,
+		})
+	}
+	store := &SQLiteStore{database: database, runtime: NewMemStore(), notificationPolicies: policies}
 	if err := store.SetAgents(ctx, agents); err != nil {
 		_ = database.Close()
 		return nil, err
@@ -89,7 +101,7 @@ func (s *SQLiteStore) Update(ctx context.Context, id string, online bool, lastEr
 		return fmt.Errorf("load agent %s active events: %w", id, err)
 	}
 	signals := evaluateEventSignals(previous, observation, active)
-	_, _, err = s.database.RecordObservationWithEvents(ctx, observation, signals)
+	_, _, err = s.database.RecordObservationWithNotifications(ctx, observation, signals, s.notificationPolicies)
 	s.eventMu.Unlock()
 	if err != nil {
 		return fmt.Errorf("persist agent %s observation: %w", id, err)
@@ -153,6 +165,18 @@ func (s *SQLiteStore) AcknowledgeEvent(ctx context.Context, id string, acknowled
 		return domain.Event{}, found, ErrEventResolved
 	}
 	return event, found, err
+}
+
+func (s *SQLiteStore) ClaimEventNotification(ctx context.Context, channel string, now, leaseUntil time.Time) (domain.EventNotificationDelivery, bool, error) {
+	return s.database.ClaimEventNotification(ctx, channel, now, leaseUntil)
+}
+
+func (s *SQLiteStore) MarkEventNotificationDelivered(ctx context.Context, id int64, deliveredAt time.Time) error {
+	return s.database.MarkEventNotificationDelivered(ctx, id, deliveredAt)
+}
+
+func (s *SQLiteStore) RetryEventNotification(ctx context.Context, id int64, nextAttempt time.Time, errorKind string, terminal bool) error {
+	return s.database.RetryEventNotification(ctx, id, nextAttempt, errorKind, terminal)
 }
 
 func (s *SQLiteStore) RunObservationRetention(ctx context.Context, retention time.Duration) {

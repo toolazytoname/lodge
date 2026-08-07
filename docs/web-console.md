@@ -14,8 +14,8 @@ are deliberate:
 - **Security** reports the observed public surface, unidentified workloads,
   offline nodes, and a host-scoped recent 120-point trend from durable observation
   summaries. Its event center shows current and recovered incidents, filters by
-  host/lifecycle, and performs explicit acknowledgement. Historical SSH/login
-  sources and notification delivery remain M5.
+  host/lifecycle, and performs explicit acknowledgement. Event transitions can
+  feed an optional reliable Webhook; historical SSH/login sources remain M5.
 - **Operations** currently reports only read-only synchronization state. Any
   restart, deployment, or rollback remains M6/M7 and must use typed policy,
   confirmation, verification, and audit records.
@@ -57,8 +57,9 @@ unknown ID, and refuses to rewrite a resolved incident.
 The Security event center defaults to ongoing incidents and keeps acknowledged
 risk visible until recovery. It shows host, kind, severity, duration, last
 observation, and lifecycle state; resolved history remains available by filter.
-Event API failure is isolated from current surface and history data. This does
-not yet claim notification delivery, SSH-origin events, or cooldown.
+Event API failure is isolated from current surface and history data. Webhook
+delivery is configured server-side and has no browser secret surface. This does
+not yet claim SSH-origin events.
 
 ## Source and embedded assets
 

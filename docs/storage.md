@@ -5,10 +5,9 @@
 `internal/storage` provides the SQLite persistence adapter for Lodge's durable
 domain model. The Hub opens `/var/lib/lodge-hub/lodge.db` by default, records
 every complete, partial, and offline observation, and keeps only the latest UI
-projection in memory. M5 exposes the bounded observation-summary API in the
-Security Web timeline and now persists the event lifecycle; the operator API,
-Web acknowledgement surface, SSH rules, and notification adapter remain in
-progress.
+projection in memory. M5 exposes bounded history and event APIs in the Security
+page and persists both the lifecycle and reliable notification delivery state.
+The SSH-origin rule remains in progress.
 
 The schema stores:
 
@@ -18,6 +17,7 @@ The schema stores:
 - annotations;
 - the latest bounded Web-link probe result set;
 - event lifecycle records with active-event deduplication;
+- notification outbox rows for configured event channels;
 - operation audit records.
 
 Schema v2 records content-addressed legacy annotation imports so restarting the
@@ -33,6 +33,10 @@ and URL. Each row contains only state, HTTP status when present, latency,
 sanitized error category, and check time. Replacing a probe run is atomic; raw
 errors, response headers/bodies, resolved addresses, and credentials are never
 stored.
+Schema v6 adds the event notification outbox. The outbox contains the event ID,
+transition, channel, sanitized delivery state/error kind, attempt count, and
+delivery schedule. It does not contain the Webhook URL, bearer secret, response
+body, response headers, or raw network errors.
 
 ## Database invariants
 
@@ -52,6 +56,14 @@ stored.
   transaction. Invalid, duplicate, cross-host, or stale signals roll back both.
 - Acknowledgement is idempotent and preserves active risk until a later
   observation resolves it.
+- Event transitions and their configured notification rows commit in the same
+  transaction. A channel gets at most one row per event transition.
+- A due row is claimed with a renewable crash-recovery lease. A worker crash or
+  completion-write failure can cause a duplicate network delivery, so every
+  request carries a stable receiver-side idempotency key.
+- A recurrence of the same risk is delayed by the configured cooldown. If it
+  recovers before that delayed open is claimed, the stale open is cancelled and
+  no recovery notification is fabricated.
 - The database, `-wal`, `-shm`, and backup files are owner-only (`0600`). An
   existing database with broader permissions or a symlinked path is rejected.
 

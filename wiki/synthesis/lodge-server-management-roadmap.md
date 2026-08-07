@@ -80,6 +80,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 Hub `0.5.0` 与 schema 5 已事务发布，M4 完成。首次真实测量中，11 条注册代理路由只有 6 reachable、1 degraded、4 unreachable，可达率 54.5%；全部 16 个展示入口为 7/1/8。这个结果低于 95% 运行目标，但证明产品会暴露 DNS、TLS、timeout 和 502，而不是把“发现”包装成“健康”。资产治理继续保持显式红项，不阻塞 M5 历史与告警能力开发。
 
+> 2026-08-08 M5 已完成有界趋势、持久事件状态机、认证事件 API、Security 事件中心与可靠 Webhook。schema 6 outbox 将事件 transition 和投递原子提交，以租约、稳定幂等键、最多 8 次退避、复发冷却和陈旧 open 取消提供 at-least-once 语义；notification adapter 达到 1/1。M5 仍缺 SSH 攻击来源聚合规则与 production live 验收，不能提前宣称“能看到谁在爆破”。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

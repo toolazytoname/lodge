@@ -268,6 +268,114 @@ func TestSQLiteEventQueriesAreBounded(t *testing.T) {
 	}
 }
 
+func TestSQLiteNotificationOutboxLifecycleCooldownAndRecovery(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	policy := []NotificationChannelPolicy{{Channel: "webhook", Cooldown: 15 * time.Minute}}
+	signal := domain.EventSignal{
+		HostID: "host-a", Kind: "resource.memory", Severity: domain.SeverityWarning,
+		DedupeKey: "host-a:resource:memory", Title: "Memory pressure", Detail: "86% used",
+	}
+
+	_, transitions, err := store.RecordObservationWithNotifications(ctx, sampleObservation(now), []domain.EventSignal{signal}, policy)
+	if err != nil || len(transitions) != 1 || transitions[0].Type != domain.EventOpened {
+		t.Fatalf("opening event and outbox row failed: transitions=%+v err=%v", transitions, err)
+	}
+	openedID := transitions[0].Event.ID
+	_, transitions, err = store.RecordObservationWithNotifications(ctx, sampleObservation(now.Add(time.Minute)), []domain.EventSignal{signal}, policy)
+	if err != nil || len(transitions) != 0 {
+		t.Fatalf("continuing signal created another transition: transitions=%+v err=%v", transitions, err)
+	}
+	var openedRows int
+	if err := store.db.QueryRowContext(ctx, `SELECT count(*) FROM event_notification_outbox WHERE event_id = ? AND transition = 'opened'`, openedID).Scan(&openedRows); err != nil || openedRows != 1 {
+		t.Fatalf("opened outbox rows = %d, want 1: %v", openedRows, err)
+	}
+
+	delivery, found, err := store.ClaimEventNotification(ctx, "webhook", now, now.Add(30*time.Second))
+	if err != nil || !found || delivery.Attempt != 1 || delivery.Event.ID != openedID || delivery.Transition != domain.EventOpened {
+		t.Fatalf("first claim mismatch: found=%v delivery=%+v err=%v", found, delivery, err)
+	}
+	if _, found, err := store.ClaimEventNotification(ctx, "webhook", now.Add(10*time.Second), now.Add(40*time.Second)); err != nil || found {
+		t.Fatalf("active lease was reclaimed too early: found=%v err=%v", found, err)
+	}
+	delivery, found, err = store.ClaimEventNotification(ctx, "webhook", now.Add(31*time.Second), now.Add(61*time.Second))
+	if err != nil || !found || delivery.Attempt != 2 {
+		t.Fatalf("expired lease was not reclaimed: found=%v delivery=%+v err=%v", found, delivery, err)
+	}
+	deliveredAt := now.Add(time.Minute)
+	if err := store.MarkEventNotificationDelivered(ctx, delivery.ID, deliveredAt); err != nil {
+		t.Fatal(err)
+	}
+
+	recoveredAt := now.Add(2 * time.Minute)
+	_, transitions, err = store.RecordObservationWithNotifications(ctx, sampleObservation(recoveredAt), nil, policy)
+	if err != nil || len(transitions) != 1 || transitions[0].Type != domain.EventRecovered {
+		t.Fatalf("event recovery mismatch: transitions=%+v err=%v", transitions, err)
+	}
+	delivery, found, err = store.ClaimEventNotification(ctx, "webhook", recoveredAt, recoveredAt.Add(30*time.Second))
+	if err != nil || !found || delivery.Transition != domain.EventRecovered || delivery.Event.State != domain.EventResolved {
+		t.Fatalf("recovery notification mismatch: found=%v delivery=%+v err=%v", found, delivery, err)
+	}
+	if err := store.MarkEventNotificationDelivered(ctx, delivery.ID, recoveredAt.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	recurredAt := now.Add(3 * time.Minute)
+	_, transitions, err = store.RecordObservationWithNotifications(ctx, sampleObservation(recurredAt), []domain.EventSignal{signal}, policy)
+	if err != nil || len(transitions) != 1 || transitions[0].Type != domain.EventOpened || transitions[0].Event.ID == openedID {
+		t.Fatalf("event recurrence mismatch: transitions=%+v err=%v", transitions, err)
+	}
+	recurredID := transitions[0].Event.ID
+	var notBeforeText string
+	if err := store.db.QueryRowContext(ctx, `SELECT not_before FROM event_notification_outbox WHERE event_id = ? AND transition = 'opened'`, recurredID).Scan(&notBeforeText); err != nil {
+		t.Fatal(err)
+	}
+	notBefore, err := parseTime(notBeforeText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantNotBefore := deliveredAt.Add(policy[0].Cooldown)
+	if !notBefore.Equal(wantNotBefore) {
+		t.Fatalf("recurrence not_before = %s, want %s", notBefore, wantNotBefore)
+	}
+	if _, found, err := store.ClaimEventNotification(ctx, "webhook", wantNotBefore.Add(-time.Second), wantNotBefore.Add(time.Minute)); err != nil || found {
+		t.Fatalf("cooled notification was claimable early: found=%v err=%v", found, err)
+	}
+
+	_, transitions, err = store.RecordObservationWithNotifications(ctx, sampleObservation(now.Add(4*time.Minute)), nil, policy)
+	if err != nil || len(transitions) != 1 || transitions[0].Type != domain.EventRecovered {
+		t.Fatalf("cooled recurrence recovery mismatch: transitions=%+v err=%v", transitions, err)
+	}
+	var state string
+	if err := store.db.QueryRowContext(ctx, `SELECT state FROM event_notification_outbox WHERE event_id = ? AND transition = 'opened'`, recurredID).Scan(&state); err != nil || state != "cancelled" {
+		t.Fatalf("stale opened notification state = %q, want cancelled: %v", state, err)
+	}
+	var recoveryRows int
+	if err := store.db.QueryRowContext(ctx, `SELECT count(*) FROM event_notification_outbox WHERE event_id = ? AND transition = 'recovered'`, recurredID).Scan(&recoveryRows); err != nil || recoveryRows != 0 {
+		t.Fatalf("unseen recurrence created %d recovery rows, want 0: %v", recoveryRows, err)
+	}
+}
+
+func TestSQLiteNotificationPolicyValidationIsAtomic(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	policies := []NotificationChannelPolicy{{Channel: "webhook"}, {Channel: "webhook"}}
+	if _, _, err := store.RecordObservationWithNotifications(ctx, sampleObservation(time.Now().UTC()), nil, policies); err == nil {
+		t.Fatal("duplicate notification policies were accepted")
+	}
+	var observations int
+	if err := store.db.QueryRowContext(ctx, "SELECT count(*) FROM observations").Scan(&observations); err != nil || observations != 0 {
+		t.Fatalf("invalid policies left %d observations behind: %v", observations, err)
+	}
+}
+
 func TestMigrationPlanMustBeContiguousAndComplete(t *testing.T) {
 	tests := []struct {
 		name string
@@ -406,6 +514,59 @@ func TestSQLiteUpgradesVersionFourAndAddsWebLinkChecks(t *testing.T) {
 	hosts, err := store.Hosts(context.Background())
 	if err != nil || len(hosts) != 1 || hosts[0].ID != "host-a" {
 		t.Fatalf("v4 host was not preserved: %+v, %v", hosts, err)
+	}
+}
+
+func TestSQLiteUpgradesVersionFiveAndAddsNotificationOutbox(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	createVersionOneDatabase(t, path)
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrations[1:5] {
+		if _, err := db.Exec(migration.sql); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(
+			"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
+			migration.version, migration.name, migration.checksum(), formatTime(time.Now()),
+		); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec("PRAGMA user_version = 5"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var version, tableCount int
+	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'event_notification_outbox'").Scan(&tableCount); err != nil {
+		t.Fatal(err)
+	}
+	if version != currentSchemaVersion || tableCount != 1 {
+		t.Fatalf("v5 migration result: version=%d tableCount=%d", version, tableCount)
+	}
+	hosts, err := store.Hosts(context.Background())
+	if err != nil || len(hosts) != 1 || hosts[0].ID != "host-a" {
+		t.Fatalf("v5 host was not preserved: %+v, %v", hosts, err)
 	}
 }
 

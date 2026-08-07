@@ -306,6 +306,15 @@ const server = createServer(async (request, response) => {
       sendJSON(response, 200, { authed: true, csrfToken: "fixture-csrf" });
       return;
     }
+    if (requestURL.pathname === "/__fixture/reset") {
+      if (request.method !== "POST") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+      } else {
+        acknowledgedFixtureEvents.clear();
+        sendJSON(response, 200, { ok: true });
+      }
+      return;
+    }
     if (requestURL.pathname === "/api/agents") {
       if (mode === "error") sendJSON(response, 503, { error: "fixture agents unavailable" });
       else sendJSON(response, 200, buildFixture(mode).agents);

@@ -70,9 +70,16 @@ host's non-resolved events. Rules produce host-scoped current-truth signals;
 SQLite stores the immutable observation and reconciles those signals in one
 transaction. See [ADR 0007](adr/0007-observation-event-lifecycle.md).
 
+Configured event transitions also create notification outbox rows in that same
+transaction. A separate worker leases due rows and calls the Webhook adapter;
+network I/O never blocks observation persistence. Delivery is at-least-once,
+with stable receiver-side idempotency keys, bounded retry, recurrence cooldown,
+and cancellation of delayed opens that recover before first delivery. See
+[ADR 0008](adr/0008-durable-webhook-notifications.md).
+
 Durable state is stored through `internal/storage` in owner-only SQLite. The
 schema normalizes immutable observations, workload/endpoint/proxy-route children, annotations,
-latest Web-link checks, events, and operation audit records. Agent credentials remain runtime
+latest Web-link checks, events, notification outbox, and operation audit records. Agent credentials remain runtime
 configuration rather than durable inventory data. See
 [`docs/storage.md`](storage.md) for migration, backup, and restore invariants.
 

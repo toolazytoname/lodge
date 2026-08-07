@@ -331,3 +331,81 @@ func TestLoadConfigRejectsLoosePermissionsAndSymlinks(t *testing.T) {
 		t.Fatal("symlinked config should be rejected")
 	}
 }
+
+func TestLoadConfigNormalizesSecureWebhook(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	body := `{"webhook":{"url":" https://hooks.example.test/lodge?tenant=one ","secretFile":"/etc/lodge-hub/webhook-secret"},"agents":[]}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Webhook == nil || config.Webhook.URL != "https://hooks.example.test/lodge?tenant=one" || config.Webhook.CooldownSeconds != defaultWebhookCooldownSeconds {
+		t.Fatalf("webhook was not normalized: %+v", config.Webhook)
+	}
+}
+
+func TestLoadConfigRejectsUnsafeWebhook(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	cases := []string{
+		`{"webhook":{"url":"http://hooks.example.test/lodge"},"agents":[]}`,
+		`{"webhook":{"url":"https://user:pass@hooks.example.test/lodge"},"agents":[]}`,
+		`{"webhook":{"url":"https://hooks.example.test/lodge#secret"},"agents":[]}`,
+		`{"webhook":{"url":"https://hooks.example.test/lodge","secretFile":"relative-secret"},"agents":[]}`,
+		`{"webhook":{"url":"https://hooks.example.test/lodge","secretFile":"/etc/lodge-hub/../secret"},"agents":[]}`,
+		`{"webhook":{"url":"https://hooks.example.test/lodge","cooldownSeconds":29},"agents":[]}`,
+		`{"webhook":{"url":"https://hooks.example.test/lodge","cooldownSeconds":86401},"agents":[]}`,
+	}
+	for _, body := range cases {
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadConfig(path); err == nil {
+			t.Fatalf("unsafe webhook was accepted: %s", body)
+		}
+	}
+}
+
+func TestLoadWebhookSecretRequiresBoundedOwnerOnlyRegularFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "webhook-secret")
+	if err := os.WriteFile(path, []byte("opaque-webhook-secret\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	secret, err := LoadWebhookSecret(path)
+	if err != nil || secret != "opaque-webhook-secret" {
+		t.Fatalf("secret = %q, err = %v", secret, err)
+	}
+	if err := os.Chmod(path, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadWebhookSecret(path); err == nil {
+		t.Fatal("group-readable webhook secret was accepted")
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "webhook-secret-link")
+	if err := os.Symlink(path, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadWebhookSecret(link); err == nil {
+		t.Fatal("symlinked webhook secret was accepted")
+	}
+	if err := os.WriteFile(path, []byte("contains space"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadWebhookSecret(path); err == nil {
+		t.Fatal("whitespace-containing webhook secret was accepted")
+	}
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", maximumWebhookSecretBytes+1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadWebhookSecret(path); err == nil {
+		t.Fatal("oversized webhook secret was accepted")
+	}
+}

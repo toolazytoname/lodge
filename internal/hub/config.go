@@ -17,11 +17,13 @@ import (
 // Config is the owner-private Hub configuration. Password is accepted only for
 // a migration window; PasswordHash is the durable representation.
 type Config struct {
-	Comment       string        `json:"_comment,omitempty"`
-	CommentAgents string        `json:"_comment_agents,omitempty"`
-	Password      string        `json:"password,omitempty"`
-	PasswordHash  string        `json:"passwordHash,omitempty"`
-	Agents        []AgentConfig `json:"agents"`
+	Comment        string         `json:"_comment,omitempty"`
+	CommentAgents  string         `json:"_comment_agents,omitempty"`
+	CommentWebhook string         `json:"_comment_webhook,omitempty"`
+	Password       string         `json:"password,omitempty"`
+	PasswordHash   string         `json:"passwordHash,omitempty"`
+	Webhook        *WebhookConfig `json:"webhook,omitempty"`
+	Agents         []AgentConfig  `json:"agents"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -61,6 +63,11 @@ func normalizeConfig(config *Config) error {
 	if config.PasswordHash != "" {
 		if err := validatePasswordHash(config.PasswordHash); err != nil {
 			return fmt.Errorf("passwordHash: %w", err)
+		}
+	}
+	if config.Webhook != nil {
+		if err := normalizeWebhookConfig(config.Webhook); err != nil {
+			return fmt.Errorf("webhook: %w", err)
 		}
 	}
 	knownIDs := make(map[string]struct{}, len(config.Agents))

@@ -215,4 +215,30 @@ CREATE INDEX web_link_checks_state_time_idx
     ON web_link_checks(state, checked_at DESC);
 `,
 	},
+	{
+		version: 6,
+		name:    "event_notification_outbox",
+		sql: `
+CREATE TABLE event_notification_outbox (
+    id INTEGER PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    transition TEXT NOT NULL CHECK (transition IN ('opened', 'recovered')),
+    channel TEXT NOT NULL,
+    dedupe_key TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('pending', 'sending', 'delivered', 'cancelled', 'failed')),
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    not_before TEXT NOT NULL,
+    next_attempt_at TEXT NOT NULL,
+    last_error_kind TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    delivered_at TEXT,
+    UNIQUE(event_id, transition, channel)
+) STRICT;
+
+CREATE INDEX event_notification_due_idx
+    ON event_notification_outbox(channel, state, next_attempt_at, id);
+CREATE INDEX event_notification_cooldown_idx
+    ON event_notification_outbox(channel, dedupe_key, transition, delivered_at DESC);
+`,
+	},
 }

@@ -152,3 +152,17 @@
 - 每条事件呈现严重度、状态、主机、类型、持续时间和最近观测；确认后仍保持进行中，直到观测恢复。
 - 事件 API 独立 503 不会清空当前暴露面或历史趋势；1280/390 视觉基线经人工检查，无横向溢出。
 - 关键端到端场景由 13 增至 17；量化差距为事件规则 6/7（缺 SSH）和通知适配器 0/1。
+
+## [2026-08-08] implementation | M5 持久化 Webhook 通知
+
+- 新增 SQLite schema 6 outbox；Observation、事件 transition 与通知投递原子提交，每个 event/transition/channel 唯一。
+- worker 使用 30 秒可回收租约、稳定 `X-Lodge-Delivery` 幂等键和最多 8 次的有界退避，实现明确的 at-least-once 语义。
+- 复发风险按上一次成功 open 做冷却；冷却期内先恢复的 pending open 被取消，不发送失去上下文的 recovery。
+- Webhook 只接受 owner 配置的 HTTPS URL，禁 redirect/环境 proxy；可选 bearer 来自 0600 非符号链接文件。URL、secret、response 和 raw error 不入库、不入日志。
+- notification adapter 从 0/1 提升到 1/1；SSH 来源规则仍是 M5 最后的功能缺口。
+
+## [2026-08-08] quality | 事件 UI 跨平台门禁稳定化
+
+- `95d7b7c` 的两套 GitHub CI 均暴露同一确定性问题：测试重试继承 fixture server 中已确认事件，且 Linux 的移动端页面比 macOS 少 15px。
+- 每个 Playwright 场景现在先显式重置可变 fixture 状态；Security 移动画布固定为完整基线高度，仍比较整页而不是裁掉内容或放宽像素阈值。
+- 本地完整 `npm test`（含 race、生成契约、五场景 Chromium 与七张视觉基线）重新通过；推送后的双 CI 继续作为最终证据。

@@ -137,11 +137,11 @@
       "id": "notification_adapters",
       "dimension": "reliability",
       "name": "Configured event notification adapters",
-      "current": 0,
+      "current": 1,
       "target": 1,
       "unit": "adapters",
       "direction": "increase",
-      "evidence": "Webhook adapter and cooldown remain in M5"
+      "evidence": "Durable SQLite outbox plus HTTPS Webhook adapter covers transition uniqueness, crash leases, stale-open cancellation, recurrence cooldown, stable idempotency keys, and bounded retry"
     },
     {
       "id": "critical_e2e_scenarios",

@@ -178,6 +178,30 @@ func TestSQLiteStoreEvaluatesAndPersistsEventLifecycle(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreQueuesRuleTransitionsForConfiguredNotifications(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	store, err := OpenSQLiteStore(context.Background(), path,
+		[]AgentConfig{{ID: "host-a", Name: "Host A"}},
+		NotificationPolicy{Channel: webhookChannel, Cooldown: 15 * time.Minute},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	now := time.Now().UTC().Truncate(time.Second)
+	status := &shared.Status{
+		Load:   shared.Load{CPUs: 2, One: 0.5},
+		Memory: shared.Memory{TotalBytes: 100, UsedBytes: 86, AvailableBytes: 14},
+	}
+	if err := store.Update(context.Background(), "host-a", true, "", shared.Ping{}, status, []shared.Service{}, now); err != nil {
+		t.Fatal(err)
+	}
+	delivery, found, err := store.ClaimEventNotification(context.Background(), webhookChannel, now, now.Add(webhookLease))
+	if err != nil || !found || delivery.Event.Kind != "resource.memory" || delivery.Transition != domain.EventOpened {
+		t.Fatalf("rule transition was not queued: found=%v delivery=%+v err=%v", found, delivery, err)
+	}
+}
+
 func TestLegacyStateImportsOnlyAnnotationsExactlyOnce(t *testing.T) {
 	const legacyToken = "legacy-token-must-not-enter-database-a483be"
 	agents := []AgentConfig{{ID: "host-a", Name: "Host A", URL: "http://agent", Token: "current-token"}}

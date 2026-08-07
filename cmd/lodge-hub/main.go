@@ -132,6 +132,17 @@ func run() error {
 	if passwordHash == "" {
 		fmt.Fprintln(os.Stderr, "警告：未设 passwordHash，hub 不启用登录认证 —— 仅限受严格 grants 保护的 tailnet")
 	}
+	var webhookSecret string
+	var notificationPolicies []hub.NotificationPolicy
+	if config.Webhook != nil {
+		webhookSecret, err = hub.LoadWebhookSecret(config.Webhook.SecretFile)
+		if err != nil {
+			return fmt.Errorf("加载 Webhook 密钥: %w", err)
+		}
+		notificationPolicies = append(notificationPolicies, hub.NotificationPolicy{
+			Channel: "webhook", Cooldown: config.Webhook.Cooldown(),
+		})
+	}
 	var sessionKey []byte
 	if passwordHash != "" {
 		sessionKey, err = hub.LoadOrCreateSessionKey(*sessionSecretPath)
@@ -142,7 +153,7 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	store, err := hub.OpenSQLiteStore(ctx, *databasePath, config.Agents)
+	store, err := hub.OpenSQLiteStore(ctx, *databasePath, config.Agents, notificationPolicies...)
 	if err != nil {
 		return fmt.Errorf("打开持久化存储: %w", err)
 	}
@@ -171,6 +182,13 @@ func run() error {
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
+	var notifier *hub.WebhookNotifier
+	if config.Webhook != nil {
+		notifier, err = hub.NewWebhookNotifier(store, config.Webhook.URL, webhookSecret)
+		if err != nil {
+			return fmt.Errorf("初始化 Webhook 通知: %w", err)
+		}
+	}
 
 	var background sync.WaitGroup
 	startBackground := func(run func()) {
@@ -184,6 +202,9 @@ func run() error {
 	startBackground(func() { scraper.Run(ctx) })
 	startBackground(func() { srv.RunCleanup(ctx) })
 	startBackground(func() { store.RunObservationRetention(ctx, *historyRetention) })
+	if notifier != nil {
+		startBackground(func() { notifier.Run(ctx) })
+	}
 	startBackground(func() {
 		<-ctx.Done()
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -193,8 +214,12 @@ func run() error {
 		}
 	})
 
-	fmt.Fprintf(os.Stderr, "lodge-hub %s 监听 %s，管理 %d 台 agent，历史保留 %s\n",
-		hubVersion, *addr, len(config.Agents), *historyRetention)
+	webhookState := "关闭"
+	if config.Webhook != nil {
+		webhookState = "开启"
+	}
+	fmt.Fprintf(os.Stderr, "lodge-hub %s 监听 %s，管理 %d 台 agent，历史保留 %s，Webhook %s\n",
+		hubVersion, *addr, len(config.Agents), *historyRetention, webhookState)
 	serveErr := httpServer.ListenAndServe()
 	stop()
 	background.Wait()

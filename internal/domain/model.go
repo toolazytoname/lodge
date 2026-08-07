@@ -260,6 +260,17 @@ type EventTransition struct {
 	Event Event               `json:"event"`
 }
 
+// EventNotificationDelivery is one claimed durable outbox item. Attempt is
+// incremented before network I/O so a crashed worker can safely reclaim the
+// lease and preserve an at-least-once audit trail.
+type EventNotificationDelivery struct {
+	ID         int64               `json:"id"`
+	Channel    string              `json:"channel"`
+	Transition EventTransitionType `json:"transition"`
+	Event      Event               `json:"event"`
+	Attempt    int                 `json:"attempt"`
+}
+
 type OperationKind string
 
 const (

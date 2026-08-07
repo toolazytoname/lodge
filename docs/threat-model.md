@@ -45,6 +45,11 @@
 - Event reads are authenticated and capped at 500 views; internal deduplication
   keys are excluded. Acknowledgement is a CSRF-protected POST and cannot alter a
   resolved incident.
+- Webhook delivery uses only an owner-configured absolute HTTPS URL, disables
+  environment proxies and redirects, sets a stable idempotency key, sends a
+  bounded versioned JSON event view without internal dedupe keys, and never
+  reads response bodies. Status and network failures are reduced to bounded
+  categories before persistence or logging.
 - Security headers are set by the Hub, including a restrictive Content Security Policy.
 - Active Web-link checks are an authenticated, CSRF-protected management
   capability. They use only absolute credential-free http(s) targets from the
@@ -91,6 +96,9 @@
   memory. They are excluded from the SQLite schema and legacy imports, with
   regression tests scanning the database, WAL, and SHM files for sentinel
   credentials.
+- The optional Webhook bearer value is read from a separate owner-only regular
+  file; symlinks, non-visible/whitespace bytes, and oversized values are
+  rejected. The Webhook URL and secret never enter SQLite or delivery logs.
 - A migrated JSON state file may still contain historical Agent tokens. It is
   owner-only, read only as an explicit migration source, and removed after the
   verified rollback window.
@@ -113,6 +121,10 @@
   same transaction as their observation. Offline and category-specific missing
   telemetry preserve existing risk rather than manufacturing recovery; stale
   event time is rejected and rolls back the observation.
+- The notification outbox is atomic with event transitions, unique per
+  event/transition/channel, crash-reclaimable, and bounded to eight attempts.
+  Retry state stores only sanitized categories. At-least-once delivery means
+  receivers must deduplicate the `X-Lodge-Delivery` key.
 
 ## Release review
 
