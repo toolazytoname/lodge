@@ -138,3 +138,10 @@
 - 新增 offline、内存、根磁盘、归一化 load、failed/unhealthy workload 与新增 wildcard listener 规则；资源使用双阈值抑制抖动。
 - 首次/恢复 listener 建立基线，离线与部分采集保留无法证实恢复的既有风险；领域、规则、存储与 Hub 集成测试覆盖这些边界。
 - 事件 API、Web 确认、SSH 规则、通知冷却和 webhook 仍待后续切片。
+
+## [2026-08-08] implementation | M5 认证事件 API
+
+- 新增认证 `GET /api/events`，支持全局/host 筛选并限制最多 500 条；响应省略内部 dedupe key。
+- 新增 CSRF 保护的事件确认 POST；重复确认幂等，未知事件 404，已恢复事件 409。
+- 事件 severity/state 由 Go 契约生成 TypeScript union；真实 SQLite API 测试覆盖认证、CSRF 和完整状态边界。
+- 路线图“Observation history and event transitions”完成；Security UI、SSH 规则、cooldown 与 webhook 继续进行。

@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -138,6 +139,20 @@ func (s *SQLiteStore) ObservationHistory(ctx context.Context, hostID domain.Host
 
 func (s *SQLiteStore) ObservationSummaryHistory(ctx context.Context, hostID domain.HostID, limit int) ([]domain.ObservationSummary, error) {
 	return s.database.ObservationSummaryHistory(ctx, hostID, limit)
+}
+
+func (s *SQLiteStore) Events(ctx context.Context, hostID domain.HostID, limit int) ([]domain.Event, error) {
+	return s.database.Events(ctx, hostID, limit)
+}
+
+func (s *SQLiteStore) AcknowledgeEvent(ctx context.Context, id string, acknowledgedAt time.Time) (domain.Event, bool, error) {
+	s.eventMu.Lock()
+	defer s.eventMu.Unlock()
+	event, found, err := s.database.AcknowledgeEvent(ctx, id, acknowledgedAt)
+	if errors.Is(err, storage.ErrEventResolved) {
+		return domain.Event{}, found, ErrEventResolved
+	}
+	return event, found, err
 }
 
 func (s *SQLiteStore) RunObservationRetention(ctx context.Context, retention time.Duration) {

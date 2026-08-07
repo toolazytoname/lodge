@@ -42,6 +42,9 @@
 - Observation-history responses are host-scoped, authenticated, aggregated,
   and capped at 500 points; they do not expose complete historical workload or
   route payloads.
+- Event reads are authenticated and capped at 500 views; internal deduplication
+  keys are excluded. Acknowledgement is a CSRF-protected POST and cannot alter a
+  resolved incident.
 - Security headers are set by the Hub, including a restrictive Content Security Policy.
 - Active Web-link checks are an authenticated, CSRF-protected management
   capability. They use only absolute credential-free http(s) targets from the

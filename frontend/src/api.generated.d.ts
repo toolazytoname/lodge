@@ -26,6 +26,27 @@ export interface AnnotationInput {
   notes?: string;
 }
 
+export type EventState = "active" | "acknowledged" | "resolved";
+
+export interface EventView {
+  id: string;
+  agentId: string;
+  kind: string;
+  severity: Severity;
+  state: EventState;
+  title: string;
+  detail?: string;
+  firstObservedAt: string;
+  lastObservedAt: string;
+  acknowledgedAt?: string;
+  resolvedAt?: string;
+}
+
+export interface EventsResponse {
+  agentId?: string;
+  events: Array<EventView>;
+}
+
 export type Exposure = "local" | "tailnet" | "public" | "other";
 
 export interface HostHistoryResponse {
@@ -108,6 +129,8 @@ export interface SessionResponse {
   authed: boolean;
   csrfToken?: string;
 }
+
+export type Severity = "info" | "warning" | "critical";
 
 export interface WebLinkCheckSummary {
   total: number;

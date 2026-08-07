@@ -36,3 +36,9 @@ Observation 与事件 open/update/recovery 在同一事务提交。重复 key、
 当前规则覆盖 host offline、内存、根磁盘、按 CPU 归一化 load、failed/unhealthy workload 和新增 wildcard listener。内存为 85%/80%、根磁盘为 90%/85%、load/CPU 为 1.5/1.0 的开启/解除双阈值。首次在线观测与离线后的首次恢复观测把 listener 作为基线，避免上线时全量误报；只有两个完整在线服务观测之间新增的 wildcard listener 才打开事件。离线会保留既有服务、listener 和资源风险；在线但某类采集缺失时，只保留该类既有风险，不用“没有数据”推导恢复。
 
 领域、规则、SQLite 与 SQLiteStore 测试已覆盖去重、确认幂等、恢复、复发、阈值迟滞、listener 基线、离线/部分采集和事务回滚。事件 API、Security 事件列表、SSH 规则、冷却与 webhook 尚未完成，M5 继续进行。
+
+## 认证事件 API
+
+第四个切片开放认证的 `GET /api/events`，支持全 fleet 或已配置 host 筛选，默认 100、上限 500；返回 incident 类型、严重度、状态、面向操作者的说明和审计时间，不暴露内部 dedupe key。`POST /api/events/ack` 经过会话与 CSRF 校验，确认幂等，未知 ID 为 404，已恢复事件为 409。Go HTTP 契约继续生成 TypeScript union，未知 severity/state 不能静默落入浏览器。
+
+API 集成测试使用真实 SQLite 生命周期验证未认证 401、缺 CSRF 403、active 到 acknowledged、重复确认时间不变、恢复后冲突，以及 host/limit 边界。路线图的“Observation history and event transitions”至此完成；Security 事件 UI、SSH 来源、冷却和 webhook 仍未完成。

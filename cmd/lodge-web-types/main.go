@@ -53,6 +53,7 @@ func generate() ([]byte, error) {
 			reflect.TypeOf(hub.AgentServices{}),
 			reflect.TypeOf(hub.AnnotationInput{}),
 			reflect.TypeOf(hub.HostHistoryResponse{}),
+			reflect.TypeOf(hub.EventsResponse{}),
 			reflect.TypeOf(hub.WebLinkChecksResponse{}),
 		},
 		seen:  make(map[reflect.Type]bool),
@@ -99,6 +100,10 @@ func (generator *typeGenerator) add(value reflect.Type) error {
 			generator.types[value.Name()] = "export type Kind = \"docker\" | \"systemd\" | \"process\";\n"
 		case reflect.TypeOf(domain.WebLinkState("")):
 			generator.types[value.Name()] = "export type WebLinkState = \"reachable\" | \"degraded\" | \"unreachable\";\n"
+		case reflect.TypeOf(domain.Severity("")):
+			generator.types[value.Name()] = "export type Severity = \"info\" | \"warning\" | \"critical\";\n"
+		case reflect.TypeOf(domain.EventState("")):
+			generator.types[value.Name()] = "export type EventState = \"active\" | \"acknowledged\" | \"resolved\";\n"
 		default:
 			generator.types[value.Name()] = fmt.Sprintf("export type %s = string;\n", value.Name())
 		}

@@ -13,7 +13,9 @@ are deliberate:
   editing supports an alias, a safe http(s) URL, notes, and a visual hidden flag.
 - **Security** reports the observed public surface, unidentified workloads,
   offline nodes, and a host-scoped recent 120-point trend from durable observation
-  summaries. Historical login sources, event acknowledgement, and alerts remain M5.
+  summaries. The authenticated event API and acknowledgement transition are
+  implemented; their operator-facing Security list and historical login sources
+  remain M5.
 - **Operations** currently reports only read-only synchronization state. Any
   restart, deployment, or rollback remains M6/M7 and must use typed policy,
   confirmation, verification, and audit records.
@@ -42,6 +44,19 @@ The status is deliberately scoped to the Hub's network view:
 
 Only the latest bounded metadata is retained in SQLite. Raw network errors,
 response bodies, headers, resolved addresses, and credentials are excluded.
+
+## Event API boundary
+
+`GET /api/events` returns at most 500 event views, globally or scoped by the
+validated `agent` query. Views include incident type, severity, lifecycle state,
+operator-facing detail, and audit timestamps; the internal deduplication key is
+not exposed. `POST /api/events/ack?id=...` requires an authenticated session and
+CSRF token. It is idempotent for an acknowledged event, returns not found for an
+unknown ID, and refuses to rewrite a resolved incident.
+
+The API is the durable source for the upcoming Security event list. Its
+existence does not yet claim notification delivery, SSH-origin events, cooldown,
+or a completed visual acknowledgement workflow.
 
 ## Source and embedded assets
 

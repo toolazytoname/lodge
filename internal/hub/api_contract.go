@@ -71,6 +71,27 @@ type HostHistoryResponse struct {
 	Points  []ObservationHistoryPoint `json:"points"`
 }
 
+// EventView excludes the internal deduplication key while retaining the audit
+// timestamps an operator needs to understand and acknowledge an incident.
+type EventView struct {
+	ID              string            `json:"id"`
+	AgentID         string            `json:"agentId"`
+	Kind            string            `json:"kind"`
+	Severity        domain.Severity   `json:"severity"`
+	State           domain.EventState `json:"state"`
+	Title           string            `json:"title"`
+	Detail          string            `json:"detail,omitempty"`
+	FirstObservedAt string            `json:"firstObservedAt"`
+	LastObservedAt  string            `json:"lastObservedAt"`
+	AcknowledgedAt  string            `json:"acknowledgedAt,omitempty"`
+	ResolvedAt      string            `json:"resolvedAt,omitempty"`
+}
+
+type EventsResponse struct {
+	AgentID string      `json:"agentId,omitempty"`
+	Events  []EventView `json:"events"`
+}
+
 // WebLinkCheckView is bounded probe evidence from the Hub's network view.
 type WebLinkCheckView struct {
 	AgentID    string              `json:"agentId"`

@@ -53,7 +53,7 @@ repairs or retires it.
 
 ## M5 — History and alerts
 
-- [ ] Observation history and event transitions
+- [x] Observation history and event transitions
 - [ ] Offline, resource, listener, service, and SSH rules
 - [ ] Deduplication, recovery, acknowledgement, and cooldown
 - [ ] Webhook notification adapter

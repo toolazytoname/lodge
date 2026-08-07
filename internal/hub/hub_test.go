@@ -635,6 +635,112 @@ func TestObservationHistoryAPIIsBoundedAndHostScoped(t *testing.T) {
 	}
 }
 
+func TestEventAPIRequiresAuthenticationCSRFAndPreservesLifecycle(t *testing.T) {
+	store, _ := openTestSQLiteStore(t, []AgentConfig{{ID: "host-a", Name: "Host A"}})
+	ctx := context.Background()
+	observedAt := time.Now().UTC().Add(-time.Minute).Truncate(time.Second)
+	if err := store.Update(ctx, "host-a", false, "fixture timeout", shared.Ping{}, nil, nil, observedAt); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, store, "pw")
+
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/events", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated event read returned HTTP %d", w.Code)
+	}
+	cookie, csrfToken := loginSession(t, server, "pw")
+
+	request := httptest.NewRequest(http.MethodGet, "/api/events?agent=host-a&limit=10", nil)
+	request.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusOK {
+		t.Fatalf("event read returned HTTP %d: %s", w.Code, w.Body.String())
+	}
+	var response EventsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.AgentID != "host-a" || len(response.Events) != 1 || response.Events[0].Kind != "host.offline" || response.Events[0].State != domain.EventActive {
+		t.Fatalf("event response mismatch: %+v", response)
+	}
+	eventID := response.Events[0].ID
+
+	request = httptest.NewRequest(http.MethodPost, "/api/events/ack?id="+eventID, nil)
+	request.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("event acknowledgement without CSRF returned HTTP %d", w.Code)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/events/ack?id="+eventID, nil)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", csrfToken)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusOK {
+		t.Fatalf("event acknowledgement returned HTTP %d: %s", w.Code, w.Body.String())
+	}
+	var acknowledged EventView
+	if err := json.Unmarshal(w.Body.Bytes(), &acknowledged); err != nil {
+		t.Fatal(err)
+	}
+	if acknowledged.State != domain.EventAcknowledged || acknowledged.AcknowledgedAt == "" {
+		t.Fatalf("acknowledgement response mismatch: %+v", acknowledged)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/events/ack?id="+eventID, nil)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", csrfToken)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusOK {
+		t.Fatalf("idempotent acknowledgement returned HTTP %d", w.Code)
+	}
+	var repeated EventView
+	if err := json.Unmarshal(w.Body.Bytes(), &repeated); err != nil {
+		t.Fatal(err)
+	}
+	if repeated.AcknowledgedAt != acknowledged.AcknowledgedAt {
+		t.Fatalf("idempotent acknowledgement changed audit time: first=%s repeated=%s", acknowledged.AcknowledgedAt, repeated.AcknowledgedAt)
+	}
+
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, &shared.Status{}, []shared.Service{}, observedAt.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/events/ack?id="+eventID, nil)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", csrfToken)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("resolved acknowledgement returned HTTP %d, want 409", w.Code)
+	}
+
+	for target, expected := range map[string]int{
+		"/api/events?agent=missing":          http.StatusNotFound,
+		"/api/events?agent=host-a&limit=501": http.StatusBadRequest,
+	} {
+		request = httptest.NewRequest(http.MethodGet, target, nil)
+		request.AddCookie(cookie)
+		w = httptest.NewRecorder()
+		server.ServeHTTP(w, request)
+		if w.Code != expected {
+			t.Errorf("GET %s returned HTTP %d, want %d", target, w.Code, expected)
+		}
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/events/ack?id=missing", nil)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", csrfToken)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unknown event acknowledgement returned HTTP %d", w.Code)
+	}
+}
+
 func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
 	s := newTestServer(t, NewMemStore(), "")
 	for _, path := range []string{"/", "/app.css", "/app.js", "/api/session"} {

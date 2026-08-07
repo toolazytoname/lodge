@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -33,6 +34,8 @@ const (
 	webLinkProbeBudget     = 15 * time.Second
 	historyDefaultLimit    = 120
 	historyMaximumLimit    = 500
+	eventsDefaultLimit     = 100
+	eventsMaximumLimit     = 500
 )
 
 // Server is the Hub HTTP boundary. A configured authenticator protects every
@@ -70,9 +73,96 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	s.mux.HandleFunc("/api/agents", s.auth(s.agents))
 	s.mux.HandleFunc("/api/services", s.auth(s.services))
 	s.mux.HandleFunc("/api/history", s.auth(s.history))
+	s.mux.HandleFunc("/api/events", s.auth(s.events))
+	s.mux.HandleFunc("/api/events/ack", s.auth(s.acknowledgeEvent))
 	s.mux.HandleFunc("/api/annotation", s.auth(s.annotation))
 	s.mux.HandleFunc("/api/link-checks", s.auth(s.linkChecks))
 	return s, nil
+}
+
+func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	agentID := r.URL.Query().Get("agent")
+	if len(agentID) > maxAgentIDBytes {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid agent"})
+		return
+	}
+	if agentID != "" && !s.hasAgent(agentID) {
+		writeJSONHub(w, http.StatusNotFound, map[string]string{"error": "unknown agent"})
+		return
+	}
+	limit, ok := boundedQueryLimit(w, r, eventsDefaultLimit, eventsMaximumLimit, "event")
+	if !ok {
+		return
+	}
+	events, err := s.store.Events(r.Context(), domain.HostID(agentID), limit)
+	if err != nil {
+		log.Printf("lodge hub read events: %v", err)
+		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "event persistence failed"})
+		return
+	}
+	response := EventsResponse{AgentID: agentID, Events: make([]EventView, 0, len(events))}
+	for _, event := range events {
+		response.Events = append(response.Events, eventView(event))
+	}
+	writeJSONHub(w, http.StatusOK, response)
+}
+
+func (s *Server) acknowledgeEvent(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	id := r.URL.Query().Get("id")
+	if strings.TrimSpace(id) == "" || len(id) > 128 {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid event id"})
+		return
+	}
+	event, found, err := s.store.AcknowledgeEvent(r.Context(), id, time.Now().UTC())
+	if errors.Is(err, ErrEventResolved) {
+		writeJSONHub(w, http.StatusConflict, map[string]string{"error": "event already resolved"})
+		return
+	}
+	if err != nil {
+		log.Printf("lodge hub acknowledge event: %v", err)
+		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "event persistence failed"})
+		return
+	}
+	if !found {
+		writeJSONHub(w, http.StatusNotFound, map[string]string{"error": "unknown event"})
+		return
+	}
+	writeJSONHub(w, http.StatusOK, eventView(event))
+}
+
+func eventView(event domain.Event) EventView {
+	view := EventView{
+		ID: event.ID, AgentID: string(event.HostID), Kind: event.Kind,
+		Severity: event.Severity, State: event.State, Title: event.Title, Detail: event.Detail,
+		FirstObservedAt: event.FirstObservedAt.UTC().Format(time.RFC3339Nano),
+		LastObservedAt:  event.LastObservedAt.UTC().Format(time.RFC3339Nano),
+	}
+	if event.AcknowledgedAt != nil {
+		view.AcknowledgedAt = event.AcknowledgedAt.UTC().Format(time.RFC3339Nano)
+	}
+	if event.ResolvedAt != nil {
+		view.ResolvedAt = event.ResolvedAt.UTC().Format(time.RFC3339Nano)
+	}
+	return view
+}
+
+func boundedQueryLimit(w http.ResponseWriter, r *http.Request, defaultLimit, maximum int, label string) (int, bool) {
+	limit := defaultLimit
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed < 1 || parsed > maximum {
+			writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("%s limit must be between 1 and %d", label, maximum)})
+			return 0, false
+		}
+		limit = parsed
+	}
+	return limit, true
 }
 
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {

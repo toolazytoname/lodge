@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -22,9 +23,13 @@ type Store interface {
 	Annotations(agentID string) map[string]Annotation
 	SetAnnotation(context.Context, string, string, Annotation) error
 	ObservationSummaryHistory(context.Context, domain.HostID, int) ([]domain.ObservationSummary, error)
+	Events(context.Context, domain.HostID, int) ([]domain.Event, error)
+	AcknowledgeEvent(context.Context, string, time.Time) (domain.Event, bool, error)
 	WebLinkChecks(context.Context) ([]domain.WebLinkCheck, error)
 	ReplaceWebLinkChecks(context.Context, []domain.WebLinkCheck) error
 }
+
+var ErrEventResolved = errors.New("event already resolved")
 
 // MemStore is the non-durable runtime projection used by tests and wrapped by
 // SQLiteStore in production. It deliberately has no file path or Save method,
@@ -185,6 +190,23 @@ func (s *MemStore) ObservationSummaryHistory(ctx context.Context, hostID domain.
 		limit = len(available)
 	}
 	return append([]domain.ObservationSummary(nil), available[:limit]...), nil
+}
+
+func (s *MemStore) Events(ctx context.Context, _ domain.HostID, limit int) ([]domain.Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > 500 {
+		return nil, errors.New("event limit must be between 1 and 500")
+	}
+	return []domain.Event{}, nil
+}
+
+func (s *MemStore) AcknowledgeEvent(ctx context.Context, _ string, _ time.Time) (domain.Event, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Event{}, false, err
+	}
+	return domain.Event{}, false, nil
 }
 
 func (s *MemStore) WebLinkChecks(ctx context.Context) ([]domain.WebLinkCheck, error) {
