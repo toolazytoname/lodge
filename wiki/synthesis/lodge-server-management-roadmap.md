@@ -4,6 +4,7 @@ status: active
 sources:
   - "[[2026-08-06-lodge-readonly-audit]]"
   - "[[2026-08-07-m3-fleet-onboarding]]"
+  - "[[2026-08-07-m4-web-console]]"
 ---
 
 # Lodge 服务器管理台实施路线

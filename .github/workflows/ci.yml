@@ -29,6 +29,15 @@ jobs:
           go-version: "1.26.x"
           cache: false
 
+      - name: Set up supported Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+          cache: npm
+
+      - name: Install frontend build dependencies
+        run: npm ci
+
       - name: Run quality gates
         run: bash scripts/test.sh
 

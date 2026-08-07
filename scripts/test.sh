@@ -30,8 +30,8 @@ bash scripts/test-tailnet-management.sh
 bash scripts/test-install-hub.sh
 bash scripts/test-install-agent.sh
 
-step "browser JavaScript syntax"
-node --check internal/hub/web/app.js
+step "generated TypeScript Web contract and build"
+npm run check:web
 
 step "quality scorecard schema"
 python3 -m json.tool quality/scorecard.json >/dev/null

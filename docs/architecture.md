@@ -15,6 +15,14 @@ Browser --HTTPS/Tailnet--> Hub --Tailscale/grant--> Agent x N
 
 The browser remains the product client. No native desktop client is required.
 
+The browser source lives in `frontend/src` and is compiled as strict,
+framework-free TypeScript into `internal/hub/web/app.js`, which remains embedded
+in the Hub binary. Browser request/response declarations are generated from the
+exported Go HTTP contract by `cmd/lodge-web-types`; the generated declaration
+and compiled JavaScript are checked for drift in every quality run. This keeps
+the single-binary deployment model without maintaining a second handwritten API
+model.
+
 ## Trust boundaries
 
 1. **Browser to Hub**: human authentication, CSRF protection, output encoding, and operation confirmation.
@@ -62,6 +70,8 @@ Domain decisions must not depend on HTTP, HTML, SQLite, or command execution. Ha
 ## Compatibility
 
 - Agent APIs are explicitly versioned (`/v1`).
+- Browser API types are generated from the Go Hub contract and stale output
+  fails the merge gate.
 - Hub must report an actionable incompatibility instead of silently accepting unknown contracts.
 - Database schema changes use ordered migrations and are tested from the last released schema.
 - A Hub release should support at least the immediately previous Agent release during rolling upgrades.

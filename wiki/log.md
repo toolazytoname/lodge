@@ -79,3 +79,11 @@
 - banwagong 两次因验收脚本字段/格式失配触发自动回滚，均完整恢复原二进制和服务后再重试，真实验证了恢复链路；业务服务未改变。
 - 最终 live SQLite 为 schema 4、5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified，最大观测年龄 14.0 秒；3 个 Compose identity 和 4 个 failed unit 保持稳定。
 - 数据库完整性为 `ok`，五枚 Agent token 在 SQLite/WAL/SHM 中无命中；五机 staging 已删除、回滚包保留。M3 完成，Web 链接主动可达率明确留给 M4 测量。
+
+## [2026-08-07] implementation | M4 TypeScript Web 契约底座
+
+- 用 live 脱敏 fixture 审计现有控制台，确认 5 台/55 行能渲染且无 console error，同时记录信息架构、筛选、溢出、风险可见性、prompt 编辑和状态覆盖缺口。
+- 保留无框架、Go 内嵌、单二进制架构；新增 build-only TypeScript 6.0.3，将浏览器源码迁到 strict TypeScript 与原生 ES module。
+- 从导出的 Go HTTP structs 生成 TypeScript declarations，Exposure/Kind 为闭合 union；生成声明与编译 JS 漂移会阻断 `npm test`。
+- `/api/services` 删除重复的 raw status/services payload，改为紧凑 Agent 引用和 joined service views；注解 body 收窄为明确输入契约并有回归测试。
+- CI 使用 Node 24 + `npm ci`，TypeScript 是唯一 devDependency，浏览器仍无第三方运行时依赖。M4 的类型契约项完成，产品页面与交互继续实施。

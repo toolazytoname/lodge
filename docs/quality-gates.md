@@ -12,12 +12,13 @@ Every commit intended for push must pass `npm test`, which currently enforces:
 - unit and integration tests;
 - the Go race detector;
 - shell syntax for deployment scripts;
+- generated TypeScript API-contract drift and strict browser compilation;
 - JSON validity of the quality scorecard;
 - whitespace checks.
 
-GitHub CI repeats these checks on Go 1.26 and runs `govulncheck`. Local
-development requires Go 1.25.12 or newer, matching the supported floor declared
-in `go.mod`.
+GitHub CI repeats these checks on Go 1.26 and Node 24, installs frontend build
+dependencies with `npm ci`, and runs `govulncheck`. Local development requires
+Go 1.25.12 or newer, matching the supported floor declared in `go.mod`.
 
 ## 2. Runtime targets
 

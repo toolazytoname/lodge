@@ -221,11 +221,7 @@ func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	type sessionResponse struct {
-		Authed    bool   `json:"authed"`
-		CSRFToken string `json:"csrfToken,omitempty"`
-	}
-	res := sessionResponse{Authed: s.authed(r)}
+	res := SessionResponse{Authed: s.authed(r)}
 	if res.Authed && s.authn.enabled() {
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			res.CSRFToken = s.authn.csrfToken(cookie.Value)

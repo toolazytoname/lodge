@@ -541,6 +541,43 @@ func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
 	}
 }
 
+func TestServicesAPIUsesCompactTypedAgentContract(t *testing.T) {
+	store := NewMemStore()
+	if err := store.SetAgents(context.Background(), []AgentConfig{{ID: "host-a", Name: "Host A", PublicHost: "host-a.example"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update(context.Background(), "host-a", true, "", shared.Ping{AgentVer: "0.4.1"},
+		&shared.Status{Hostname: "host-a", Load: shared.Load{CPUs: 2}},
+		[]shared.Service{{Key: "systemd:web.service", Kind: shared.KindSystemd, Name: "web", Status: "active/running"}},
+		time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, store, "")
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/services", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET /api/services: HTTP %d", recorder.Code)
+	}
+	var response []AgentServices
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response) != 1 || response[0].Agent.AgentVersion != "0.4.1" || len(response[0].Services) != 1 {
+		t.Fatalf("unexpected compact service response: %+v", response)
+	}
+	var raw []struct {
+		Agent map[string]interface{} `json:"agent"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"status", "services"} {
+		if _, found := raw[0].Agent[forbidden]; found {
+			t.Fatalf("service response duplicated raw agent %s payload: %s", forbidden, recorder.Body.String())
+		}
+	}
+}
+
 func TestClientIPTrustsXFFOnlyFromLoopback(t *testing.T) {
 	r := httptest.NewRequest("GET", "/", nil)
 	r.RemoteAddr = "127.0.0.1:5555"

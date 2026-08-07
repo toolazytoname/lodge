@@ -5,6 +5,14 @@
 Use Go 1.25.12 or newer. This patch-level floor excludes known standard-library
 vulnerabilities in earlier releases. CI uses the latest Go 1.26.x patch and
 production artifacts must be built by the same supported toolchain family.
+The Web build uses Node 24 and the lockfile-pinned TypeScript compiler; it has no
+browser runtime dependency.
+
+Install the build dependency once after checkout:
+
+```bash
+npm ci
+```
 
 ## Local checks
 
@@ -13,6 +21,16 @@ npm test
 ```
 
 This is the same primary quality gate used by CI. Network-dependent vulnerability scanning runs in GitHub Actions with a pinned `govulncheck` version.
+
+When changing a Go HTTP response or browser source, rebuild the embedded asset:
+
+```bash
+npm run build:web
+```
+
+The command regenerates `frontend/src/api.generated.d.ts` from Go and compiles
+`frontend/src/app.ts`. `npm test` independently regenerates into a temporary
+directory and fails if either committed artifact is stale.
 
 ## Delivery workflow
 

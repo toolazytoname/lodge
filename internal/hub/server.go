@@ -105,29 +105,14 @@ func isStateChanging(method string) bool {
 	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
 }
 
-// agentsResponse 是 /api/agents 的响应：每台机器的在线状态 + 指标摘要。
-type agentSummary struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Online       bool    `json:"online"`
-	LastSeen     string  `json:"lastSeen,omitempty"`
-	LastError    string  `json:"lastError,omitempty"`
-	CPUs         int     `json:"cpus,omitempty"`
-	Load1        float64 `json:"load1,omitempty"`
-	MemUsedPct   int     `json:"memUsedPct,omitempty"`
-	DiskUsedPct  int     `json:"diskUsedPct,omitempty"`
-	ServiceCount int     `json:"serviceCount"`
-	PublicCount  int     `json:"publicCount"`
-}
-
 func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
 	snaps := s.store.Snapshot()
-	out := make([]agentSummary, 0, len(snaps))
+	out := make([]AgentSummary, 0, len(snaps))
 	for _, sn := range snaps {
-		sum := agentSummary{
+		sum := AgentSummary{
 			ID: sn.ID, Name: sn.Name, Online: sn.Online,
 			LastSeen: sn.LastSeen, LastError: sn.LastError,
 			ServiceCount: len(sn.Services),
@@ -162,18 +147,17 @@ func (s *Server) services(w http.ResponseWriter, r *http.Request) {
 	for _, a := range s.store.Agents() {
 		hostByID[a.ID] = a.PublicHost
 	}
-	type agentServices struct {
-		Agent    AgentSnapshot `json:"agent"`
-		Services []ServiceView `json:"services"`
-	}
-	out := make([]agentServices, 0, len(snaps))
+	out := make([]AgentServices, 0, len(snaps))
 	for _, sn := range snaps {
 		if agentID != "" && sn.ID != agentID {
 			continue
 		}
 		views := JoinServices(sn.Services, s.store.Annotations(sn.ID), hostByID[sn.ID])
 		views = sortByExposure(views)
-		out = append(out, agentServices{Agent: sn, Services: views})
+		out = append(out, AgentServices{Agent: ServiceAgent{
+			ID: sn.ID, Name: sn.Name, Online: sn.Online, LastSeen: sn.LastSeen,
+			LastError: sn.LastError, AgentVersion: sn.AgentVer,
+		}, Services: views})
 	}
 	writeJSONHub(w, http.StatusOK, out)
 }
@@ -199,10 +183,10 @@ func (s *Server) annotation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxAnnotationBodyBytes)
-	var ann Annotation
+	var input AnnotationInput
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&ann); err != nil {
+	if err := dec.Decode(&input); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			writeJSONHub(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "body too large"})
@@ -215,7 +199,9 @@ func (s *Server) annotation(w http.ResponseWriter, r *http.Request) {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "bad json"})
 		return
 	}
-	normalized, err := validateAnnotation(ann)
+	normalized, err := validateAnnotation(Annotation{
+		Alias: input.Alias, URL: input.URL, Hidden: input.Hidden, Notes: input.Notes,
+	})
 	if err != nil {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

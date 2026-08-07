@@ -4,6 +4,12 @@
   "private": true,
   "description": "Private home base for servers and services — hub + agent console.",
   "scripts": {
+    "build:web": "bash scripts/build-web.sh",
+    "check:web": "bash scripts/check-web.sh",
+    "generate:web-types": "go run ./cmd/lodge-web-types",
     "test": "bash scripts/test.sh"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
   }
 }

@@ -61,7 +61,8 @@ internal/domain/    持久化业务模型与不变量
 internal/storage/   SQLite 迁移、历史、备份
 internal/hub/       API、投影、采集器、认证、登录限速
 internal/shared/    共享类型
-internal/hub/web/   前端（内嵌进 hub 二进制）
+frontend/src/       TypeScript 前端源码与 Go 生成的 API 类型
+internal/hub/web/   编译产物（内嵌进 hub 二进制）
 deploy/             systemd unit、sudoers 模板、install-agent.sh
 docs/               架构、威胁模型、质量门禁与开发规范
 quality/            可量化质量基线与目标
