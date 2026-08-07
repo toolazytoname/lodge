@@ -109,6 +109,14 @@ func TestParseCgroupDockerV1(t *testing.T) {
 	}
 }
 
+func TestParseCgroupDockerSystemdScope(t *testing.T) {
+	content := "0::/system.slice/docker-6687817628f3e5d6be80ea1692004cf7d3019ecb11487f074f8aff65fc22577c.scope\n"
+	o := parseCgroup(content)
+	if o.kind != shared.KindDocker || o.id != "6687817628f3e5d6be80ea1692004cf7d3019ecb11487f074f8aff65fc22577c" {
+		t.Errorf("systemd docker scope should be attributed to its container, got %+v", o)
+	}
+}
+
 func TestParseCgroupSystemd(t *testing.T) {
 	content := "0::/system.slice/caddy.service\n"
 	o := parseCgroup(content)
@@ -140,5 +148,45 @@ func TestStateOrStatus(t *testing.T) {
 	}
 	if got := stateOrStatus("", "Exited (0)"); got != "Exited (0)" {
 		t.Errorf("State 空时应退回 Status: %q", got)
+	}
+}
+
+func TestDiscoverAttributesHostNetworkSocketToDockerContainer(t *testing.T) {
+	originalRunPriv := runPriv
+	originalCgroupFor := cgroupFor
+	t.Cleanup(func() {
+		runPriv = originalRunPriv
+		cgroupFor = originalCgroupFor
+	})
+
+	const containerID = "6687817628f3e5d6be80ea1692004cf7d3019ecb11487f074f8aff65fc22577c"
+	runPriv = func(argv []string) ([]byte, []byte, error) {
+		switch {
+		case argvEqual(argv, dockerPS):
+			return []byte(`{"ID":"` + containerID + `","Names":"cpa-manager-plus","Image":"example/cpa:latest","State":"running","Status":"Up","Ports":""}` + "\n"), nil, nil
+		case argvEqual(argv, ssCmd):
+			return []byte(`LISTEN 0 4096 *:18317 *:* users:(("cpa-manager-plu",pid=2397979,fd=3))` + "\n"), nil, nil
+		default:
+			t.Fatalf("unexpected privileged command: %v", argv)
+			return nil, nil, nil
+		}
+	}
+	cgroupFor = func(pid int) cgroupOwner {
+		if pid != 2397979 {
+			t.Fatalf("unexpected pid: %d", pid)
+		}
+		return cgroupOwner{kind: shared.KindDocker, id: containerID}
+	}
+
+	result := Discover()
+	if len(result.Services) != 1 {
+		t.Fatalf("host-network container should not create a duplicate process workload: %+v", result.Services)
+	}
+	service := result.Services[0]
+	if service.Key != "docker:cpa-manager-plus" || service.Unidentified || len(service.Ports) != 1 {
+		t.Fatalf("host-network listener was not attributed to Docker: %+v", service)
+	}
+	if service.Ports[0].Port != 18317 || service.MaxExposure != shared.ExposurePublic {
+		t.Fatalf("host-network endpoint was not retained: %+v", service)
 	}
 }

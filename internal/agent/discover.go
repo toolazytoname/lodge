@@ -40,8 +40,10 @@ type cgroupOwner struct {
 }
 
 var (
-	pidRe  = regexp.MustCompile(`pid=(\d+)`)
-	procRe = regexp.MustCompile(`\(\("([^"]+)"`)
+	pidRe         = regexp.MustCompile(`pid=(\d+)`)
+	procRe        = regexp.MustCompile(`\(\("([^"]+)"`)
+	dockerPathRe  = regexp.MustCompile(`/docker/([0-9a-f]{12,64})(?:/|$)`)
+	dockerScopeRe = regexp.MustCompile(`(?:^|/)docker-([0-9a-f]{12,64})\.scope(?:/|$)`)
 )
 
 // parseSS 解析 ss -tlnpH 的输出，返回所有监听套接字。
@@ -191,14 +193,11 @@ func parseCgroup(content string) cgroupOwner {
 		if i := strings.LastIndex(line, ":"); i >= 0 {
 			path = line[i+1:]
 		}
-		if idx := strings.Index(path, "/docker/"); idx >= 0 {
-			id := strings.TrimPrefix(path[idx:], "/docker/")
-			if slash := strings.IndexByte(id, '/'); slash >= 0 {
-				id = id[:slash]
-			}
-			if len(id) >= 12 {
-				return cgroupOwner{kind: shared.KindDocker, id: id}
-			}
+		if match := dockerPathRe.FindStringSubmatch(path); match != nil {
+			return cgroupOwner{kind: shared.KindDocker, id: match[1]}
+		}
+		if match := dockerScopeRe.FindStringSubmatch(path); match != nil {
+			return cgroupOwner{kind: shared.KindDocker, id: match[1]}
 		}
 		if strings.Contains(path, ".service") {
 			for _, seg := range strings.Split(path, "/") {
@@ -242,6 +241,7 @@ func Discover() shared.ServicesResponse {
 
 	services := []*shared.Service{}
 	containerPorts := map[string]bool{} // "tcp/443"，容器已声明的宿主端口
+	containersByID := map[string]*shared.Service{}
 
 	// 1. docker 容器
 	if stdout, stderr, err := runPriv(dockerPS); err == nil {
@@ -255,6 +255,7 @@ func Discover() shared.ServicesResponse {
 				Image:  c.Image,
 				Ports:  ports,
 			}
+			containersByID[c.ID] = svc
 			svc.MaxExposure = shared.MaxExposure(ports)
 			for _, p := range ports {
 				containerPorts[p.Proto+"/"+strconv.Itoa(p.Port)] = true
@@ -282,10 +283,11 @@ func Discover() shared.ServicesResponse {
 
 			switch owner.kind {
 			case shared.KindDocker:
-				// 容器进程的套接字，但其宿主端口未必在 .Ports 里（罕见）。
-				// 已被上面 containerPorts 去重的会 continue；到这说明容器没发布该端口，
-				// 即容器内监听未映射到宿主 —— 不构成宿主暴露，跳过。
-				continue
+				// bridge 容器的内部监听不会出现在宿主 ss；能看到且未被 .Ports
+				// 声明的通常是 host-network 容器。归回容器，不能误报成裸进程。
+				if svc := findContainerByID(containersByID, owner.id); svc != nil && !hasPort(svc.Ports, port) {
+					svc.Ports = append(svc.Ports, port)
+				}
 			case shared.KindSystemd:
 				svc := findService(services, "systemd:"+owner.unit)
 				if svc == nil {
@@ -325,12 +327,10 @@ func Discover() shared.ServicesResponse {
 		warns = append(warns, "ss 采集失败（端口维度将缺失）: "+firstLine(string(stderr)))
 	}
 
-	// 3. 重算非 docker 服务的 MaxExposure（docker 在建服务时已算）
+	// 3. 重算 MaxExposure（host-network 端口可能在 docker ps 之后补入）
 	out := make([]shared.Service, 0, len(services))
 	for _, svc := range services {
-		if svc.Kind != shared.KindDocker {
-			svc.MaxExposure = shared.MaxExposure(svc.Ports)
-		}
+		svc.MaxExposure = shared.MaxExposure(svc.Ports)
 		out = append(out, *svc)
 	}
 
@@ -340,6 +340,27 @@ func Discover() shared.ServicesResponse {
 		Services:    out,
 		Warnings:    warns,
 	}
+}
+
+func findContainerByID(containers map[string]*shared.Service, ownerID string) *shared.Service {
+	if service := containers[ownerID]; service != nil {
+		return service
+	}
+	for containerID, service := range containers {
+		if strings.HasPrefix(containerID, ownerID) || strings.HasPrefix(ownerID, containerID) {
+			return service
+		}
+	}
+	return nil
+}
+
+func hasPort(ports []shared.Port, candidate shared.Port) bool {
+	for _, port := range ports {
+		if port.Proto == candidate.Proto && port.Port == candidate.Port && port.Bind == candidate.Bind {
+			return true
+		}
+	}
+	return false
 }
 
 func findService(services []*shared.Service, key string) *shared.Service {

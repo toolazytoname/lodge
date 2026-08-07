@@ -30,7 +30,7 @@ const (
 type Kind string
 
 const (
-	// KindDocker 归属某个 docker 容器（/proc/<pid>/cgroup 含 /docker/<id>）。
+	// KindDocker 归属某个 docker 容器（cgroupfs /docker/<id> 或 systemd docker-<id>.scope）。
 	KindDocker Kind = "docker"
 	// KindSystemd 归属某个 systemd 单元（cgroup 含 /system.slice/<unit>.service）。
 	KindSystemd Kind = "systemd"
