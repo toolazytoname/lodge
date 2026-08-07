@@ -254,3 +254,8 @@
 
 - 最终 push CI `31224459335` 与 PR CI `31224462704` 通过后，5 台 Agent `0.8.0` 与 Hub `0.9.0` 事务上线。五台服务均给出 7 个 closed-enum 字段，且额外 helper 参数均被 sudoers 拒绝。
 - Hub 保持 loopback + Tailnet Serve；schema 7 integrity、5 configured hosts、14,154 observations、rollback bundle、post-deploy backup、未登录 API 401 与 recent log 不含已配置 secret 值均通过。Hub 进程所在地再次用既有凭据拉取 5/5 Agent，七个字段均有效且未输出 token/address/raw host data。此记录不改变 SSH/账号/防火墙/云边界，M8 仍待恢复路径和独立管理员验证。
+
+## [2026-08-08] pilot | Ali key-only 管理员前置验证
+
+- 经操作者确认 Ali 有 console/recovery 后，创建 locked-password `lodge-admin`，安装现有 Mac 公钥；home/`.ssh`/`authorized_keys` 为 owner-only。sudoers 经 `visudo` 验证，只精确允许 `sshd -t`、SSH service status/reload 与有界 journal，任意 sudo 已拒绝。
+- 从原有入口取得的 ED25519 host fingerprint 与 Tailnet endpoint 一致后才写入本机 known_hosts。新 key Tailnet 登录抵达 Tailscale SSH 的额外交互认证门，尚未获得成功证据；因此没有触碰 sshd、firewall、Fail2Ban 或云规则，原入口保持可用。

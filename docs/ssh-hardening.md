@@ -31,6 +31,24 @@ Hub-local authenticated posture pull were verified. This is
 an observability acceptance record only: no SSH daemon, account, password,
 firewall, Fail2Ban, or cloud-edge setting was changed.
 
+## Ali pilot checkpoint — 2026-08-08
+
+With an explicitly approved console/recovery path, the Ali pilot now has a
+locked-password `lodge-admin` account with the operator's existing Mac public
+key. Its home and `.ssh` directory are owner-only; its sudoers entry validates
+with `visudo` and grants only exact `sshd -t`, `systemctl status/reload
+ssh.service`, and bounded SSH journal commands. Direct arbitrary sudo was
+rejected. The Tailnet endpoint's ED25519 fingerprint was independently matched
+against the host key obtained through the pre-existing access path before being
+trusted locally.
+
+The fresh Tailnet key login reached Tailscale SSH's additional interactive
+authentication gate, so it is deliberately **not yet recorded as successful**.
+No SSH daemon setting has been changed and the original operator entry remains
+available. Complete that one-time Tailnet approval, then rerun the fresh login
+and only after it succeeds apply the tested SSH drop-in with `sshd -t` followed
+by `systemctl reload ssh.service`.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates
