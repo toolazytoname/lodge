@@ -120,6 +120,39 @@ func (s *Scraper) scrapeOne(ctx context.Context, a AgentConfig) error {
 
 // getJSON 带 Bearer token 请求 agent 并解码。非 2xx 视为失败。
 func (s *Scraper) getJSON(ctx context.Context, a AgentConfig, path string, out interface{}) error {
+	err := s.getJSONOnce(ctx, a, path, out)
+	if err == nil {
+		return nil
+	}
+
+	// A Tailscale HTTP -> TCP Serve migration can leave the shared transport's
+	// keep-alive connection attached to the old HTTP handler. That handler
+	// returns a stable 404 even though a fresh TCP connection reaches the Agent.
+	// Drop idle connections and retry this idempotent GET exactly once. Do not
+	// retry authentication failures or other application responses.
+	s.client.CloseIdleConnections()
+	var statusError *agentHTTPStatusError
+	if ctx.Err() != nil || !errors.As(err, &statusError) || statusError.StatusCode != http.StatusNotFound {
+		return err
+	}
+	if retryErr := s.getJSONOnce(ctx, a, path, out); retryErr != nil {
+		s.client.CloseIdleConnections()
+		return retryErr
+	}
+	return nil
+}
+
+type agentHTTPStatusError struct {
+	Path       string
+	StatusCode int
+	Body       string
+}
+
+func (e *agentHTTPStatusError) Error() string {
+	return fmt.Sprintf("%s: HTTP %d %s", e.Path, e.StatusCode, e.Body)
+}
+
+func (s *Scraper) getJSONOnce(ctx context.Context, a AgentConfig, path string, out interface{}) error {
 	url := strings.TrimRight(a.URL, "/") + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -133,7 +166,7 @@ func (s *Scraper) getJSON(ctx context.Context, a AgentConfig, path string, out i
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("%s: HTTP %d %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		return &agentHTTPStatusError{Path: path, StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(body))}
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
