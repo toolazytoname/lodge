@@ -40,3 +40,18 @@ attempt/grace limits. A fresh Tailnet administrator session succeeded while
 public root-key and password-only attempts were rejected. The Agent reports the
 same minimized current posture. No claim is made about its cloud edge, and no
 setting on the remaining four hosts changed.
+
+## bytebunny pilot outcome and Tailnet boundary
+
+bytebunny subsequently completed the same OpenSSH-side pilot. Its initial
+late-numbered drop-in was safely caught as ineffective for password auth because
+cloud-init's earlier `50-cloud-init.conf` supplied the first value. The backup
+was retained, the Lodge drop-in was moved before cloud-init, and effective
+OpenSSH verification then reported password, keyboard-interactive, and root
+login disabled with public-key authentication and 3/30 limits. Fresh
+`lodge-admin` Tailnet login and public root/password rejection tests passed.
+
+Both pilots retain a separate unresolved Tailnet SSH policy boundary: a Tailnet
+`root` request is still mapped to local root independently of OpenSSH. This does
+not invalidate `PermitRootLogin no`, but it means full remote-root closure cannot
+be claimed until Tailnet policy denies root or Tailscale SSH is disabled.

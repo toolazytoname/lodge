@@ -264,3 +264,8 @@
 
 - 已用 `sshd -t` 后 reload 写入 root-owned drop-in：password、keyboard-interactive 与 root remote login 关闭；public-key 保留，`MaxAuthTries=3`、`LoginGraceTime=30`。从新 Tailnet `lodge-admin` 会话再次验证成功；公网 root 公钥和 password-only 连接均被拒绝。
 - `lodge-admin` 是 locked-password 非 root 账号；其精确 SSH maintenance sudo 被允许，扩展参数与任意 sudo 均拒绝。Agent 当前 posture 已验证 password/root disabled、public-key enabled。云边界、UFW、Fail2Ban 和其他四台主机未在本次修改。
+
+## [2026-08-08] pilot | bytebunny OpenSSH 收口与 Tailnet root 边界
+
+- bytebunny 完成相同的 non-root key 管理员、精确 sudo、备份、Tailnet 新会话、`sshd -t`+reload 与公网拒绝验证。cloud-init 的 `50-cloud-init.conf` 先读入 password 设置，首个 `99-` drop-in 被安全发现未生效；保留备份后改为先于它的 `01-` drop-in，复验后 effective OpenSSH password/root/keyboard-interactive 都已关闭。
+- 两台试点均发现 Tailnet SSH policy 可把 `root` 映射到本地 root；这独立于 OpenSSH `PermitRootLogin no`。因此不能宣称完整 remote-root closure，下一主机暂停，等待 Tailnet policy deny-root/allow-lodge-admin 或显式关闭 Tailscale SSH 的选择。

@@ -106,6 +106,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 Ali 试点完成：在已确认 console/recovery、Mac key、Tailnet check-mode 和新非 root 会话后，root-owned drop-in 经 `sshd -t`+reload 生效：password/root/keyboard-interactive 均关闭，public-key 保留，尝试和宽限期收紧。新 Tailnet `lodge-admin` 成功，公网 root key 与 password-only 均被拒绝；Agent posture 同步为 password/root disabled。云端 22、UFW/Fail2Ban 与其余四机仍保持待逐机验收，不能由本试点外推。
 
+> 2026-08-08 M8 bytebunny 试点完成 OpenSSH 收口：cloud-init 文件排序导致首个晚编号 drop-in 未覆盖 password auth，已在不锁机的情况下保留备份、前置 Lodge drop-in 并复验有效配置。Ali 与 bytebunny 的 OpenSSH password/root/keyboard-interactive 现已关闭；但 Tailnet SSH policy 仍可将 `root` 映射为本地 root。这是独立控制面，不能把 `PermitRootLogin no` 夸大为完整 root 收口。下一机等待明确选择：Tailnet policy deny root 且 allow `lodge-admin`（推荐），或关闭 Tailscale SSH 而仍用 Tailnet 承载普通 key-only OpenSSH。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

@@ -137,12 +137,13 @@ not be forced onto the current stack.
 - [x] Read-only five-host effective SSH, listener, firewall, Fail2Ban, and Tailscale baseline
 - [x] Lockout-safe per-host rollout and acceptance runbook
 - [x] Current privacy-minimized SSH/firewall/Fail2Ban/Tailnet posture in the Security page
-- [x] Ali pilot: non-root Tailnet key account, password/root SSH closure, and post-change rejection tests
+- [x] Ali pilot: non-root Tailnet key account, OpenSSH password/root closure, and post-change rejection tests
+- [x] bytebunny pilot: non-root Tailnet key account and OpenSSH password/root closure, including cloud-init ordering correction
 - [ ] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
 - [ ] Disable SSH password, keyboard-interactive, and root remote login one host at a time
 - [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate
 
-The 2026-08-08 baseline found every host still accepts password authentication and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali additionally have no active UFW or Fail2Ban layer; tencent has both; banwagong has active UFW but no active Fail2Ban. Tailscale is running on all five, but it does not by itself close public SSH. The detailed evidence and non-lockout sequence are in [`ssh-hardening.md`](ssh-hardening.md). Ali subsequently completed the approved pilot; the remaining four hosts retain the baseline until their own recovery and administrator gates are verified.
+The 2026-08-08 baseline found every host still accepts password authentication and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali additionally have no active UFW or Fail2Ban layer; tencent has both; banwagong has active UFW but no active Fail2Ban. Tailscale is running on all five, but it does not by itself close public SSH. The detailed evidence and non-lockout sequence are in [`ssh-hardening.md`](ssh-hardening.md). Ali and bytebunny subsequently completed the approved OpenSSH-side pilots; the remaining three hosts retain the baseline until their own recovery and administrator gates are verified.
 
 The visibility slice is now live: after passing push CI `31224459335` and PR CI
 `31224462704`, all five Agents run `0.8.0` and the Hub runs `0.9.0`. Each Agent
@@ -155,3 +156,13 @@ Hub-local authenticated pull also validated the current seven-field posture
 from all 5/5 registered Agents without exposing tokens, addresses, or raw host
 data. This makes the
 current posture visible; it does not change the unresolved SSH access risk.
+
+Ali and bytebunny now have effective OpenSSH password, keyboard-interactive, and
+root login disabled, with a fresh `lodge-admin` Tailnet session and public root
+and password-only rejection checks recorded. bytebunny required an ordering
+correction because cloud-init's `50-cloud-init.conf` set the first effective
+password-authentication value; the Lodge drop-in now precedes it. A separate
+Tailnet SSH policy still maps a Tailnet `root` request to local root on both
+pilots. That policy bypasses OpenSSH's `PermitRootLogin no`, so full root-access
+closure remains pending an explicit Tailnet-policy decision; the next host must
+not be changed until that boundary is resolved.

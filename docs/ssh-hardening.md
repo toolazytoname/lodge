@@ -55,9 +55,30 @@ as this non-root account, and its exact sudo commands work; extra arguments and
 arbitrary sudo remain rejected.
 
 This pilot does not yet claim that public port 22 is closed at the cloud edge,
-or that the other four hosts are hardened. Its rollback material remains under
+or that the other three hosts are hardened. Its rollback material remains under
 the root-only Ali pilot backup directory and console recovery remains the
 break-glass path.
+
+## bytebunny pilot outcome — 2026-08-08
+
+bytebunny completed the same approved non-root account, key verification,
+limited sudo, backup, fresh Tailnet login, `sshd -t`, reload, and rejection
+checks. Its initial `99-` drop-in did not disable passwords because cloud-init's
+`50-cloud-init.conf` is read first by OpenSSH and explicitly sets
+`PasswordAuthentication yes`. The failed-order copy remains in the root-only
+backup directory; the validated Lodge drop-in was placed before cloud-init as
+`01-lodge-hardening.conf`, then re-tested and reloaded. Effective OpenSSH now
+has password and keyboard-interactive authentication disabled, root login
+disabled, public-key authentication enabled, and 3/30 limits.
+
+Both completed pilots also revealed a separate access plane: the current
+Tailscale SSH policy can map a Tailnet `root` request directly to local root.
+This is not an OpenSSH configuration failure—`PermitRootLogin no` is effective
+for OpenSSH—but it prevents claiming full remote-root closure. Before changing
+another host, either update the Tailnet SSH policy to deny root while allowing
+`lodge-admin`, or explicitly disable Tailscale SSH on the pilots and use normal
+key-only OpenSSH over the Tailnet. The former is the preferred long-term option
+when retaining Tailscale SSH check mode.
 
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
