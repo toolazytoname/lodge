@@ -13,7 +13,7 @@ const AgentVersion = "0.3.0"
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 var dockerComposePSCommand = []string{
 	"docker", "ps", "--all", "--no-trunc", "--format",
-	`[{{json .ID}},{{json (.Label "com.docker.compose.project")}},{{json (.Label "com.docker.compose.service")}}]`,
+	"[{{json .ID}},{{json (.Label `com.docker.compose.project`)}},{{json (.Label `com.docker.compose.service`)}}]",
 }
 var systemdUnitsCommand = []string{
 	"systemctl", "show", "--type=service", "--all",
@@ -131,7 +131,6 @@ func resolveAbsolute(cmds []PrivCommand) ([][]string, error) {
 func escapeSudoersArg(s string) string {
 	r := strings.NewReplacer(
 		`\`, `\\`,
-		`"`, `\"`,
 		`,`, `\,`,
 		`:`, `\:`,
 		`#`, `\#`,

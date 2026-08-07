@@ -14,7 +14,6 @@ func TestEscapeSudoersArg(t *testing.T) {
 		`c:\path`:    `c\:\\path`,
 		"with#hash":  `with\#hash`,
 		`back\slash`: `back\\slash`,
-		`a"b`:        `a\"b`,
 	}
 	for in, want := range cases {
 		if got := escapeSudoersArg(in); got != want {
@@ -64,10 +63,10 @@ func TestGenerateSudoersOmitsEmptyCommandClass(t *testing.T) {
 	}
 }
 
-func TestComposeSudoersCommandEscapesTemplateQuotes(t *testing.T) {
+func TestComposeSudoersCommandUsesQuoteFreeTemplate(t *testing.T) {
 	line := formatSudoersLine(dockerComposePSCommand)
-	if !strings.Contains(line, `\"com.docker.compose.project\"`) || !strings.Contains(line, `\"com.docker.compose.service\"`) {
-		t.Fatalf("Compose label template quotes were not escaped for sudoers: %s", line)
+	if strings.Contains(line, `"`) || !strings.Contains(line, "`com.docker.compose.project`") || !strings.Contains(line, "`com.docker.compose.service`") {
+		t.Fatalf("Compose label template must avoid sudoers quote syntax: %s", line)
 	}
 }
 
