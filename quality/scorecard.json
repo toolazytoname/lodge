@@ -11,7 +11,7 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Live Hub 0.8.0/schema 7 latest observations: 5 configured and 5 online with Agent 0.7.0 on 2026-08-08"
+      "evidence": "Live Hub 0.9.0/schema 7 verification: 5 configured hosts and 14,154 observations after all five Agents upgraded to 0.8.0 on 2026-08-08"
     },
     {
       "id": "known_workload_attribution_percent",
@@ -101,7 +101,7 @@
       "target": 7,
       "unit": "controls",
       "direction": "increase",
-      "evidence": "Agent 0.8.0 fixed root-only collector and Hub/Web regression tests cover SSH listener, password/root/public-key authentication, UFW, Fail2Ban, and Tailscale as privacy-minimized current-only enums"
+      "evidence": "All five live Agent 0.8.0 instances returned the 7-field closed-enum posture; each rejected extra helper arguments. Hub 0.9.0 serves the privacy-minimized current-only projection after dual CI on 2026-08-08"
     },
     {
       "id": "history_retention_days",

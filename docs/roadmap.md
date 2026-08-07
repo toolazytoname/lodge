@@ -142,3 +142,12 @@ not be forced onto the current stack.
 - [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate
 
 The 2026-08-08 baseline found every host still accepts password authentication and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali additionally have no active UFW or Fail2Ban layer; tencent has both; banwagong has active UFW but no active Fail2Ban. Tailscale is running on all five, but it does not by itself close public SSH. The detailed evidence and non-lockout sequence are in [`ssh-hardening.md`](ssh-hardening.md). No SSH, firewall, cloud-edge, user, or password setting was changed by this milestone.
+
+The visibility slice is now live: after passing push CI `31224459335` and PR CI
+`31224462704`, all five Agents run `0.8.0` and the Hub runs `0.9.0`. Each Agent
+returned all seven closed-enum posture fields through its service account and
+rejected an attempted extra helper argument. The Hub upgrade verified schema 7,
+5 configured hosts, 14,154 observations, a rollback bundle and post-deploy
+backup, unauthenticated API rejection, loopback-only binding, Tailnet Serve, and
+absence of configured secret values in recent service logs. This makes the
+current posture visible; it does not change the unresolved SSH access risk.

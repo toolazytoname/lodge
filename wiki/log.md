@@ -249,3 +249,8 @@
 - Agent 0.8.0 新增无参数 root-only `--collect-security-posture`。它仅执行固定本机检查，在 root 内压缩为 SSH listener/password/root/public-key、UFW、Fail2Ban、Tailscale 七个 closed enum；不输出账户、密钥、规则、地址、原始输出、云侧状态或可达性结论。
 - Hub 只在实时 host snapshot 暴露该姿态，避免重启后把历史 SSH 配置冒充当前结论；Security 页面独立呈现 5 台主机的风险/未知/离线状态，并明确不推断云安全组或公网实际可达性。
 - 固定 helper argv、闭合词表、API 不泄露规则/命令、390/1280 安全页面和完整质量门禁均有回归验证。M8 仍待逐机管理员/recovery 证明与现场收口。
+
+## [2026-08-08] rollout | M8 实时防护姿态上线
+
+- 最终 push CI `31224459335` 与 PR CI `31224462704` 通过后，5 台 Agent `0.8.0` 与 Hub `0.9.0` 事务上线。五台服务均给出 7 个 closed-enum 字段，且额外 helper 参数均被 sudoers 拒绝。
+- Hub 保持 loopback + Tailnet Serve；schema 7 integrity、5 configured hosts、14,154 observations、rollback bundle、post-deploy backup、未登录 API 401 与 recent log 不含已配置 secret 值均通过。此记录不改变 SSH/账号/防火墙/云边界，M8 仍待恢复路径和独立管理员验证。

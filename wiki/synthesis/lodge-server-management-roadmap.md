@@ -102,6 +102,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 实时可见性切片：Agent 0.8.0 通过第五个无参数 root-only helper 把 effective SSH listener/password/root/public-key、UFW、Fail2Ban、Tailscale 压缩为七项 closed enum；不带出用户、密钥、规则、地址、命令输出或云安全组。Hub 只把它作为当前 snapshot，Security 页面明确显示未知/未安装而不把它们涂绿；桌面与手机视觉验收通过。现场 SSH 收口仍等待逐机 recovery 和独立管理员 key 验证。
 
+> 2026-08-08 M8 可见性已上线：最后双 CI 后，五台 Agent 0.8.0 和 Hub 0.9.0 完成事务升级。逐机验证服务态、7 项 closed-enum posture 与拒绝额外 helper 参数；Hub 验证 schema 7、5 configured hosts、14,154 observations、备份/rollback、未登录 401、loopback + Tailnet Serve 和日志不含已配置 secret 值。它使风险立即可见，但并不替代逐机 recovery/admin key 门禁，也没有收口任何 SSH 入口。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

@@ -18,6 +18,18 @@ All five effective configurations also report public-key authentication enabled,
 
 Agent 0.8.0 adds a current-only Security-page projection for the same bounded facts: wildcard/restricted SSH listener, password/root/public-key posture, UFW, Fail2Ban, and Tailscale. The root helper returns only a small fixed vocabulary; it does not retain keys, users, firewall rules, addresses, raw command output, or cloud-edge policy. `unknown`/`unavailable` are deliberately visible as uncertain, and the panel cannot prove whether port 22 is Internet reachable.
 
+## Visibility rollout acceptance
+
+After the final push and PR quality gates passed, all five hosts received Agent
+`0.8.0` and the Hub received `0.9.0`. Every Agent service supplied the complete
+seven-field closed vocabulary, and an attempted invocation with an added helper
+argument was rejected on every host. The Hub's transaction completed with a
+rollback bundle and post-deploy database backup; schema 7 integrity, 5 configured
+hosts, the served Security UI, unauthenticated API rejection, loopback binding,
+Tailnet Serve, and recent-log configured-secret exclusion were verified. This is
+an observability acceptance record only: no SSH daemon, account, password,
+firewall, Fail2Ban, or cloud-edge setting was changed.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates
