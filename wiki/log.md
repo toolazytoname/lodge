@@ -69,3 +69,13 @@
 - 一版带复杂 Docker template 的 sudoers 在 tencent 真实服务上下文被安装器拒绝；主机原子恢复到 0.2.0。最终改为无动态参数的 root helper，五机逐台预检、安装、Hub 落库验收后发布完成。
 - 最新 live SQLite 为 5/5 online、全部 Agent 0.3.0、55 workloads、86 endpoints、0 warnings、0 unidentified，最大观测年龄 28.7 秒；Compose 精确识别 banwagong `new-api` 的 3 个服务，并发现 4 个 failed systemd 单元。
 - schema 3 `integrity_check=ok`；五枚 Agent token 在 SQLite、WAL、SHM 中均无命中；五机 staging 均已删除，逐机 root-only 回滚包保留。
+
+## [2026-08-07] deployment | Caddy/Nginx 脱敏路由上线，M3 完成
+
+- Hub 升级到 schema 4，规范化持久化脱敏代理路由；旧 Agent 继续兼容，主库、回滚库和部署后备份完整性均通过。
+- Agent root helper 只输出校验后的 scheme/host/port/path 与无凭据上游 authority，不读取容器环境、不执行 `docker exec`，原始代理配置不离开 root 内存。
+- banwagong 真实沙箱揭示 `nginx -T` 会被隐藏在 `/root` 的 TLS 材料阻断；没有放宽 Agent 沙箱，改为在 `/etc/nginx` 内按文件数、深度、类型和总大小上限安全展开 include，并覆盖软链接逃逸回归测试。
+- 五台逐机升级到 Agent 0.4.1，同一静态二进制 SHA；每台保留 root-only 回滚点，服务 API、精确 sudo、越权拒绝、Hub 落库和 Tailnet/loopback 均验收后才继续下一台。
+- banwagong 两次因验收脚本字段/格式失配触发自动回滚，均完整恢复原二进制和服务后再重试，真实验证了恢复链路；业务服务未改变。
+- 最终 live SQLite 为 schema 4、5/5 online、55 workloads、86 endpoints、11 routes、0 warnings、0 unidentified，最大观测年龄 14.0 秒；3 个 Compose identity 和 4 个 failed unit 保持稳定。
+- 数据库完整性为 `ok`，五枚 Agent token 在 SQLite/WAL/SHM 中无命中；五机 staging 已删除、回滚包保留。M3 完成，Web 链接主动可达率明确留给 M4 测量。

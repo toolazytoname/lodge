@@ -12,7 +12,7 @@ sources:
 
 ## 交付边界
 
-本页记录三个连续交付：先将 tencent、banwagong 安全纳入 Hub，再把 Docker systemd scope 和脱敏自定义进程归属能力滚动发布到五台 Agent，最后上线 Compose 与完整 systemd/failed-unit 发现。全程没有开放任意远程命令，没有修改 SSH、防火墙、Caddy、Xray 或业务容器，也没有把 token 写入数据库或日志。
+本页记录四个连续交付：先将 tencent、banwagong 安全纳入 Hub，再把 Docker systemd scope 和脱敏自定义进程归属能力滚动发布到五台 Agent，随后上线 Compose 与完整 systemd/failed-unit 发现，最后完成 Caddy/Nginx 脱敏路由和 schema 4。全程没有开放任意远程命令，没有修改 SSH、防火墙、Caddy、Nginx、Xray 或业务容器，也没有把 token 写入数据库或日志。
 
 Hub 使用提交 `d6e8a9c` 新增的 `--upsert-agent`：token 只从非交互标准输入读取，配置先完整验证，再以 owner-only 临时文件、`fsync`、并发替换检查和原子 rename 更新。live Hub 二进制 SHA-256 为 `a53055e0bdf0bc9fa7db03bcc3b70188d48692dc13e962928505b7a8a1764cac`。事务升级创建回滚包 `/var/lib/lodge-deploy-backups/hub-20260806T230955Z-46Yw1B` 和 post-deploy 备份 `/var/lib/lodge-hub/backups/post-deploy-20260806T230957Z-3789728.db`；SQLite schema 2 完整性为 `ok`。
 
@@ -118,6 +118,39 @@ Compose 只出现 banwagong `new-api` project 的 `new-api`、`postgres`、`redi
 > [!note]
 > tencent 与 banwagong 的 Tailscale `Tags` 当前为空。Serve/Funnel 验证证明管理端点不在公网，Agent bearer token 仍提供第二道边界；但 `tag:lodge-agent` 和“普通 tailnet 节点不能访问 8443”的负向 grants 尚未在管理控制台验收，因此最小权限 Tailnet ACL 仍是明确待办。
 
+## Caddy/Nginx 脱敏路由与 schema 4 交付
+
+提交 `3e64a6f` 在共享协议、领域模型、SQLite schema 4、Hub 投影和内嵌 Web 服务卡片中加入规范化代理路由。root helper 只输出经过校验的 scheme、host、port、path 和无凭据 `host:port` 上游；不读取容器环境变量，不执行 `docker exec`，也不输出原始配置、证书/密钥路径、headers、认证指令、URL 凭据、query 或上游 path。Hub 选择主链接时优先精确 hostname、HTTPS 和根路径，人工注解仍可覆盖自动结果。
+
+生产 Hub 静态二进制 SHA-256 为 `7fe0ad25787ff534021f024f3d92bbe38e1979f1e5dca39aa44588019c2508c0`；事务升级回滚包为 `/var/lib/lodge-deploy-backups/hub-20260807T143240Z-xym7lS`，部署后一致性备份为 `/var/lib/lodge-hub/backups/post-deploy-20260807T143244Z-3872908.db`。schema 3 回滚库、schema 4 主库和 post-deploy 备份的完整性均为 `ok`；五台旧 Agent 在 Hub 升级后仍保持协议兼容。
+
+Agent 0.4.0 首个候选 SHA-256 为 `6c7f6e8f60244fcb7ddd7f51b79a1f5d15862f7f21306e8d95578650515a500f`。在 banwagong 的真实 systemd 沙箱中发现：人工 root shell 的 `nginx -T` 能输出三条路由，但 Agent 的 `ProtectHome=true` 会隐藏位于 `/root` 的 TLS 材料，导致相同采集在服务命名空间失败。提交 `ccbaf5c` 没有放宽沙箱，而是将 host Nginx 改为安全展开 `/etc/nginx`：最多 128 个普通文件、16 层 include、总计 4 MiB；相对或绝对软链接的最终目标必须仍在该根目录内，变量 include、设备文件和逃逸路径 fail closed。标准 Certbot TLS-policy include 只按精确路径忽略且不读取。单元测试覆盖安全 include、相对/绝对 in-root symlink 和外部 symlink 拒绝；banwagong 实际 Agent mount namespace 预检得到 3 routes、0 warnings。
+
+最终五台 Agent 均为 `0.4.1`，Go 1.26.5、CGo-free Linux amd64 静态二进制 SHA-256 均为 `31626aa01595a78a6a624ae42582d6f966bd30023e51963e0ebbbe955712cd5d`。逐机验收仍采用“候选 checksum → root helper → 自动回滚安装 → 真实服务 API → 精确 sudo/追加参数拒绝 → Hub 最新观测 → Tailnet/loopback → staging 清理”。最终回滚点为：
+
+- tencent：`/var/lib/lodge-deploy-backups/agent-20260807T-routes-ccbaf5c-riXS5w`
+- banwagong：`/var/lib/lodge-deploy-backups/agent-20260807T-routes-ccbaf5c-xnkvZE`
+- bytebunny：`/var/lib/lodge-deploy-backups/agent-20260807T-routes-ccbaf5c-9YNRoX`
+- bytedragon：`/var/lib/lodge-deploy-backups/agent-20260807T-routes-ccbaf5c-owgT96`
+- ali：`/var/lib/lodge-deploy-backups/agent-20260807T-routes-ccbaf5c-ZUIKJa`
+
+banwagong 前两次安装因验收脚本分别使用了错误的路由字段名和错误的既有 sudoers 基线格式而自动回滚；两次均确认恢复到原 Agent 0.4.0 SHA、服务 active 和原策略，再修正验收表达式重试。应用候选本身没有失败，这两次真实恢复同时验证了回滚链路。bytebunny 和 banwagong 的既有 `hermes-ro` owner、mode、checksum 仍未改变。bytedragon 升级 Agent 时 Hub PID 保持不变；Hub 继续从 loopback 拉取同机 Agent，HTTPS 10000 Tailnet-only Serve 正常且 Agent 8443 Funnel 关闭。其余四台 TCP 8443 Tailnet-only Serve 均通过统一策略检查。所有精确 staging 目录已删除。
+
+### Agent 0.4.1 最新 fleet 验收
+
+| Host | Online | Workloads | Endpoints | Routes | Warnings | Unidentified |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ali | 1 | 5 | 11 | 0 | 0 | 0 |
+| banwagong | 1 | 14 | 14 | 3 | 0 | 0 |
+| bytebunny | 1 | 13 | 21 | 3 | 0 | 0 |
+| bytedragon | 1 | 10 | 19 | 3 | 0 | 0 |
+| tencent | 1 | 13 | 21 | 2 | 0 | 0 |
+| **Total** | **5/5** | **55** | **86** | **11** | **0** | **0** |
+
+11 条路由包括 banwagong 的 `cpa`、`quota /refresh`、`token`，bytebunny 的默认 HTTPS 与两个 `happy` hostname，bytedragon 的默认 HTTP、Lodge Hub 和 `yuyue`，以及 tencent 的 `happy`、`opencode`。Ali 没有标准 Caddy/Nginx 路由，因此 0 条是正确结果。数据只保留脱敏上游 authority；当前注册 Web 链接的主动可达率尚未测量，保持 `null`，留给 M4 的健康探测与 UI 状态验收。
+
+全量终验为 schema 4、5/5 online、55 workloads、86 endpoints、11 routes、3 Compose identities、4 failed units、0 warnings、0 unidentified，最大观测年龄 14.0 秒，`integrity_check=ok`。Hub 到五台 Agent 的认证拉取全部通过；五枚 token 在 SQLite、WAL、SHM 中均无命中。五台生产 Agent checksum 完全一致，Hub checksum 仍为 schema 4 发布物。M3 完成。
+
 ## CI 证据
 
 - `d6e8a9c`：[quality 31129778895](https://github.com/toolazytoname/lodge/actions/runs/31129778895)
@@ -132,5 +165,7 @@ Compose 只出现 banwagong `new-api` project 的 `new-api`、`postgres`、`redi
 - `cf2300f`：[quality 31182553859](https://github.com/toolazytoname/lodge/actions/runs/31182553859)
 - `f9b349f`：[quality 31183022460](https://github.com/toolazytoname/lodge/actions/runs/31183022460)（代码门禁通过，但 live sudo 精确匹配验收拒绝该方案）
 - `f69753f`：[quality 31183613991](https://github.com/toolazytoname/lodge/actions/runs/31183613991)
+- `3e64a6f`：[quality 31187919837](https://github.com/toolazytoname/lodge/actions/runs/31187919837)
+- `ccbaf5c`：[quality 31190630194](https://github.com/toolazytoname/lodge/actions/runs/31190630194)
 
 所有相关提交均通过全量质量门禁、race detector 和 `govulncheck`；用于隔离 GitHub 延迟并发队列的临时 CI tags 在验收后均已删除。

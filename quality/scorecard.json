@@ -21,7 +21,17 @@
       "target": 95,
       "unit": "percent",
       "direction": "increase",
-      "evidence": "Live SQLite schema 3 latest observations: 55 known of 55 workloads across 5 Agent 0.3.0 hosts, with 0 discovery warnings, on 2026-08-07"
+      "evidence": "Live SQLite schema 4 latest observations: 55 known of 55 workloads across 5 Agent 0.4.1 hosts, with 0 discovery warnings, on 2026-08-07"
+    },
+    {
+      "id": "registered_web_link_success_percent",
+      "dimension": "product",
+      "name": "Registered Web link success",
+      "current": null,
+      "target": 95,
+      "unit": "percent",
+      "direction": "increase",
+      "evidence": "11 redacted Caddy/Nginx routes are registered in live schema 4; active reachability probes are an M4 acceptance item and have not yet been measured"
     },
     {
       "id": "public_management_endpoints",
@@ -81,7 +91,7 @@
       "target": 30,
       "unit": "days",
       "direction": "increase",
-      "evidence": "Live bytedragon Hub uses --history-retention 720h with SQLite schema 3 on 2026-08-07"
+      "evidence": "Live bytedragon Hub uses --history-retention 720h with SQLite schema 4 on 2026-08-07"
     },
     {
       "id": "web_operations",
@@ -117,11 +127,11 @@
       "id": "agent_freshness_seconds",
       "dimension": "reliability",
       "name": "Maximum normal agent observation age",
-      "current": 29,
+      "current": 14,
       "target": 60,
       "unit": "seconds",
       "direction": "decrease",
-      "evidence": "Post-Agent-0.3.0 point-in-time live SQLite measurement across 5 hosts: maximum 28.7 seconds on 2026-08-07"
+      "evidence": "Post-Agent-0.4.1 point-in-time live SQLite measurement across 5 hosts: maximum 14.0 seconds on 2026-08-07"
     },
     {
       "id": "risk_detection_seconds",
