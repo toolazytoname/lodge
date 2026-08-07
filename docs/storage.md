@@ -40,8 +40,8 @@ body, response headers, or raw network errors.
 Schema v7 adds an optional JSON SSH failure summary to each immutable
 Observation. The validated document contains a 5–15 minute UTC window, total
 failure count, and at most 20 canonical source IP/count pairs. Usernames,
-destination/source ports, accepted logins, journal fields, and raw messages are
-not stored.
+destination/source ports, accepted logins, authentication-log fields, and raw
+messages are not stored.
 
 ## Database invariants
 

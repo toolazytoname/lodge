@@ -85,13 +85,16 @@
   executable basenames, and a working-directory basename plus one-way
   fingerprint. It never reads or emits command lines, environments, or full
   paths; its self-invocation is an exact sudoers entry with no dynamic args.
-- The root-only SSH collector runs one fixed five-second journald query for the
-  most recent ten minutes of `sshd` records. Raw messages stay inside the root
-  helper. Only failed password/public-key/keyboard-interactive or maximum-attempt
-  records contribute; output is capped at one million failures and the top 20
-  canonical source IP/count pairs. It never emits usernames, accepted logins,
-  ports, arbitrary journal fields, or raw log text. The helper is an exact
-  sudoers self-invocation with no dynamic args.
+- The root-only SSH collector reads only an 8 MiB tail from one of two fixed,
+  regular, non-symlink, non-group/world-writable authentication-log paths and
+  proves that the tail covers the complete ten-minute window. If neither
+  exists, it runs one fixed
+  five-second journald query. Raw messages stay inside the root helper. Only
+  failed password/public-key/keyboard-interactive or maximum-attempt records
+  contribute; output is capped at one million failures and the top 20 canonical
+  source IP/count pairs. It never emits usernames, accepted logins, ports,
+  arbitrary log fields, or raw log text. The helper is an exact sudoers
+  self-invocation with no dynamic args.
 - Every state-changing operation has an append-only logical audit entry.
 
 ### Secrets

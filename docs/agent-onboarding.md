@@ -68,14 +68,17 @@ HTTP(S) scheme/host/port/path records and credential-free upstream `host:port`
 authorities. Unsupported Docker imports/includes produce a bounded warning
 rather than raw content.
 
-A fourth exact self-invocation, `--collect-ssh-auth`, runs one fixed five-second
-`journalctl` query over the previous ten minutes of `sshd` records. Parsing and
-aggregation happen inside the root-owned helper. It emits only total failures
-and at most 20 canonical source IP/count pairs; usernames, accepted logins,
-ports, journal metadata, and raw messages never cross the privilege boundary.
-The helper recognizes failed password/public-key/keyboard-interactive and
-maximum-attempt records. It does not accept a unit, time window, filter, or file
-path argument from `lodge`.
+A fourth exact self-invocation, `--collect-ssh-auth`, reads an 8 MiB bounded tail
+from the fixed `/var/log/auth.log` or `/var/log/secure` path and rejects a
+symlink or group/world-writable file. It fails if that tail does not cover the
+previous ten minutes. If neither regular file exists,
+it runs one fixed five-second `journalctl` query. Parsing and aggregation happen
+inside the root-owned helper. It emits only total failures and at most 20
+canonical source IP/count pairs; usernames, accepted logins, ports, log
+metadata, and raw messages never cross the privilege boundary. The helper
+recognizes failed password/public-key/keyboard-interactive and maximum-attempt
+records. It does not accept a unit, time window, filter, or file path argument
+from `lodge`.
 
 ## Atomic Hub enrollment
 

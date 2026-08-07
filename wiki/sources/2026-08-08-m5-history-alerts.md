@@ -66,3 +66,11 @@ API 集成测试使用真实 SQLite 生命周期验证未认证 401、缺 CSRF 4
 Hub 将摘要写入 SQLite schema 7 的 immutable Observation。规则在 10 分钟总失败 ≥30 或单来源 ≥10 时打开 warning，在总量 ≥100 或单来源 ≥50 时提升 critical；解除阈值为总量 <10 且每来源 <3。缺失或非法 SSH telemetry 会保留已有事件，不把采集失败伪装成恢复。事件 detail 只列前三来源；Web 端新增“SSH 爆破”标签，390px 下来源会换行完整显示。
 
 fixture 使用保留测试地址验证 UI，领域/Agent parser/投影/迁移/规则/SQLiteStore/outbox 测试覆盖隐私、边界、迟滞和通知链路。事件规则达到 7/7，M5 代码项全部完成；尚需五机滚动部署和受控 live 延迟验收，IP 只能说明网络来源，不能宣称识别了攻击者本人。
+
+## 生产 journal 性能发现与 0.5.1 修正
+
+`5e3a64d` 和 `cd981b9` 的双 CI 通过后，Hub 0.6.0 先行事务发布，schema 5→7、完整性备份、五台旧 Agent 兼容、401 与 Tailnet-only 均通过。Agent 0.5.0 随后在 bytedragon、tencent、banwagong 逐机验收成功；bytebunny 的候选预检却在覆盖任何文件前触发五秒 journal 超时，证明“固定查询”仍不等于“跨主机具有稳定成本”。
+
+脱敏性能诊断只记录耗时、日志字节和行数：bytebunny 的 journal 即使限制最近 100 条也需要约 16 秒，而当前认证文件最近十分钟约 155 KiB/1199 行。因此 0.5.1 保持无参数 root 自调用，但优先打开固定的 `/var/log/auth.log` 或 `/var/log/secure`：只接受普通非 symlink 文件，从末尾最多读取 8 MiB，支持 RFC3339Nano 和传统 syslog 时间戳，并且尾部最老时间必须覆盖完整十分钟，否则 fail closed；两个文件都不存在时才回退到原五秒 journal 查询。文本行数上限独立为 100 万，但实际 CPU/内存先受 8 MiB 硬限制。
+
+0.5.1 候选在 bytebunny 上 43 ms 完成，得到 169 次失败和 8 个来源，已超过 critical 阈值。这个数据证明真实攻击信号存在，但证据记录不包含来源 IP，也不把 IP 推断为人员身份。完成新的全量门禁、五机统一升级和 Hub 事件延迟验收前，M5 仍保持进行中。

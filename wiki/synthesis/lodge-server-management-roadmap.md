@@ -84,6 +84,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M5 的 SSH 代码项完成：Agent root helper 只把 10 分钟窗口、失败总量和 top 20 canonical source IP/count 带出 root，Hub schema 7 持久化并以 30 total/10 per-source 开启、100/50 critical、10/3 解除的迟滞规则生成 `ssh.bruteforce` 事件。缺失 telemetry 不误恢复，Web 手机端也完整展示来源。规则 7/7、通知 1/1；但 IP 是网络来源而非人员身份，且五机滚动发布/live ≤90 秒证据完成前 M5 仍处于验收阶段。
 
+> 2026-08-08 首轮生产滚动揭示 bytebunny 的 journal 即使只取最近 100 条也约需 16 秒，0.5.0 的五秒预检在任何覆盖前安全停止。0.5.1 改为固定 auth.log/secure 的 8 MiB 有界尾部并证明覆盖完整十分钟，无文件才回退 journal；真实候选在 43 ms 内看到 169 次失败、8 个来源，来源 IP 未写入 Git 或进度记录。Hub 0.6.0/schema 7 和三台 0.5.0 已健康，统一升级与事件延迟验收仍待完成。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

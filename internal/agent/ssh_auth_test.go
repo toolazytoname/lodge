@@ -78,6 +78,38 @@ func TestSummarizeSSHJournalBoundsSourcesAndRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestSummarizeSSHTextLogSupportsRFC3339AndSyslogWindows(t *testing.T) {
+	end := time.Date(2026, 8, 8, 2, 55, 0, 0, time.Local)
+	start := end.Add(-sshAuthWindow)
+	content := strings.Join([]string{
+		start.Add(-time.Second).Format(time.RFC3339Nano) + " host sshd[1]: Failed password for root from 192.0.2.1 port 22 ssh2",
+		start.Add(time.Second).Format(time.RFC3339Nano) + " host sshd[2]: Failed publickey for deploy from 203.0.113.9 port 2200 ssh2",
+		end.Add(-5*time.Minute).Format("Jan _2 15:04:05") + " host sshd[3]: Failed keyboard-interactive/pam for invalid user guest from 2001:db8::5 port 22 ssh2",
+		end.Add(-4*time.Minute).Format(time.RFC3339Nano) + " host sshd[4]: Accepted publickey for deploy from 198.51.100.2 port 22 ssh2",
+	}, "\n") + "\n"
+	summary, err := summarizeSSHTextLog([]byte(content), start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.FailedTotal != 2 || len(summary.Sources) != 2 {
+		t.Fatalf("text log summary mismatch: %+v", summary)
+	}
+	if summary.Sources[0].Address != "203.0.113.9" || summary.Sources[1].Address != "2001:db8::5" {
+		t.Fatalf("text log sources mismatch: %+v", summary.Sources)
+	}
+}
+
+func TestSummarizeSSHTextLogFailsClosedWhenTailDoesNotCoverWindow(t *testing.T) {
+	end := time.Date(2026, 8, 8, 2, 55, 0, 0, time.UTC)
+	content := []byte("2026-08-08T02:54:00Z host sshd[1]: Failed password for root from 192.0.2.1 port 22 ssh2\n")
+	if _, err := summarizeSSHTextLog(content, end.Add(-sshAuthWindow), end); err == nil {
+		t.Fatal("truncated authentication log that starts inside the window was accepted")
+	}
+	if _, err := summarizeSSHTextLog([]byte("unsupported timestamp\n"), end.Add(-sshAuthWindow), end); err == nil {
+		t.Fatal("unsupported authentication log timestamps were accepted")
+	}
+}
+
 func TestValidateSSHAuthSummaryRejectsAmbiguousOrInvalidSources(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	base := shared.SSHAuthSummary{

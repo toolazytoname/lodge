@@ -52,7 +52,7 @@ remain available to internal rule evaluation without multiplying browser data.
   and URL, explicitly scoped to the Hub's network perspective.
 - **Observation**: an immutable collection result at a point in time.
 - **SSHAuthObservation**: a bounded rolling failure count with canonical source
-  IP/count pairs; no usernames, successful login records, or raw journal data.
+  IP/count pairs; no usernames, successful login records, or raw authentication-log data.
 - **Event**: one deduplicated incident derived from observations, with an
   `active` → `acknowledged` → `resolved` lifecycle. Acknowledgement records
   operator awareness; only later observation truth resolves it.
@@ -74,9 +74,10 @@ transaction. See [ADR 0007](adr/0007-observation-event-lifecycle.md).
 
 The SSH rule consumes the optional SSH summary from the current Observation.
 Missing telemetry carries an existing SSH event instead of treating collector
-failure as recovery. A fixed root-owned Agent helper reads the journal window
-and emits only the minimal aggregate before the non-root process or Hub sees
-it. See [ADR 0009](adr/0009-privacy-minimized-ssh-failure-monitoring.md).
+failure as recovery. A fixed root-owned Agent helper reads a bounded,
+full-window authentication-log tail or bounded journal fallback and emits only
+the minimal aggregate before the non-root process or Hub sees it. See
+[ADR 0009](adr/0009-privacy-minimized-ssh-failure-monitoring.md).
 
 Configured event transitions also create notification outbox rows in that same
 transaction. A separate worker leases due rows and calls the Webhook adapter;

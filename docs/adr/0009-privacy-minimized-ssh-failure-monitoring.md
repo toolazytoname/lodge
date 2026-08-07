@@ -6,24 +6,27 @@
 ## Context
 
 The operator previously noticed an SSH brute-force attack only after a server
-became slow and could not answer which sources were involved. OpenSSH journals
-contain the needed evidence, but granting the Agent general journal access or
-copying raw authentication logs to the Hub would expose usernames, successful
-logins, ports, and unrelated metadata. Reading `/var/log/auth.log` is also not
-portable across the managed systemd fleet.
+became slow and could not answer which sources were involved. OpenSSH
+authentication logs contain the needed evidence, but granting the Agent general
+log access or copying raw records to the Hub would expose usernames, successful
+logins, ports, and unrelated metadata. The managed fleet uses both local auth
+files and journald, with materially different query performance.
 
 ## Decision
 
 The non-root Agent calls one exact root-owned self-invocation,
-`lodge-agent --collect-ssh-auth`. It accepts no caller input and executes a
-fixed, five-second `journalctl` query for the previous ten minutes where
-`_COMM=sshd` or `SYSLOG_IDENTIFIER=sshd`. The root helper recognizes failed
-password, public-key, keyboard-interactive, and maximum-attempt messages.
+`lodge-agent --collect-ssh-auth`. It accepts no caller input. The helper first
+opens a regular, non-symlink, non-group/world-writable `/var/log/auth.log` or
+`/var/log/secure`, reads at most the final 8 MiB, and rejects the result unless parsed timestamps prove that
+the tail covers the complete previous ten minutes. If neither file exists, it
+executes a fixed, five-second `journalctl` query where `_COMM=sshd` or
+`SYSLOG_IDENTIFIER=sshd`. The helper recognizes failed password, public-key,
+keyboard-interactive, and maximum-attempt messages.
 
 Raw records are parsed and discarded inside that helper. Its only output is a
 UTC window, total failures, and the top 20 canonical source IP/count pairs,
 sorted by count. It never emits usernames, accepted logins, source/destination
-ports, arbitrary journal fields, or raw messages. Output, time, entry, source,
+ports, arbitrary log fields, or raw messages. Output, byte, time, entry, source,
 and count limits fail closed.
 
 The Hub stores the aggregate on the immutable Observation. A host-scoped
@@ -42,8 +45,8 @@ it, preserving rolling-upgrade compatibility.
   normal Hub scrape, without centralizing raw authentication logs.
 - An IP address is network evidence, not proof of a person's identity. Lodge
   makes no attribution or geolocation claim.
-- The collector currently supports systemd-journald OpenSSH. Dropbear,
-  containerized SSH daemons, non-journal logging, and unrecognized message
-  formats are explicit coverage gaps.
+- The collector supports the two conventional local authentication-log paths
+  plus systemd-journald OpenSSH. Dropbear, containerized SSH daemons, custom
+  paths, and unrecognized message formats are explicit coverage gaps.
 - Source IPs are sensitive inventory. They remain in authenticated event
   history and can reach an explicitly configured Webhook receiver.

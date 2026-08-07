@@ -19,6 +19,8 @@ const (
 	maximumSSHAuthSources    = 20
 	maximumSSHFailures       = 1_000_000
 	maximumSSHJournalEntries = 50_000
+	maximumSSHAuthLogEntries = 1_000_000
+	maximumSSHAuthMessage    = 4096
 )
 
 var sshFailureAddressPattern = regexp.MustCompile(`(?i)(?:failed (?:password|publickey|keyboard-interactive(?:/pam)?) for (?:invalid user )?.* from|maximum authentication attempts exceeded for (?:invalid user )?.* from) ([^ ]+) port [0-9]+`)
@@ -90,24 +92,105 @@ func summarizeSSHJournal(content []byte, start, end time.Time) (shared.SSHAuthSu
 			return shared.SSHAuthSummary{}, errors.New("SSH journal entry count exceeds limit")
 		}
 		var message string
-		if len(entry.Message) == 0 || json.Unmarshal(entry.Message, &message) != nil || len(message) > 4096 {
+		if len(entry.Message) == 0 || json.Unmarshal(entry.Message, &message) != nil || len(message) > maximumSSHAuthMessage {
 			continue
 		}
-		match := sshFailureAddressPattern.FindStringSubmatch(message)
-		if len(match) != 2 {
-			continue
+		if addSSHFailure(counts, message) {
+			total++
 		}
-		address, err := netip.ParseAddr(strings.TrimSpace(match[1]))
-		if err != nil {
-			continue
-		}
-		address = address.Unmap()
-		counts[address]++
-		total++
 		if total > maximumSSHFailures {
 			return shared.SSHAuthSummary{}, errors.New("SSH failure count exceeds limit")
 		}
 	}
+	return buildSSHAuthSummary(counts, total, start, end), nil
+}
+
+func summarizeSSHTextLog(content []byte, start, end time.Time) (shared.SSHAuthSummary, error) {
+	counts := make(map[netip.Addr]int)
+	total := 0
+	entries := 0
+	parsedTimestamps := 0
+	var oldest time.Time
+	for len(content) > 0 {
+		line := content
+		if newline := bytes.IndexByte(content, '\n'); newline >= 0 {
+			line = content[:newline]
+			content = content[newline+1:]
+		} else {
+			content = nil
+		}
+		if len(line) == 0 {
+			continue
+		}
+		entries++
+		if entries > maximumSSHAuthLogEntries {
+			return shared.SSHAuthSummary{}, errors.New("SSH authentication log entry count exceeds limit")
+		}
+		loggedAt, ok := parseSSHAuthLogTime(line, end)
+		if !ok {
+			continue
+		}
+		parsedTimestamps++
+		if oldest.IsZero() || loggedAt.Before(oldest) {
+			oldest = loggedAt
+		}
+		if loggedAt.Before(start) || loggedAt.After(end.Add(time.Minute)) {
+			continue
+		}
+		if len(line) > maximumSSHAuthMessage {
+			return shared.SSHAuthSummary{}, errors.New("SSH authentication log line exceeds limit")
+		}
+		if addSSHFailure(counts, string(line)) {
+			total++
+		}
+		if total > maximumSSHFailures {
+			return shared.SSHAuthSummary{}, errors.New("SSH failure count exceeds limit")
+		}
+	}
+	if parsedTimestamps == 0 && entries > 0 {
+		return shared.SSHAuthSummary{}, errors.New("SSH authentication log timestamp format is unsupported")
+	}
+	if oldest.IsZero() || oldest.After(start) {
+		return shared.SSHAuthSummary{}, errors.New("SSH authentication log tail does not cover the complete window")
+	}
+	return buildSSHAuthSummary(counts, total, start, end), nil
+}
+
+func parseSSHAuthLogTime(line []byte, reference time.Time) (time.Time, bool) {
+	if space := bytes.IndexByte(line, ' '); space > 0 {
+		if parsed, err := time.Parse(time.RFC3339Nano, string(line[:space])); err == nil {
+			return parsed, true
+		}
+	}
+	if len(line) < len("Jan  2 15:04:05") {
+		return time.Time{}, false
+	}
+	localReference := reference.In(time.Local)
+	parsed, err := time.ParseInLocation("Jan _2 15:04:05", string(line[:len("Jan  2 15:04:05")]), time.Local)
+	if err != nil {
+		return time.Time{}, false
+	}
+	parsed = time.Date(localReference.Year(), parsed.Month(), parsed.Day(), parsed.Hour(), parsed.Minute(), parsed.Second(), 0, time.Local)
+	if parsed.After(localReference.Add(24 * time.Hour)) {
+		parsed = parsed.AddDate(-1, 0, 0)
+	}
+	return parsed, true
+}
+
+func addSSHFailure(counts map[netip.Addr]int, message string) bool {
+	match := sshFailureAddressPattern.FindStringSubmatch(message)
+	if len(match) != 2 {
+		return false
+	}
+	address, err := netip.ParseAddr(strings.TrimSpace(match[1]))
+	if err != nil {
+		return false
+	}
+	counts[address.Unmap()]++
+	return true
+}
+
+func buildSSHAuthSummary(counts map[netip.Addr]int, total int, start, end time.Time) shared.SSHAuthSummary {
 	type sourceCount struct {
 		address netip.Addr
 		count   int
@@ -132,5 +215,5 @@ func summarizeSSHJournal(content []byte, start, end time.Time) (shared.SSHAuthSu
 	for _, source := range ranked {
 		summary.Sources = append(summary.Sources, shared.SSHAuthSource{Address: source.address.String(), Count: source.count})
 	}
-	return summary, nil
+	return summary
 }
