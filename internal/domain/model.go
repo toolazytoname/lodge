@@ -237,6 +237,29 @@ type Event struct {
 	ResolvedAt      *time.Time `json:"resolvedAt,omitempty"`
 }
 
+// EventSignal is the current truth emitted by a rule. Reconciliation keeps one
+// non-resolved Event per DedupeKey and turns missing signals into recovery.
+type EventSignal struct {
+	HostID    HostID   `json:"hostId"`
+	Kind      string   `json:"kind"`
+	Severity  Severity `json:"severity"`
+	DedupeKey string   `json:"dedupeKey"`
+	Title     string   `json:"title"`
+	Detail    string   `json:"detail,omitempty"`
+}
+
+type EventTransitionType string
+
+const (
+	EventOpened    EventTransitionType = "opened"
+	EventRecovered EventTransitionType = "recovered"
+)
+
+type EventTransition struct {
+	Type  EventTransitionType `json:"type"`
+	Event Event               `json:"event"`
+}
+
 type OperationKind string
 
 const (
@@ -621,6 +644,78 @@ func (check WebLinkCheck) Validate() error {
 		return fmt.Errorf("invalid Web link state %q", check.State)
 	}
 	return nil
+}
+
+func (signal EventSignal) Validate() error {
+	if err := validateIdentifier("event host id", string(signal.HostID), 128); err != nil {
+		return err
+	}
+	if err := validateIdentifier("event kind", signal.Kind, 128); err != nil {
+		return err
+	}
+	if err := validateIdentifier("event dedupe key", signal.DedupeKey, 1024); err != nil {
+		return err
+	}
+	if !strings.HasPrefix(signal.DedupeKey, string(signal.HostID)+":") {
+		return errors.New("event dedupe key must be host-scoped")
+	}
+	if !validSeverity(signal.Severity) {
+		return fmt.Errorf("invalid event severity %q", signal.Severity)
+	}
+	if strings.TrimSpace(signal.Title) == "" || !utf8.ValidString(signal.Title) || utf8.RuneCountInString(signal.Title) > 240 {
+		return errors.New("event title is invalid")
+	}
+	if !utf8.ValidString(signal.Detail) || utf8.RuneCountInString(signal.Detail) > 4000 {
+		return errors.New("event detail is invalid")
+	}
+	return nil
+}
+
+func (event Event) Validate() error {
+	if err := validateIdentifier("event id", event.ID, 128); err != nil {
+		return err
+	}
+	if err := (EventSignal{
+		HostID: event.HostID, Kind: event.Kind, Severity: event.Severity,
+		DedupeKey: event.DedupeKey, Title: event.Title, Detail: event.Detail,
+	}).Validate(); err != nil {
+		return err
+	}
+	if event.FirstObservedAt.IsZero() || event.LastObservedAt.IsZero() || event.LastObservedAt.Before(event.FirstObservedAt) {
+		return errors.New("event observation times are invalid")
+	}
+	if event.AcknowledgedAt != nil && event.AcknowledgedAt.Before(event.FirstObservedAt) {
+		return errors.New("event acknowledgement predates the event")
+	}
+	switch event.State {
+	case EventActive:
+		if event.AcknowledgedAt != nil || event.ResolvedAt != nil {
+			return errors.New("active event has terminal timestamps")
+		}
+	case EventAcknowledged:
+		if event.AcknowledgedAt == nil || event.ResolvedAt != nil {
+			return errors.New("acknowledged event timestamps are inconsistent")
+		}
+	case EventResolved:
+		if event.ResolvedAt == nil || event.ResolvedAt.Before(event.LastObservedAt) {
+			return errors.New("resolved event timestamps are inconsistent")
+		}
+		if event.AcknowledgedAt != nil && event.AcknowledgedAt.After(*event.ResolvedAt) {
+			return errors.New("event acknowledgement follows recovery")
+		}
+	default:
+		return fmt.Errorf("invalid event state %q", event.State)
+	}
+	return nil
+}
+
+func validSeverity(severity Severity) bool {
+	switch severity {
+	case SeverityInfo, SeverityWarning, SeverityCritical:
+		return true
+	default:
+		return false
+	}
 }
 
 func validWorkloadKind(kind WorkloadKind) bool {

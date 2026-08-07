@@ -106,6 +106,10 @@
 - Latest Web-link evidence is replaced atomically and never changes immutable
   observation history. A reachable result means only that the Hub received an
   HTTP response, not that the service is publicly reachable or semantically healthy.
+- Event signals are validated, host-scoped, deduplicated, and reconciled in the
+  same transaction as their observation. Offline and category-specific missing
+  telemetry preserve existing risk rather than manufacturing recovery; stale
+  event time is rejected and rolls back the observation.
 
 ## Release review
 

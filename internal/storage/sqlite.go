@@ -3,14 +3,18 @@ package storage
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/toolazytoname/lodge/internal/domain"
@@ -396,6 +400,61 @@ func (s *SQLite) RecordObservation(ctx context.Context, observation domain.Obser
 	if err := observation.Validate(); err != nil {
 		return 0, err
 	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	observationID, err := recordObservationTx(ctx, tx, observation)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return observationID, nil
+}
+
+// RecordObservationWithEvents persists telemetry and reconciles the current
+// rule truth in one transaction. A failed event write can therefore never
+// leave an observation without its corresponding lifecycle transition.
+func (s *SQLite) RecordObservationWithEvents(ctx context.Context, observation domain.Observation, signals []domain.EventSignal) (int64, []domain.EventTransition, error) {
+	if err := observation.Validate(); err != nil {
+		return 0, nil, err
+	}
+	seen := make(map[string]struct{}, len(signals))
+	for _, signal := range signals {
+		if err := signal.Validate(); err != nil {
+			return 0, nil, err
+		}
+		if signal.HostID != observation.HostID {
+			return 0, nil, errors.New("event signal belongs to a different host")
+		}
+		if _, duplicate := seen[signal.DedupeKey]; duplicate {
+			return 0, nil, fmt.Errorf("duplicate event signal %q", signal.DedupeKey)
+		}
+		seen[signal.DedupeKey] = struct{}{}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer tx.Rollback()
+	observationID, err := recordObservationTx(ctx, tx, observation)
+	if err != nil {
+		return 0, nil, err
+	}
+	transitions, err := reconcileEventSignalsTx(ctx, tx, observation.HostID, observation.ObservedAt, signals)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, nil, err
+	}
+	return observationID, transitions, nil
+}
+
+func recordObservationTx(ctx context.Context, tx *sql.Tx, observation domain.Observation) (int64, error) {
 	var resourcesJSON any
 	if observation.Resources != nil {
 		encoded, err := json.Marshal(observation.Resources)
@@ -408,10 +467,6 @@ func (s *SQLite) RecordObservation(ctx context.Context, observation domain.Obser
 	if err != nil {
 		return 0, err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
 	result, err := tx.ExecContext(ctx, `
 INSERT INTO observations(host_id, observed_at, online, last_error, hostname, agent_version, resources_json, warnings_json)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -419,12 +474,10 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		observation.Hostname, observation.AgentVersion, resourcesJSON, string(warningsJSON),
 	)
 	if err != nil {
-		_ = tx.Rollback()
 		return 0, fmt.Errorf("insert observation: %w", err)
 	}
 	observationID, err := result.LastInsertId()
 	if err != nil {
-		_ = tx.Rollback()
 		return 0, err
 	}
 	for _, workload := range observation.Workloads {
@@ -435,7 +488,6 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			workload.Image, workload.Unit, workload.ComposeProject, workload.ComposeService,
 			workload.Health, workload.PID, nullableTime(workload.StartedAt), boolInt(workload.Unidentified),
 		); err != nil {
-			_ = tx.Rollback()
 			return 0, fmt.Errorf("insert workload %s: %w", workload.Key, err)
 		}
 	}
@@ -446,14 +498,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			observationID, endpoint.WorkloadKey, endpoint.Key, endpoint.Protocol, endpoint.Bind, endpoint.Port,
 			string(endpoint.Binding), string(endpoint.Reachability), endpoint.ReachabilitySource, nullableTime(endpoint.ReachabilityCheckedAt),
 		); err != nil {
-			_ = tx.Rollback()
 			return 0, fmt.Errorf("insert endpoint %s: %w", endpoint.Key, err)
 		}
 	}
 	for _, route := range observation.Routes {
 		upstreamsJSON, err := json.Marshal(route.Upstreams)
 		if err != nil {
-			_ = tx.Rollback()
 			return 0, fmt.Errorf("encode proxy route %s upstreams: %w", route.Key, err)
 		}
 		if _, err := tx.ExecContext(ctx, `
@@ -461,14 +511,251 @@ INSERT INTO proxy_routes(observation_id, workload_key, route_key, scheme, host, 
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			observationID, route.WorkloadKey, route.Key, route.Scheme, route.Host, route.Port, route.Path, string(upstreamsJSON),
 		); err != nil {
-			_ = tx.Rollback()
 			return 0, fmt.Errorf("insert proxy route %s: %w", route.Key, err)
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
 	return observationID, nil
+}
+
+func reconcileEventSignalsTx(ctx context.Context, tx *sql.Tx, hostID domain.HostID, observedAt time.Time, signals []domain.EventSignal) ([]domain.EventTransition, error) {
+	active, err := loadEventsTx(ctx, tx, `
+WHERE host_id = ? AND state != 'resolved'
+ORDER BY dedupe_key`, string(hostID))
+	if err != nil {
+		return nil, err
+	}
+	activeByKey := make(map[string]domain.Event, len(active))
+	for _, event := range active {
+		activeByKey[event.DedupeKey] = event
+	}
+	signalsByKey := make(map[string]domain.EventSignal, len(signals))
+	for _, signal := range signals {
+		signalsByKey[signal.DedupeKey] = signal
+	}
+	keys := make([]string, 0, len(signalsByKey))
+	for key := range signalsByKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	transitions := make([]domain.EventTransition, 0)
+	for _, key := range keys {
+		signal := signalsByKey[key]
+		if event, exists := activeByKey[key]; exists {
+			if observedAt.Before(event.LastObservedAt) {
+				return nil, fmt.Errorf("event signal %q predates its latest observation", key)
+			}
+			event.Kind = signal.Kind
+			event.Severity = signal.Severity
+			event.Title = signal.Title
+			event.Detail = signal.Detail
+			event.LastObservedAt = observedAt.UTC()
+			if err := event.Validate(); err != nil {
+				return nil, err
+			}
+			if _, err := tx.ExecContext(ctx, `
+UPDATE events SET kind = ?, severity = ?, title = ?, detail = ?, last_observed_at = ?
+WHERE id = ?`, event.Kind, event.Severity, event.Title, event.Detail, formatTime(event.LastObservedAt), event.ID); err != nil {
+				return nil, fmt.Errorf("update active event %s: %w", event.ID, err)
+			}
+			continue
+		}
+		id, err := newEventID()
+		if err != nil {
+			return nil, err
+		}
+		event := domain.Event{
+			ID: id, HostID: hostID, Kind: signal.Kind, Severity: signal.Severity,
+			State: domain.EventActive, DedupeKey: signal.DedupeKey,
+			Title: signal.Title, Detail: signal.Detail,
+			FirstObservedAt: observedAt.UTC(), LastObservedAt: observedAt.UTC(),
+		}
+		if err := event.Validate(); err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO events(id, host_id, kind, severity, state, dedupe_key, title, detail, first_observed_at, last_observed_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, event.ID, event.HostID, event.Kind, event.Severity,
+			event.State, event.DedupeKey, event.Title, event.Detail,
+			formatTime(event.FirstObservedAt), formatTime(event.LastObservedAt)); err != nil {
+			return nil, fmt.Errorf("insert active event %s: %w", event.ID, err)
+		}
+		transitions = append(transitions, domain.EventTransition{Type: domain.EventOpened, Event: event})
+	}
+	staleKeys := make([]string, 0)
+	for key := range activeByKey {
+		if _, current := signalsByKey[key]; !current {
+			staleKeys = append(staleKeys, key)
+		}
+	}
+	sort.Strings(staleKeys)
+	for _, key := range staleKeys {
+		event := activeByKey[key]
+		if observedAt.Before(event.LastObservedAt) {
+			return nil, fmt.Errorf("event recovery %q predates its latest observation", key)
+		}
+		resolvedAt := observedAt.UTC()
+		event.State = domain.EventResolved
+		event.ResolvedAt = &resolvedAt
+		if err := event.Validate(); err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE events SET state = 'resolved', resolved_at = ? WHERE id = ?`, formatTime(resolvedAt), event.ID); err != nil {
+			return nil, fmt.Errorf("resolve event %s: %w", event.ID, err)
+		}
+		transitions = append(transitions, domain.EventTransition{Type: domain.EventRecovered, Event: event})
+	}
+	return transitions, nil
+}
+
+// ActiveEvents returns the unresolved rule state used by the next evaluation.
+func (s *SQLite) ActiveEvents(ctx context.Context, hostID domain.HostID) ([]domain.Event, error) {
+	if strings.TrimSpace(string(hostID)) == "" {
+		return nil, errors.New("event host id must not be empty")
+	}
+	return loadEvents(ctx, s.db, `
+WHERE host_id = ? AND state != 'resolved'
+ORDER BY dedupe_key`, string(hostID))
+}
+
+// Events returns a bounded operator timeline. Empty hostID means every host.
+func (s *SQLite) Events(ctx context.Context, hostID domain.HostID, limit int) ([]domain.Event, error) {
+	if limit < 1 || limit > 500 {
+		return nil, errors.New("event limit must be between 1 and 500")
+	}
+	order := `ORDER BY CASE state WHEN 'active' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
+last_observed_at DESC, id DESC LIMIT ?`
+	if hostID == "" {
+		return loadEvents(ctx, s.db, order, limit)
+	}
+	return loadEvents(ctx, s.db, "WHERE host_id = ?\n"+order, string(hostID), limit)
+}
+
+var ErrEventResolved = errors.New("event already resolved")
+
+// AcknowledgeEvent is idempotent. It records operator awareness while leaving
+// the event unresolved until a later observation proves recovery.
+func (s *SQLite) AcknowledgeEvent(ctx context.Context, id string, acknowledgedAt time.Time) (domain.Event, bool, error) {
+	if strings.TrimSpace(id) == "" || len(id) > 128 || acknowledgedAt.IsZero() {
+		return domain.Event{}, false, errors.New("event acknowledgement is invalid")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Event{}, false, err
+	}
+	defer tx.Rollback()
+	events, err := loadEventsTx(ctx, tx, "WHERE id = ?", id)
+	if err != nil {
+		return domain.Event{}, false, err
+	}
+	if len(events) == 0 {
+		return domain.Event{}, false, nil
+	}
+	event := events[0]
+	if event.State == domain.EventResolved {
+		return domain.Event{}, true, ErrEventResolved
+	}
+	if event.State == domain.EventAcknowledged {
+		if err := tx.Commit(); err != nil {
+			return domain.Event{}, false, err
+		}
+		return event, true, nil
+	}
+	acknowledgedAt = acknowledgedAt.UTC()
+	if acknowledgedAt.Before(event.FirstObservedAt) {
+		return domain.Event{}, true, errors.New("event acknowledgement predates the event")
+	}
+	event.State = domain.EventAcknowledged
+	event.AcknowledgedAt = &acknowledgedAt
+	if err := event.Validate(); err != nil {
+		return domain.Event{}, true, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+UPDATE events SET state = 'acknowledged', acknowledged_at = ? WHERE id = ? AND state = 'active'`,
+		formatTime(acknowledgedAt), event.ID); err != nil {
+		return domain.Event{}, true, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Event{}, true, err
+	}
+	return event, true, nil
+}
+
+const eventColumns = `id, host_id, kind, severity, state, dedupe_key, title, detail,
+first_observed_at, last_observed_at, acknowledged_at, resolved_at`
+
+type eventQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func loadEvents(ctx context.Context, queryer eventQueryer, suffix string, args ...any) ([]domain.Event, error) {
+	rows, err := queryer.QueryContext(ctx, "SELECT "+eventColumns+" FROM events\n"+suffix, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	events := make([]domain.Event, 0)
+	for rows.Next() {
+		event, err := scanEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
+}
+
+func loadEventsTx(ctx context.Context, tx *sql.Tx, suffix string, args ...any) ([]domain.Event, error) {
+	return loadEvents(ctx, tx, suffix, args...)
+}
+
+type rowScanner interface {
+	Scan(...any) error
+}
+
+func scanEvent(scanner rowScanner) (domain.Event, error) {
+	var event domain.Event
+	var firstObservedAt, lastObservedAt string
+	var acknowledgedAt, resolvedAt sql.NullString
+	if err := scanner.Scan(&event.ID, &event.HostID, &event.Kind, &event.Severity, &event.State,
+		&event.DedupeKey, &event.Title, &event.Detail, &firstObservedAt, &lastObservedAt,
+		&acknowledgedAt, &resolvedAt); err != nil {
+		return domain.Event{}, err
+	}
+	var err error
+	event.FirstObservedAt, err = parseTime(firstObservedAt)
+	if err != nil {
+		return domain.Event{}, err
+	}
+	event.LastObservedAt, err = parseTime(lastObservedAt)
+	if err != nil {
+		return domain.Event{}, err
+	}
+	if acknowledgedAt.Valid {
+		parsed, err := parseTime(acknowledgedAt.String)
+		if err != nil {
+			return domain.Event{}, err
+		}
+		event.AcknowledgedAt = &parsed
+	}
+	if resolvedAt.Valid {
+		parsed, err := parseTime(resolvedAt.String)
+		if err != nil {
+			return domain.Event{}, err
+		}
+		event.ResolvedAt = &parsed
+	}
+	if err := event.Validate(); err != nil {
+		return domain.Event{}, fmt.Errorf("stored event is invalid: %w", err)
+	}
+	return event, nil
+}
+
+func newEventID() (string, error) {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return "", fmt.Errorf("generate event id: %w", err)
+	}
+	return "evt_" + hex.EncodeToString(random[:]), nil
 }
 
 func (s *SQLite) LatestObservation(ctx context.Context, hostID domain.HostID) (domain.Observation, bool, error) {

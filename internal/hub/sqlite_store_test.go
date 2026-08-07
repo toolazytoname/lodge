@@ -99,6 +99,85 @@ func TestSQLiteStoreReloadsAnnotationsButNotStaleOnlineState(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreEvaluatesAndPersistsEventLifecycle(t *testing.T) {
+	store, _ := openTestSQLiteStore(t, []AgentConfig{{ID: "host-a", Name: "Host A"}})
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	status := &shared.Status{
+		Load:   shared.Load{CPUs: 2, One: 0.5},
+		Memory: shared.Memory{TotalBytes: 100, UsedBytes: 86, AvailableBytes: 14},
+		Disks:  []shared.Disk{{Mount: "/", TotalBytes: 100, UsedBytes: 40, FreeBytes: 60}},
+	}
+	services := []shared.Service{{
+		Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "running",
+		Ports: []shared.Port{{Proto: "tcp", Bind: "0.0.0.0", Port: 443, Exposure: shared.ExposurePublic}},
+	}}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now); err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 1 || active[0].Kind != "resource.memory" {
+		t.Fatalf("first observation should baseline listeners and open memory only: %+v", active)
+	}
+
+	services[0].Status = "failed"
+	services[0].Ports = append(services[0].Ports, shared.Port{Proto: "tcp", Bind: "0.0.0.0", Port: 8443, Exposure: shared.ExposurePublic})
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err = store.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 3 {
+		t.Fatalf("failed workload and new listener should join memory event: %+v", active)
+	}
+
+	status.Memory.UsedBytes = 50
+	status.Memory.AvailableBytes = 50
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, nil, now.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err = store.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 2 || active[0].Kind == "resource.memory" || active[1].Kind == "resource.memory" {
+		t.Fatalf("partial service collection should carry service risks while allowing measured memory recovery: %+v", active)
+	}
+
+	if err := store.Update(ctx, "host-a", false, "timeout", shared.Ping{}, nil, nil, now.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err = store.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 3 {
+		t.Fatalf("offline collection should carry service risks and add host event: %+v", active)
+	}
+
+	services[0].Status = "running"
+	services[0].Ports = services[0].Ports[:1]
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now.Add(4*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err = store.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 0 {
+		t.Fatalf("healthy recovery should resolve all active events: %+v", active)
+	}
+	timeline, err := store.database.Events(ctx, "host-a", 20)
+	if err != nil || len(timeline) != 4 {
+		t.Fatalf("event history should retain all four resolved incidents: %+v, %v", timeline, err)
+	}
+}
+
 func TestLegacyStateImportsOnlyAnnotationsExactlyOnce(t *testing.T) {
 	const legacyToken = "legacy-token-must-not-enter-database-a483be"
 	agents := []AgentConfig{{ID: "host-a", Name: "Host A", URL: "http://agent", Token: "current-token"}}

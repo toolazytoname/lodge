@@ -130,3 +130,11 @@
 - 原生 SVG 展示在线率、归一化负载、内存和根磁盘；离线时缺失的资源点保持断线，不伪造成 0%。
 - 当前暴露面与历史 API 解耦；history 503 只影响趋势区域，实时资产继续可用。
 - 1280/390 响应式、主机切换和历史错误通过 Playwright，新增两张视觉基线，关键场景增至 13。
+
+## [2026-08-08] implementation | M5 事件生命周期底座
+
+- 建立 `active → acknowledged → resolved` 事件状态机；持续风险按 host-scoped dedupe key 原地更新，复发生成新事件并保留旧历史。
+- Observation 与事件对账在同一 SQLite 事务提交，重复、跨主机、非法或倒序信号全部回滚。
+- 新增 offline、内存、根磁盘、归一化 load、failed/unhealthy workload 与新增 wildcard listener 规则；资源使用双阈值抑制抖动。
+- 首次/恢复 listener 建立基线，离线与部分采集保留无法证实恢复的既有风险；领域、规则、存储与 Hub 集成测试覆盖这些边界。
+- 事件 API、Web 确认、SSH 规则、通知冷却和 webhook 仍待后续切片。

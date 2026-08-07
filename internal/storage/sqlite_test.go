@@ -151,6 +151,123 @@ func TestWebLinkChecksReplaceAtomically(t *testing.T) {
 	}
 }
 
+func TestSQLiteEventLifecycleDedupeAndAtomicity(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	signal := domain.EventSignal{
+		HostID: "host-a", Kind: "resource.memory", Severity: domain.SeverityWarning,
+		DedupeKey: "host-a:resource:memory", Title: "Memory pressure", Detail: "86% used",
+	}
+
+	firstID, transitions, err := store.RecordObservationWithEvents(ctx, sampleObservation(now), []domain.EventSignal{signal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstID == 0 || len(transitions) != 1 || transitions[0].Type != domain.EventOpened {
+		t.Fatalf("first signal did not open one event: id=%d transitions=%+v", firstID, transitions)
+	}
+	opened := transitions[0].Event
+	if opened.State != domain.EventActive || opened.ID == "" {
+		t.Fatalf("opened event is invalid: %+v", opened)
+	}
+
+	secondAt := now.Add(time.Minute)
+	signal.Severity = domain.SeverityCritical
+	signal.Detail = "96% used"
+	_, transitions, err = store.RecordObservationWithEvents(ctx, sampleObservation(secondAt), []domain.EventSignal{signal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(transitions) != 0 {
+		t.Fatalf("continuing signal should not create a transition: %+v", transitions)
+	}
+	active, err := store.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 1 || active[0].ID != opened.ID || active[0].Severity != domain.SeverityCritical || !active[0].LastObservedAt.Equal(secondAt) {
+		t.Fatalf("active event was not updated in place: %+v", active)
+	}
+
+	ackAt := secondAt.Add(30 * time.Second)
+	acknowledged, found, err := store.AcknowledgeEvent(ctx, opened.ID, ackAt)
+	if err != nil || !found || acknowledged.State != domain.EventAcknowledged || acknowledged.AcknowledgedAt == nil || !acknowledged.AcknowledgedAt.Equal(ackAt) {
+		t.Fatalf("acknowledge event failed: found=%v event=%+v err=%v", found, acknowledged, err)
+	}
+	idempotent, found, err := store.AcknowledgeEvent(ctx, opened.ID, ackAt.Add(time.Minute))
+	if err != nil || !found || idempotent.AcknowledgedAt == nil || !idempotent.AcknowledgedAt.Equal(ackAt) {
+		t.Fatalf("idempotent acknowledgement changed audit time: found=%v event=%+v err=%v", found, idempotent, err)
+	}
+
+	recoveredAt := now.Add(2 * time.Minute)
+	_, transitions, err = store.RecordObservationWithEvents(ctx, sampleObservation(recoveredAt), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(transitions) != 1 || transitions[0].Type != domain.EventRecovered || transitions[0].Event.State != domain.EventResolved {
+		t.Fatalf("missing signal did not recover the event: %+v", transitions)
+	}
+	if active, err = store.ActiveEvents(ctx, "host-a"); err != nil || len(active) != 0 {
+		t.Fatalf("resolved event remained active: %+v, %v", active, err)
+	}
+	if _, found, err := store.AcknowledgeEvent(ctx, opened.ID, recoveredAt.Add(time.Minute)); !found || !errors.Is(err, ErrEventResolved) {
+		t.Fatalf("resolved acknowledgement should conflict: found=%v err=%v", found, err)
+	}
+
+	recurredAt := now.Add(3 * time.Minute)
+	_, transitions, err = store.RecordObservationWithEvents(ctx, sampleObservation(recurredAt), []domain.EventSignal{signal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(transitions) != 1 || transitions[0].Type != domain.EventOpened || transitions[0].Event.ID == opened.ID {
+		t.Fatalf("recurrence should open a new event: %+v", transitions)
+	}
+	timeline, err := store.Events(ctx, "host-a", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(timeline) != 2 || timeline[0].State != domain.EventActive || timeline[1].State != domain.EventResolved {
+		t.Fatalf("event timeline is incomplete or misordered: %+v", timeline)
+	}
+
+	var observationsBefore int
+	if err := store.db.QueryRowContext(ctx, "SELECT count(*) FROM observations").Scan(&observationsBefore); err != nil {
+		t.Fatal(err)
+	}
+	invalidObservation := sampleObservation(now.Add(4 * time.Minute))
+	if _, _, err := store.RecordObservationWithEvents(ctx, invalidObservation, []domain.EventSignal{signal, signal}); err == nil {
+		t.Fatal("duplicate signals were accepted")
+	}
+	staleObservation := sampleObservation(now.Add(150 * time.Second))
+	if _, _, err := store.RecordObservationWithEvents(ctx, staleObservation, []domain.EventSignal{signal}); err == nil {
+		t.Fatal("stale event update was accepted")
+	}
+	var observationsAfter int
+	if err := store.db.QueryRowContext(ctx, "SELECT count(*) FROM observations").Scan(&observationsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if observationsAfter != observationsBefore {
+		t.Fatalf("failed event reconciliation left observations behind: before=%d after=%d", observationsBefore, observationsAfter)
+	}
+}
+
+func TestSQLiteEventQueriesAreBounded(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	if _, err := store.Events(context.Background(), "", 0); err == nil {
+		t.Fatal("zero event limit was accepted")
+	}
+	if _, err := store.Events(context.Background(), "", 501); err == nil {
+		t.Fatal("oversized event limit was accepted")
+	}
+	if _, found, err := store.AcknowledgeEvent(context.Background(), "missing", time.Now().UTC()); err != nil || found {
+		t.Fatalf("missing event acknowledgement mismatch: found=%v err=%v", found, err)
+	}
+}
+
 func TestMigrationPlanMustBeContiguousAndComplete(t *testing.T) {
 	tests := []struct {
 		name string

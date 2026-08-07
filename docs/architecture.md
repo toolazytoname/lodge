@@ -51,7 +51,9 @@ remain available to internal rule evaluation without multiplying browser data.
 - **WebLinkCheck**: latest bounded HTTP probe evidence for one Host, Workload,
   and URL, explicitly scoped to the Hub's network perspective.
 - **Observation**: an immutable collection result at a point in time.
-- **Event**: a meaningful transition derived from observations.
+- **Event**: one deduplicated incident derived from observations, with an
+  `active` → `acknowledged` → `resolved` lifecycle. Acknowledgement records
+  operator awareness; only later observation truth resolves it.
 - **Operation**: a requested, authorized, executed, and audited state change.
 
 Binding and reachability are separate. `0.0.0.0:PORT` means `wildcard-bound`;
@@ -62,6 +64,11 @@ These contracts live in `internal/domain`. Agent `/v1` payloads are wire
 contracts, not database or UI models; `internal/hub/projectObservation`
 translates them and rejects duplicate identities, cross-host references,
 invalid endpoints, and unevidenced reachability claims.
+
+Event rules consume the previous observation, the current observation, and the
+host's non-resolved events. Rules produce host-scoped current-truth signals;
+SQLite stores the immutable observation and reconciles those signals in one
+transaction. See [ADR 0007](adr/0007-observation-event-lifecycle.md).
 
 Durable state is stored through `internal/storage` in owner-only SQLite. The
 schema normalizes immutable observations, workload/endpoint/proxy-route children, annotations,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/toolazytoname/lodge/internal/domain"
@@ -17,6 +18,7 @@ import (
 type SQLiteStore struct {
 	database *storage.SQLite
 	runtime  *MemStore
+	eventMu  sync.Mutex
 }
 
 func OpenSQLiteStore(ctx context.Context, path string, agents []AgentConfig) (*SQLiteStore, error) {
@@ -68,7 +70,27 @@ func (s *SQLiteStore) Update(ctx context.Context, id string, online bool, lastEr
 	if err != nil {
 		return fmt.Errorf("project agent %s observation: %w", id, err)
 	}
-	if _, err := s.database.RecordObservation(ctx, observation); err != nil {
+	// Evaluation and reconciliation share one critical section so concurrent
+	// scrapes cannot both reason from the same stale lifecycle state.
+	s.eventMu.Lock()
+	previousObservation, found, err := s.database.LatestObservation(ctx, observation.HostID)
+	if err != nil {
+		s.eventMu.Unlock()
+		return fmt.Errorf("load agent %s previous observation: %w", id, err)
+	}
+	var previous *domain.Observation
+	if found {
+		previous = &previousObservation
+	}
+	active, err := s.database.ActiveEvents(ctx, observation.HostID)
+	if err != nil {
+		s.eventMu.Unlock()
+		return fmt.Errorf("load agent %s active events: %w", id, err)
+	}
+	signals := evaluateEventSignals(previous, observation, active)
+	_, _, err = s.database.RecordObservationWithEvents(ctx, observation, signals)
+	s.eventMu.Unlock()
+	if err != nil {
 		return fmt.Errorf("persist agent %s observation: %w", id, err)
 	}
 	return s.runtime.Update(context.Background(), id, online, lastError, ping, status, services, observedAt)

@@ -6,7 +6,9 @@
 domain model. The Hub opens `/var/lib/lodge-hub/lodge.db` by default, records
 every complete, partial, and offline observation, and keeps only the latest UI
 projection in memory. M5 exposes the bounded observation-summary API in the
-Security Web timeline; the event and alert lifecycle remains in progress.
+Security Web timeline and now persists the event lifecycle; the operator API,
+Web acknowledgement surface, SSH rules, and notification adapter remain in
+progress.
 
 The schema stores:
 
@@ -44,6 +46,12 @@ stored.
 - Timeline reads use one bounded summary query (default 120, maximum 500
   points). They do not materialize every historical workload, endpoint, route,
   or full resource payload into the browser response.
+- Each deduplication key has at most one non-resolved event. Continuing signals
+  update that row; recovery closes it; recurrence creates a new historical row.
+- An observation and its event opens, updates, and recoveries commit in one
+  transaction. Invalid, duplicate, cross-host, or stale signals roll back both.
+- Acknowledgement is idempotent and preserves active risk until a later
+  observation resolves it.
 - The database, `-wal`, `-shm`, and backup files are owner-only (`0600`). An
   existing database with broader permissions or a symlinked path is rejected.
 
@@ -110,8 +118,9 @@ Restoring a database created by a newer schema into an older binary is rejected.
 `PruneObservations` removes observations older than a supplied UTC cutoff in one
 database operation with workload/endpoint cascade. The Hub runs one sweep at
 startup and every six hours. `--history-retention` defaults to `720h` (30 days);
-`0` explicitly disables automatic observation pruning. Event retention will be
-defined with the event lifecycle in M5.
+`0` explicitly disables automatic observation pruning. Events are currently
+retained as incident history; a separate bounded retention policy must be
+defined before fleet scale makes indefinite retention inappropriate.
 
 ## First production migration
 

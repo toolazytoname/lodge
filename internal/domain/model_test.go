@@ -132,6 +132,52 @@ func TestWebLinkCheckRequiresConsistentEvidence(t *testing.T) {
 	}
 }
 
+func TestEventSignalAndLifecycleConsistency(t *testing.T) {
+	now := time.Now().UTC()
+	signal := EventSignal{
+		HostID: "host-a", Kind: "resource.memory", Severity: SeverityWarning,
+		DedupeKey: "host-a:resource:memory", Title: "Memory pressure", Detail: "86% used",
+	}
+	if err := signal.Validate(); err != nil {
+		t.Fatalf("valid signal was rejected: %v", err)
+	}
+	crossHost := signal
+	crossHost.DedupeKey = "host-b:resource:memory"
+	if err := crossHost.Validate(); err == nil {
+		t.Fatal("cross-host dedupe key was accepted")
+	}
+	invalidSeverity := signal
+	invalidSeverity.Severity = "urgent"
+	if err := invalidSeverity.Validate(); err == nil {
+		t.Fatal("unknown severity was accepted")
+	}
+
+	event := Event{
+		ID: "evt_fixture", HostID: signal.HostID, Kind: signal.Kind, Severity: signal.Severity,
+		State: EventActive, DedupeKey: signal.DedupeKey, Title: signal.Title, Detail: signal.Detail,
+		FirstObservedAt: now, LastObservedAt: now,
+	}
+	if err := event.Validate(); err != nil {
+		t.Fatalf("valid active event was rejected: %v", err)
+	}
+	acknowledgedAt := now.Add(time.Minute)
+	event.State = EventAcknowledged
+	event.AcknowledgedAt = &acknowledgedAt
+	if err := event.Validate(); err != nil {
+		t.Fatalf("valid acknowledged event was rejected: %v", err)
+	}
+	resolvedAt := now.Add(2 * time.Minute)
+	event.State = EventResolved
+	event.ResolvedAt = &resolvedAt
+	if err := event.Validate(); err != nil {
+		t.Fatalf("valid resolved event was rejected: %v", err)
+	}
+	event.ResolvedAt = nil
+	if err := event.Validate(); err == nil {
+		t.Fatal("resolved event without recovery time was accepted")
+	}
+}
+
 func TestSummarizeObservationBoundsTimelineData(t *testing.T) {
 	observation := Observation{
 		HostID: "host-a", ObservedAt: time.Now().UTC(), Online: true, AgentVersion: "0.5.0",

@@ -22,9 +22,11 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 		LastError:    lastError,
 		Hostname:     ping.Hostname,
 		AgentVersion: ping.AgentVer,
-		Workloads:    make([]domain.Workload, 0, len(services)),
-		Endpoints:    make([]domain.Endpoint, 0),
-		Routes:       make([]domain.ProxyRoute, 0),
+	}
+	if services != nil {
+		observation.Workloads = make([]domain.Workload, 0, len(services))
+		observation.Endpoints = make([]domain.Endpoint, 0)
+		observation.Routes = make([]domain.ProxyRoute, 0)
 	}
 	if status != nil {
 		if status.Hostname != "" {
