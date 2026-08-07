@@ -570,6 +570,55 @@ func TestSQLiteUpgradesVersionFiveAndAddsNotificationOutbox(t *testing.T) {
 	}
 }
 
+func TestSQLiteUpgradesVersionSixAndAddsSSHAuthSummary(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	createVersionOneDatabase(t, path)
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrations[1:6] {
+		if _, err := db.Exec(migration.sql); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(
+			"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
+			migration.version, migration.name, migration.checksum(), formatTime(time.Now()),
+		); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec("PRAGMA user_version = 6"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var version, columnCount int
+	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow("SELECT count(*) FROM pragma_table_info('observations') WHERE name = 'ssh_auth_json'").Scan(&columnCount); err != nil {
+		t.Fatal(err)
+	}
+	if version != currentSchemaVersion || columnCount != 1 {
+		t.Fatalf("v6 migration result: version=%d columnCount=%d", version, columnCount)
+	}
+}
+
 func TestSQLiteUpgradesVersionTwoWorkloadsWithEmptyComposeIdentity(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lodge.db")
 	createVersionOneDatabase(t, path)
@@ -718,6 +767,10 @@ func TestSQLiteObservationRoundTripHistoryAndPrune(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := sampleObservation(time.Date(2026, 8, 7, 1, 2, 3, 456000000, time.UTC))
+	first.SSH = &domain.SSHAuthObservation{
+		WindowStart: first.ObservedAt.Add(-10 * time.Minute), WindowEnd: first.ObservedAt, FailedTotal: 12,
+		Sources: []domain.SSHAuthSource{{Address: "203.0.113.9", Count: 12}},
+	}
 	second := sampleObservation(first.ObservedAt.Add(time.Minute))
 	second.Online = false
 	second.LastError = "test timeout"

@@ -58,3 +58,11 @@ API 集成测试使用真实 SQLite 生命周期验证未认证 401、缺 CSRF 4
 成功 2xx 才标记 delivered；408、425、429、5xx、timeout 和 network 按 5 秒、30 秒、2 分钟、10 分钟、30 分钟、1 小时退避，最多 8 次；其他状态直接进入 failed。数据库和日志只保存 `status_NNN`、`timeout`、`network` 等小范围分类，不保存 Webhook URL、bearer、response body/header 或 raw error。客户端强制 HTTPS、禁 redirect、禁环境 proxy，body 为显式 version 1 事件投影且排除内部 dedupe key。
 
 同一风险复发时，以此前成功发送 opened 的时间计算 30–86400 秒冷却。若新事件在延迟期间已经恢复，pending open 会被取消，并且不会制造一条从未看到 open 的 recovery；若 open 已经 leased/delivered，则 recovery 单独入队。存储、Hub 接线、配置边界、secret 文件、HTTP 状态、redirect、租约回收和冷却均有自动化测试。notification adapter 达到 1/1；M5 只剩 SSH 来源规则与真实发布验收。
+
+## SSH 攻击来源聚合
+
+第七个切片新增 Agent `--collect-ssh-auth` 精确 root 自调用。它不接受窗口、unit、路径或过滤条件，固定在 5 秒内读取最近 10 分钟 `_COMM=sshd` 或 `SYSLOG_IDENTIFIER=sshd` 的 journal。Failed password/publickey/keyboard-interactive 与 maximum-attempt 记录在 root 内存中解析，原始消息随即丢弃；只输出 UTC 窗口、失败总量与按次数排序的最多 20 个 canonical source IP/count。用户名、成功登录、端口和任意 journal 字段均不出 helper。
+
+Hub 将摘要写入 SQLite schema 7 的 immutable Observation。规则在 10 分钟总失败 ≥30 或单来源 ≥10 时打开 warning，在总量 ≥100 或单来源 ≥50 时提升 critical；解除阈值为总量 <10 且每来源 <3。缺失或非法 SSH telemetry 会保留已有事件，不把采集失败伪装成恢复。事件 detail 只列前三来源；Web 端新增“SSH 爆破”标签，390px 下来源会换行完整显示。
+
+fixture 使用保留测试地址验证 UI，领域/Agent parser/投影/迁移/规则/SQLiteStore/outbox 测试覆盖隐私、边界、迟滞和通知链路。事件规则达到 7/7，M5 代码项全部完成；尚需五机滚动部署和受控 live 延迟验收，IP 只能说明网络来源，不能宣称识别了攻击者本人。

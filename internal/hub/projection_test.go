@@ -80,3 +80,34 @@ func TestProjectObservationDeduplicatesExactEndpoints(t *testing.T) {
 		t.Fatalf("exact endpoint duplicates were not collapsed: %+v", observation.Endpoints)
 	}
 }
+
+func TestProjectionAcceptsPrivacyMinimizedSSHAuthSummary(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	observation, err := projectObservation(
+		AgentConfig{ID: "host-a"}, true, "", shared.Ping{},
+		&shared.Status{SSH: &shared.SSHAuthSummary{
+			WindowStart: now.Add(-10 * time.Minute).Format(time.RFC3339), WindowEnd: now.Format(time.RFC3339),
+			FailedTotal: 12, Sources: []shared.SSHAuthSource{{Address: "203.0.113.9", Count: 12}},
+		}}, []shared.Service{}, now,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observation.SSH == nil || observation.SSH.FailedTotal != 12 || observation.SSH.Sources[0].Address != "203.0.113.9" {
+		t.Fatalf("SSH summary projection mismatch: %+v", observation.SSH)
+	}
+
+	invalid, err := projectObservation(
+		AgentConfig{ID: "host-a"}, true, "", shared.Ping{},
+		&shared.Status{SSH: &shared.SSHAuthSummary{
+			WindowStart: now.Add(-10 * time.Minute).Format(time.RFC3339), WindowEnd: now.Format(time.RFC3339),
+			FailedTotal: 1, Sources: []shared.SSHAuthSource{{Address: "not-an-ip", Count: 1}},
+		}}, []shared.Service{}, now,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invalid.SSH != nil || len(invalid.Warnings) != 1 || invalid.Warnings[0] != "agent SSH authentication summary is invalid" {
+		t.Fatalf("invalid SSH summary did not fail closed as partial telemetry: %+v", invalid)
+	}
+}

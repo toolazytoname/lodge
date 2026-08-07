@@ -85,6 +85,13 @@
   executable basenames, and a working-directory basename plus one-way
   fingerprint. It never reads or emits command lines, environments, or full
   paths; its self-invocation is an exact sudoers entry with no dynamic args.
+- The root-only SSH collector runs one fixed five-second journald query for the
+  most recent ten minutes of `sshd` records. Raw messages stay inside the root
+  helper. Only failed password/public-key/keyboard-interactive or maximum-attempt
+  records contribute; output is capped at one million failures and the top 20
+  canonical source IP/count pairs. It never emits usernames, accepted logins,
+  ports, arbitrary journal fields, or raw log text. The helper is an exact
+  sudoers self-invocation with no dynamic args.
 - Every state-changing operation has an append-only logical audit entry.
 
 ### Secrets
@@ -121,6 +128,11 @@
   same transaction as their observation. Offline and category-specific missing
   telemetry preserve existing risk rather than manufacturing recovery; stale
   event time is rejected and rolls back the observation.
+- SSH summaries are bounded, clock-checked, canonicalized, and persisted only
+  for online observations. Missing/invalid SSH telemetry cannot manufacture a
+  recovery. Source IPs are sensitive operational data: they are exposed only
+  through authenticated events, retained with event history, and may also be
+  sent to the explicitly configured Webhook receiver.
 - The notification outbox is atomic with event transitions, unique per
   event/transition/channel, crash-reclaimable, and bounded to eight attempts.
   Retry state stores only sanitized categories. At-least-once delivery means

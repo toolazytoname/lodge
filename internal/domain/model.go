@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -136,19 +137,35 @@ type DockerResources struct {
 	TotalBytes        int64 `json:"totalBytes"`
 }
 
+// SSHAuthObservation stores only the rolling count and canonical source IPs
+// required to detect brute-force activity. It never contains usernames, ports,
+// successful logins, or raw authentication logs.
+type SSHAuthObservation struct {
+	WindowStart time.Time       `json:"windowStart"`
+	WindowEnd   time.Time       `json:"windowEnd"`
+	FailedTotal int             `json:"failedTotal"`
+	Sources     []SSHAuthSource `json:"sources,omitempty"`
+}
+
+type SSHAuthSource struct {
+	Address string `json:"address"`
+	Count   int    `json:"count"`
+}
+
 // Observation is an immutable result of one host collection attempt.
 type Observation struct {
-	HostID       HostID       `json:"hostId"`
-	ObservedAt   time.Time    `json:"observedAt"`
-	Online       bool         `json:"online"`
-	LastError    string       `json:"lastError,omitempty"`
-	Hostname     string       `json:"hostname,omitempty"`
-	AgentVersion string       `json:"agentVersion,omitempty"`
-	Resources    *Resources   `json:"resources,omitempty"`
-	Workloads    []Workload   `json:"workloads"`
-	Endpoints    []Endpoint   `json:"endpoints"`
-	Routes       []ProxyRoute `json:"routes"`
-	Warnings     []string     `json:"warnings,omitempty"`
+	HostID       HostID              `json:"hostId"`
+	ObservedAt   time.Time           `json:"observedAt"`
+	Online       bool                `json:"online"`
+	LastError    string              `json:"lastError,omitempty"`
+	Hostname     string              `json:"hostname,omitempty"`
+	AgentVersion string              `json:"agentVersion,omitempty"`
+	Resources    *Resources          `json:"resources,omitempty"`
+	SSH          *SSHAuthObservation `json:"ssh,omitempty"`
+	Workloads    []Workload          `json:"workloads"`
+	Endpoints    []Endpoint          `json:"endpoints"`
+	Routes       []ProxyRoute        `json:"routes"`
+	Warnings     []string            `json:"warnings,omitempty"`
 }
 
 // ObservationSummary is the bounded history projection used by operators and
@@ -323,6 +340,18 @@ func (o Observation) Validate() error {
 	if o.ObservedAt.IsZero() {
 		return errors.New("observation time must not be zero")
 	}
+	if o.SSH != nil {
+		if !o.Online {
+			return errors.New("offline observation must not contain SSH telemetry")
+		}
+		if err := o.SSH.Validate(); err != nil {
+			return err
+		}
+		clockSkew := o.SSH.WindowEnd.Sub(o.ObservedAt)
+		if clockSkew < -5*time.Minute || clockSkew > 5*time.Minute {
+			return errors.New("SSH authentication window is stale relative to observation")
+		}
+	}
 	workloads := make(map[string]struct{}, len(o.Workloads))
 	for _, workload := range o.Workloads {
 		if workload.HostID != o.HostID {
@@ -438,6 +467,36 @@ func (o Observation) Validate() error {
 			return fmt.Errorf("duplicate proxy route key %q", route.Key)
 		}
 		routes[compositeKey] = struct{}{}
+	}
+	return nil
+}
+
+func (summary SSHAuthObservation) Validate() error {
+	duration := summary.WindowEnd.Sub(summary.WindowStart)
+	if summary.WindowStart.IsZero() || summary.WindowEnd.IsZero() || duration < 5*time.Minute || duration > 15*time.Minute {
+		return errors.New("SSH authentication window is invalid")
+	}
+	if summary.FailedTotal < 0 || summary.FailedTotal > 1_000_000 || len(summary.Sources) > 20 {
+		return errors.New("SSH authentication counts exceed limits")
+	}
+	if (summary.FailedTotal == 0) != (len(summary.Sources) == 0) {
+		return errors.New("SSH authentication total and sources are inconsistent")
+	}
+	seen := make(map[netip.Addr]struct{}, len(summary.Sources))
+	sourceTotal := 0
+	for _, source := range summary.Sources {
+		address, err := netip.ParseAddr(source.Address)
+		if err != nil || address.String() != source.Address || source.Count < 1 || source.Count > 1_000_000 {
+			return errors.New("SSH authentication source is invalid")
+		}
+		if _, duplicate := seen[address]; duplicate {
+			return errors.New("SSH authentication source is duplicated")
+		}
+		seen[address] = struct{}{}
+		sourceTotal += source.Count
+	}
+	if sourceTotal > summary.FailedTotal {
+		return errors.New("SSH authentication source counts exceed total")
 	}
 	return nil
 }

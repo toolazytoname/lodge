@@ -13,6 +13,7 @@ required_patterns=(
   '完整 sudoers 策略出现新增错误，已恢复安装前 Lodge 策略'
   'NO_NEW_PRIVS="$(awk'
   '服务进程采集通过：services='
+	'service-context SSH authentication summary is missing or invalid'
   'docs/agent-onboarding.md'
 )
 for pattern in "${required_patterns[@]}"; do

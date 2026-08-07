@@ -6,8 +6,8 @@
 domain model. The Hub opens `/var/lib/lodge-hub/lodge.db` by default, records
 every complete, partial, and offline observation, and keeps only the latest UI
 projection in memory. M5 exposes bounded history and event APIs in the Security
-page and persists both the lifecycle and reliable notification delivery state.
-The SSH-origin rule remains in progress.
+page and persists the lifecycle, reliable notification delivery state, and
+privacy-minimized SSH authentication-failure summaries.
 
 The schema stores:
 
@@ -37,6 +37,11 @@ Schema v6 adds the event notification outbox. The outbox contains the event ID,
 transition, channel, sanitized delivery state/error kind, attempt count, and
 delivery schedule. It does not contain the Webhook URL, bearer secret, response
 body, response headers, or raw network errors.
+Schema v7 adds an optional JSON SSH failure summary to each immutable
+Observation. The validated document contains a 5–15 minute UTC window, total
+failure count, and at most 20 canonical source IP/count pairs. Usernames,
+destination/source ports, accepted logins, journal fields, and raw messages are
+not stored.
 
 ## Database invariants
 
@@ -64,6 +69,10 @@ body, response headers, or raw network errors.
 - A recurrence of the same risk is delayed by the configured cooldown. If it
   recovers before that delayed open is claimed, the stale open is cancelled and
   no recovery notification is fabricated.
+- SSH summaries must be from an online observation, use canonical unique IPs,
+  remain within five minutes of Hub observation time, and have bounded,
+  internally consistent counts. Invalid Agent input becomes an explicit
+  partial-telemetry warning rather than an event.
 - The database, `-wal`, `-shm`, and backup files are owner-only (`0600`). An
   existing database with broader permissions or a symlinked path is rejected.
 

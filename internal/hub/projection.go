@@ -34,6 +34,14 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 		}
 		observation.Warnings = append(observation.Warnings, status.Warnings...)
 		observation.Resources = projectResources(status)
+		if status.SSH != nil {
+			ssh, err := projectSSHAuth(status.SSH)
+			if err != nil {
+				observation.Warnings = append(observation.Warnings, "agent SSH authentication summary is invalid")
+			} else {
+				observation.SSH = ssh
+			}
+		}
 	}
 
 	for _, service := range services {
@@ -98,6 +106,28 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 		return domain.Observation{}, err
 	}
 	return observation, nil
+}
+
+func projectSSHAuth(summary *shared.SSHAuthSummary) (*domain.SSHAuthObservation, error) {
+	start, err := time.Parse(time.RFC3339, summary.WindowStart)
+	if err != nil {
+		return nil, err
+	}
+	end, err := time.Parse(time.RFC3339, summary.WindowEnd)
+	if err != nil {
+		return nil, err
+	}
+	projected := &domain.SSHAuthObservation{
+		WindowStart: start.UTC(), WindowEnd: end.UTC(), FailedTotal: summary.FailedTotal,
+		Sources: make([]domain.SSHAuthSource, 0, len(summary.Sources)),
+	}
+	for _, source := range summary.Sources {
+		projected.Sources = append(projected.Sources, domain.SSHAuthSource{Address: source.Address, Count: source.Count})
+	}
+	if err := projected.Validate(); err != nil {
+		return nil, err
+	}
+	return projected, nil
 }
 
 func projectWorkloadKind(kind shared.Kind) domain.WorkloadKind {

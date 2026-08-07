@@ -182,11 +182,14 @@ privilege_warnings = [
     if "sudo" in warning.lower() or "no new privileges" in warning.lower()
 ]
 services = payloads["/v1/services"].get("services", [])
+ssh = payloads["/v1/status"].get("ssh")
 if privilege_warnings:
     raise SystemExit("service-context collection has privilege warnings")
 if not services:
     raise SystemExit("service-context collection found no services")
-print(f"  服务进程采集通过：services={len(services)} warnings={len(warnings)} ✓")
+if not isinstance(ssh, dict) or not isinstance(ssh.get("failedTotal"), int) or not isinstance(ssh.get("sources"), list):
+    raise SystemExit("service-context SSH authentication summary is missing or invalid")
+print(f"  服务进程采集通过：services={len(services)} warnings={len(warnings)} ssh_failures={ssh['failedTotal']} ✓")
 PY
 then
   :

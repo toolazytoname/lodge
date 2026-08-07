@@ -108,6 +108,8 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#eventList .event-row")).toHaveCount(4);
     await expect(page.locator("#eventSummary")).toContainText("4 进行中");
     await expect(page.locator("#eventSummary")).toContainText("3 待确认");
+    await expect(page.locator("#eventList")).toContainText("203.0.113.44 × 61");
+    await expect(page.locator("#eventList")).toContainText("SSH 爆破");
 
     await page.getByRole("button", { name: "确认事件：服务失败：certbot" }).click();
     await expect(page.locator("#notice")).toContainText("风险会保持进行中");

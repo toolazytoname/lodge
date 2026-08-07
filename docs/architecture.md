@@ -51,6 +51,8 @@ remain available to internal rule evaluation without multiplying browser data.
 - **WebLinkCheck**: latest bounded HTTP probe evidence for one Host, Workload,
   and URL, explicitly scoped to the Hub's network perspective.
 - **Observation**: an immutable collection result at a point in time.
+- **SSHAuthObservation**: a bounded rolling failure count with canonical source
+  IP/count pairs; no usernames, successful login records, or raw journal data.
 - **Event**: one deduplicated incident derived from observations, with an
   `active` → `acknowledged` → `resolved` lifecycle. Acknowledgement records
   operator awareness; only later observation truth resolves it.
@@ -70,6 +72,12 @@ host's non-resolved events. Rules produce host-scoped current-truth signals;
 SQLite stores the immutable observation and reconciles those signals in one
 transaction. See [ADR 0007](adr/0007-observation-event-lifecycle.md).
 
+The SSH rule consumes the optional SSH summary from the current Observation.
+Missing telemetry carries an existing SSH event instead of treating collector
+failure as recovery. A fixed root-owned Agent helper reads the journal window
+and emits only the minimal aggregate before the non-root process or Hub sees
+it. See [ADR 0009](adr/0009-privacy-minimized-ssh-failure-monitoring.md).
+
 Configured event transitions also create notification outbox rows in that same
 transaction. A separate worker leases due rows and calls the Webhook adapter;
 network I/O never blocks observation persistence. Delivery is at-least-once,
@@ -79,7 +87,7 @@ and cancellation of delayed opens that recover before first delivery. See
 
 Durable state is stored through `internal/storage` in owner-only SQLite. The
 schema normalizes immutable observations, workload/endpoint/proxy-route children, annotations,
-latest Web-link checks, events, notification outbox, and operation audit records. Agent credentials remain runtime
+latest Web-link checks, SSH summaries, events, notification outbox, and operation audit records. Agent credentials remain runtime
 configuration rather than durable inventory data. See
 [`docs/storage.md`](storage.md) for migration, backup, and restore invariants.
 

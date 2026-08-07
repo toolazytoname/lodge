@@ -8,11 +8,12 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.4.1"
+const AgentVersion = "0.5.0"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 var composeMetadataCommand = []string{"/usr/local/bin/lodge-agent", "--collect-compose-metadata"}
 var proxyRoutesCommand = []string{"/usr/local/bin/lodge-agent", "--collect-proxy-routes"}
+var sshAuthCommand = []string{"/usr/local/bin/lodge-agent", "--collect-ssh-auth"}
 var systemdUnitsCommand = []string{
 	"systemctl", "show", "--type=service", "--all",
 	"--property=Id,LoadState,ActiveState,SubState,FragmentPath",
@@ -44,6 +45,7 @@ var privilegedRead = []PrivCommand{
 	{Argv: []string{"docker", "system", "df", "--format", "{{json .}}"}, Desc: "docker 磁盘占用"},
 	{Argv: composeMetadataCommand, Desc: "输出校验后的 Compose project/service 身份"},
 	{Argv: proxyRoutesCommand, Desc: "输出脱敏的 Caddy/Nginx Web 路由"},
+	{Argv: sshAuthCommand, Desc: "输出最近 SSH 认证失败的来源 IP 聚合"},
 	{Argv: []string{"ss", "-tlnpH"}, Desc: "监听套接字（含 PID，需 root 才能跨用户）"},
 	{Argv: systemdUnitsCommand, Desc: "读取 systemd service 状态与 unit 来源分类"},
 	{Argv: processOriginsCommand, Desc: "输出脱敏进程来源（不含参数、环境变量或完整路径）"},

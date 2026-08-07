@@ -20,7 +20,8 @@ each server:
    and the complete host policy, restores the prior Lodge policy on any new
    error (without silently enabling unrelated invalid host policy),
    checks the real service process has `NoNewPrivs=0`, and requires discovery
-   through the authenticated service API to return assets without sudo errors;
+   through the authenticated service API to return assets and a valid SSH
+   failure summary without sudo errors;
 4. run `deploy/tailnet-management.sh apply agent`, verify Tailscale Funnel is
    disabled, and test port 8443 from the Hub;
 5. transfer the token as an owner-only file, atomically add it to the Hub
@@ -67,6 +68,15 @@ HTTP(S) scheme/host/port/path records and credential-free upstream `host:port`
 authorities. Unsupported Docker imports/includes produce a bounded warning
 rather than raw content.
 
+A fourth exact self-invocation, `--collect-ssh-auth`, runs one fixed five-second
+`journalctl` query over the previous ten minutes of `sshd` records. Parsing and
+aggregation happen inside the root-owned helper. It emits only total failures
+and at most 20 canonical source IP/count pairs; usernames, accepted logins,
+ports, journal metadata, and raw messages never cross the privilege boundary.
+The helper recognizes failed password/public-key/keyboard-interactive and
+maximum-attempt records. It does not accept a unit, time window, filter, or file
+path argument from `lodge`.
+
 ## Atomic Hub enrollment
 
 Copy `/etc/lodge-agent/token` through a trusted channel into a uniquely named,
@@ -109,4 +119,6 @@ Enrollment is complete only when all of these are true:
 - Agent token and Hub config are mode `0600` and absent from SQLite/log output;
 - Hub-to-Agent ping succeeds through tailnet port 8443;
 - Hub reports a current successful observation, not merely a configured host;
+- the authenticated Agent status contains a current `ssh` summary and no SSH
+  collector warning;
 - deployment/checksum/backup or recovery evidence is recorded without secrets.

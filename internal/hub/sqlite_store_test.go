@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -199,6 +200,38 @@ func TestSQLiteStoreQueuesRuleTransitionsForConfiguredNotifications(t *testing.T
 	delivery, found, err := store.ClaimEventNotification(context.Background(), webhookChannel, now, now.Add(webhookLease))
 	if err != nil || !found || delivery.Event.Kind != "resource.memory" || delivery.Transition != domain.EventOpened {
 		t.Fatalf("rule transition was not queued: found=%v delivery=%+v err=%v", found, delivery, err)
+	}
+}
+
+func TestSQLiteStorePersistsAndQueuesSSHAttackSourceEvent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	store, err := OpenSQLiteStore(context.Background(), path,
+		[]AgentConfig{{ID: "host-a", Name: "Host A"}},
+		NotificationPolicy{Channel: webhookChannel, Cooldown: 15 * time.Minute},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	now := time.Now().UTC().Truncate(time.Second)
+	status := &shared.Status{SSH: &shared.SSHAuthSummary{
+		WindowStart: now.Add(-10 * time.Minute).Format(time.RFC3339), WindowEnd: now.Format(time.RFC3339),
+		FailedTotal: 61, Sources: []shared.SSHAuthSource{{Address: "203.0.113.44", Count: 51}, {Address: "2001:db8::7", Count: 10}},
+	}}
+	if err := store.Update(context.Background(), "host-a", true, "", shared.Ping{}, status, []shared.Service{}, now); err != nil {
+		t.Fatal(err)
+	}
+	observation, found, err := store.database.LatestObservation(context.Background(), "host-a")
+	if err != nil || !found || observation.SSH == nil || observation.SSH.FailedTotal != 61 {
+		t.Fatalf("SSH observation was not durable: found=%v observation=%+v err=%v", found, observation.SSH, err)
+	}
+	events, err := store.Events(context.Background(), "host-a", 10)
+	if err != nil || len(events) != 1 || events[0].Kind != "ssh.bruteforce" || events[0].Severity != domain.SeverityCritical || !strings.Contains(events[0].Detail, "203.0.113.44 × 51") {
+		t.Fatalf("SSH source event mismatch: events=%+v err=%v", events, err)
+	}
+	delivery, found, err := store.ClaimEventNotification(context.Background(), webhookChannel, now, now.Add(webhookLease))
+	if err != nil || !found || delivery.Event.Kind != "ssh.bruteforce" {
+		t.Fatalf("SSH event was not queued for notification: found=%v delivery=%+v err=%v", found, delivery, err)
 	}
 }
 

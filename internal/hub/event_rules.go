@@ -15,6 +15,12 @@ const (
 	diskClearPercent   = 85
 	loadOpenRatio      = 1.5
 	loadClearRatio     = 1.0
+	sshOpenTotal       = 30
+	sshOpenSource      = 10
+	sshClearTotal      = 10
+	sshClearSource     = 3
+	sshCriticalTotal   = 100
+	sshCriticalSource  = 50
 )
 
 // evaluateEventSignals turns the latest observation into current rule truth.
@@ -98,6 +104,33 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 		}
 	}
 
+	sshKey := hostPrefix + "ssh:authentication-failures"
+	if current.SSH == nil {
+		if event := activeByKey[sshKey]; event.ID != "" {
+			signals = append(signals, signalFromEvent(event))
+		}
+	} else {
+		topSource := 0
+		for _, source := range current.SSH.Sources {
+			if source.Count > topSource {
+				topSource = source.Count
+			}
+		}
+		active := activeByKey[sshKey].ID != ""
+		aboveOpen := current.SSH.FailedTotal >= sshOpenTotal || topSource >= sshOpenSource
+		aboveClear := current.SSH.FailedTotal >= sshClearTotal || topSource >= sshClearSource
+		if aboveOpen || (active && aboveClear) {
+			severity := domain.SeverityWarning
+			if current.SSH.FailedTotal >= sshCriticalTotal || topSource >= sshCriticalSource {
+				severity = domain.SeverityCritical
+			}
+			signals = append(signals, domain.EventSignal{
+				HostID: current.HostID, Kind: "ssh.bruteforce", Severity: severity,
+				DedupeKey: sshKey, Title: "SSH 认证失败突增", Detail: sshFailureDetail(current.SSH),
+			})
+		}
+	}
+
 	if current.Workloads == nil {
 		for key, event := range activeByKey {
 			if strings.HasPrefix(key, hostPrefix+"workload:") || strings.HasPrefix(key, hostPrefix+"listener:") {
@@ -145,6 +178,32 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 		}
 	}
 	return sortedEventSignals(signals)
+}
+
+func sshFailureDetail(summary *domain.SSHAuthObservation) string {
+	windowMinutes := int(summary.WindowEnd.Sub(summary.WindowStart).Minutes())
+	if windowMinutes < 1 {
+		windowMinutes = 1
+	}
+	detail := fmt.Sprintf("%d 分钟内 SSH 认证失败 %d 次", windowMinutes, summary.FailedTotal)
+	if len(summary.Sources) == 0 {
+		return detail
+	}
+	sources := append([]domain.SSHAuthSource(nil), summary.Sources...)
+	sort.Slice(sources, func(left, right int) bool {
+		if sources[left].Count != sources[right].Count {
+			return sources[left].Count > sources[right].Count
+		}
+		return sources[left].Address < sources[right].Address
+	})
+	if len(sources) > 3 {
+		sources = sources[:3]
+	}
+	parts := make([]string, 0, len(sources))
+	for _, source := range sources {
+		parts = append(parts, fmt.Sprintf("%s × %d", source.Address, source.Count))
+	}
+	return detail + "；主要来源 " + strings.Join(parts, "、")
 }
 
 func workloadFailed(workload domain.Workload) bool {

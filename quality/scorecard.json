@@ -117,11 +117,11 @@
       "id": "event_rule_kinds",
       "dimension": "security",
       "name": "Implemented observation event rule kinds",
-      "current": 6,
+      "current": 7,
       "target": 7,
       "unit": "rules",
       "direction": "increase",
-      "evidence": "Rules and tests cover host offline, memory, root disk, normalized load, failed/unhealthy workload, and new wildcard listener; SSH-origin rule remains"
+      "evidence": "Rules and tests cover host offline, memory, root disk, normalized load, failed/unhealthy workload, new wildcard listener, and privacy-minimized SSH authentication-failure spikes with source IP counts"
     },
     {
       "id": "event_lifecycle_states_exposed",

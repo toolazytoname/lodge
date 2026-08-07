@@ -20,6 +20,7 @@ func main() {
 	collectProcessOrigins := flag.Bool("collect-process-origins", false, "以 JSONL 输出脱敏进程来源并退出（仅供精确 sudoers 调用）")
 	collectComposeMetadata := flag.Bool("collect-compose-metadata", false, "以 JSONL 输出校验后的 Compose 身份并退出（仅供精确 sudoers 调用）")
 	collectProxyRoutes := flag.Bool("collect-proxy-routes", false, "以 JSONL 输出脱敏的 Caddy/Nginx 路由并退出（仅供精确 sudoers 调用）")
+	collectSSHAuth := flag.Bool("collect-ssh-auth", false, "输出最近 SSH 认证失败来源聚合并退出（仅供精确 sudoers 调用）")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
 
@@ -50,6 +51,12 @@ func main() {
 	case *collectProxyRoutes:
 		if err := agent.WriteProxyRoutes(os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "采集反向代理路由失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *collectSSHAuth:
+		if err := agent.WriteSSHAuthSummary(os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "采集 SSH 认证失败摘要失败:", err)
 			os.Exit(1)
 		}
 		return

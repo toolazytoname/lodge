@@ -54,7 +54,7 @@ repairs or retires it.
 ## M5 — History and alerts
 
 - [x] Observation history and event transitions
-- [ ] Offline, resource, listener, service, and SSH rules
+- [x] Offline, resource, listener, service, and SSH rules
 - [x] Deduplication, recovery, acknowledgement, and cooldown
 - [x] Webhook notification adapter
 

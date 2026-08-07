@@ -50,18 +50,35 @@ type Ping struct {
 
 // Status 是 GET /v1/status 的响应：一台机器的系统快照。
 type Status struct {
-	Hostname    string         `json:"hostname"`
-	Kernel      string         `json:"kernel"`
-	OS          string         `json:"os"`
-	UptimeSec   int64          `json:"uptimeSec"`
-	CollectedAt string         `json:"collectedAt"` // RFC3339
-	Load        Load           `json:"load"`
-	Memory      Memory         `json:"memory"`
-	Disks       []Disk         `json:"disks"`
-	Docker      *DockerSummary `json:"docker,omitempty"` // nil 表示本机没有 docker 或采集失败
+	Hostname    string          `json:"hostname"`
+	Kernel      string          `json:"kernel"`
+	OS          string          `json:"os"`
+	UptimeSec   int64           `json:"uptimeSec"`
+	CollectedAt string          `json:"collectedAt"` // RFC3339
+	Load        Load            `json:"load"`
+	Memory      Memory          `json:"memory"`
+	Disks       []Disk          `json:"disks"`
+	Docker      *DockerSummary  `json:"docker,omitempty"` // nil 表示本机没有 docker 或采集失败
+	SSH         *SSHAuthSummary `json:"ssh,omitempty"`
 	// Warnings 记录部分采集失败的原因。单项失败不应让整个 status 失败 ——
 	// 半份数据远比一个 500 有用。
 	Warnings []string `json:"warnings,omitempty"`
+}
+
+// SSHAuthSummary is a privacy-minimized rolling authentication-failure view.
+// Sources contain only canonical IP addresses and counts; usernames, accepted
+// logins, raw journal messages, ports, and authentication material are never
+// emitted by the Agent.
+type SSHAuthSummary struct {
+	WindowStart string          `json:"windowStart"`
+	WindowEnd   string          `json:"windowEnd"`
+	FailedTotal int             `json:"failedTotal"`
+	Sources     []SSHAuthSource `json:"sources"`
+}
+
+type SSHAuthSource struct {
+	Address string `json:"address"`
+	Count   int    `json:"count"`
 }
 
 // Load 是 /proc/loadavg 的三个平均负载。

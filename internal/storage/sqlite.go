@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 6
+	currentSchemaVersion = 7
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -483,11 +483,19 @@ func recordObservationTx(ctx context.Context, tx *sql.Tx, observation domain.Obs
 	if err != nil {
 		return 0, err
 	}
+	var sshAuthJSON any
+	if observation.SSH != nil {
+		encoded, err := json.Marshal(observation.SSH)
+		if err != nil {
+			return 0, err
+		}
+		sshAuthJSON = string(encoded)
+	}
 	result, err := tx.ExecContext(ctx, `
-INSERT INTO observations(host_id, observed_at, online, last_error, hostname, agent_version, resources_json, warnings_json)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+INSERT INTO observations(host_id, observed_at, online, last_error, hostname, agent_version, resources_json, ssh_auth_json, warnings_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(observation.HostID), formatTime(observation.ObservedAt), boolInt(observation.Online), observation.LastError,
-		observation.Hostname, observation.AgentVersion, resourcesJSON, string(warningsJSON),
+		observation.Hostname, observation.AgentVersion, resourcesJSON, sshAuthJSON, string(warningsJSON),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert observation: %w", err)
@@ -922,13 +930,13 @@ type queryer interface {
 
 func (s *SQLite) loadObservation(ctx context.Context, query queryer, id int64) (domain.Observation, error) {
 	var observation domain.Observation
-	var observedAt, resourcesJSON, warningsJSON sql.NullString
+	var observedAt, resourcesJSON, sshAuthJSON, warningsJSON sql.NullString
 	var online int
 	err := query.QueryRowContext(ctx, `
-SELECT host_id, observed_at, online, last_error, hostname, agent_version, resources_json, warnings_json
+SELECT host_id, observed_at, online, last_error, hostname, agent_version, resources_json, ssh_auth_json, warnings_json
 FROM observations WHERE id = ?`, id).Scan(
 		&observation.HostID, &observedAt, &online, &observation.LastError, &observation.Hostname,
-		&observation.AgentVersion, &resourcesJSON, &warningsJSON,
+		&observation.AgentVersion, &resourcesJSON, &sshAuthJSON, &warningsJSON,
 	)
 	if err != nil {
 		return domain.Observation{}, err
@@ -942,6 +950,12 @@ FROM observations WHERE id = ?`, id).Scan(
 		observation.Resources = &domain.Resources{}
 		if err := json.Unmarshal([]byte(resourcesJSON.String), observation.Resources); err != nil {
 			return domain.Observation{}, fmt.Errorf("decode resources: %w", err)
+		}
+	}
+	if sshAuthJSON.Valid {
+		observation.SSH = &domain.SSHAuthObservation{}
+		if err := json.Unmarshal([]byte(sshAuthJSON.String), observation.SSH); err != nil {
+			return domain.Observation{}, fmt.Errorf("decode SSH authentication summary: %w", err)
 		}
 	}
 	if warningsJSON.Valid && warningsJSON.String != "" {

@@ -132,6 +132,34 @@ func TestWebLinkCheckRequiresConsistentEvidence(t *testing.T) {
 	}
 }
 
+func TestObservationValidatesPrivacyMinimizedSSHAuthSummary(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	observation := Observation{
+		HostID: "host-a", ObservedAt: now, Online: true,
+		SSH: &SSHAuthObservation{
+			WindowStart: now.Add(-10 * time.Minute), WindowEnd: now, FailedTotal: 3,
+			Sources: []SSHAuthSource{{Address: "203.0.113.9", Count: 2}, {Address: "2001:db8::5", Count: 1}},
+		},
+	}
+	if err := observation.Validate(); err != nil {
+		t.Fatalf("valid SSH summary was rejected: %v", err)
+	}
+	observation.SSH.Sources[0].Address = "203.000.113.009"
+	if err := observation.Validate(); err == nil {
+		t.Fatal("non-canonical SSH source was accepted")
+	}
+	observation.SSH.Sources[0].Address = "203.0.113.9"
+	observation.Online = false
+	if err := observation.Validate(); err == nil {
+		t.Fatal("offline observation carried SSH telemetry")
+	}
+	observation.Online = true
+	observation.ObservedAt = now.Add(10 * time.Minute)
+	if err := observation.Validate(); err == nil {
+		t.Fatal("stale SSH window was accepted")
+	}
+}
+
 func TestEventSignalAndLifecycleConsistency(t *testing.T) {
 	now := time.Now().UTC()
 	signal := EventSignal{

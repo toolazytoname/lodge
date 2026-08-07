@@ -82,6 +82,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M5 已完成有界趋势、持久事件状态机、认证事件 API、Security 事件中心与可靠 Webhook。schema 6 outbox 将事件 transition 和投递原子提交，以租约、稳定幂等键、最多 8 次退避、复发冷却和陈旧 open 取消提供 at-least-once 语义；notification adapter 达到 1/1。M5 仍缺 SSH 攻击来源聚合规则与 production live 验收，不能提前宣称“能看到谁在爆破”。
 
+> 2026-08-08 M5 的 SSH 代码项完成：Agent root helper 只把 10 分钟窗口、失败总量和 top 20 canonical source IP/count 带出 root，Hub schema 7 持久化并以 30 total/10 per-source 开启、100/50 critical、10/3 解除的迟滞规则生成 `ssh.bruteforce` 事件。缺失 telemetry 不误恢复，Web 手机端也完整展示来源。规则 7/7、通知 1/1；但 IP 是网络来源而非人员身份，且五机滚动发布/live ≤90 秒证据完成前 M5 仍处于验收阶段。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

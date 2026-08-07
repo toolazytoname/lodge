@@ -124,3 +124,64 @@ func TestEventRulesDoNotInferRecoveryFromMissingTelemetry(t *testing.T) {
 		t.Fatalf("partial collection incorrectly recovered active conditions: %+v", signals)
 	}
 }
+
+func TestEventRulesDetectSSHFailureSpikeWithSourcesAndHysteresis(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	observation := eventRuleObservation(now)
+	observation.SSH = &domain.SSHAuthObservation{
+		WindowStart: now.Add(-10 * time.Minute), WindowEnd: now, FailedTotal: 34,
+		Sources: []domain.SSHAuthSource{
+			{Address: "2001:db8::5", Count: 3},
+			{Address: "203.0.113.9", Count: 26},
+			{Address: "198.51.100.8", Count: 5},
+		},
+	}
+	signals := evaluateEventSignals(nil, observation, nil)
+	if len(signals) != 1 || signals[0].Kind != "ssh.bruteforce" || signals[0].Severity != domain.SeverityWarning {
+		t.Fatalf("SSH spike did not open one warning: %+v", signals)
+	}
+	if signals[0].DedupeKey != "host-a:ssh:authentication-failures" || signals[0].Title != "SSH 认证失败突增" {
+		t.Fatalf("SSH signal identity mismatch: %+v", signals[0])
+	}
+	if want := "10 分钟内 SSH 认证失败 34 次；主要来源 203.0.113.9 × 26、198.51.100.8 × 5、2001:db8::5 × 3"; signals[0].Detail != want {
+		t.Fatalf("SSH source detail = %q, want %q", signals[0].Detail, want)
+	}
+	active := domain.Event{
+		ID: "evt_ssh", HostID: "host-a", Kind: signals[0].Kind, Severity: signals[0].Severity,
+		State: domain.EventActive, DedupeKey: signals[0].DedupeKey, Title: signals[0].Title, Detail: signals[0].Detail,
+		FirstObservedAt: now, LastObservedAt: now,
+	}
+
+	between := eventRuleObservation(now.Add(time.Minute))
+	between.SSH = &domain.SSHAuthObservation{
+		WindowStart: now.Add(-9 * time.Minute), WindowEnd: now.Add(time.Minute), FailedTotal: 12,
+		Sources: []domain.SSHAuthSource{{Address: "203.0.113.9", Count: 3}, {Address: "198.51.100.8", Count: 9}},
+	}
+	if signals := evaluateEventSignals(&observation, between, []domain.Event{active}); len(signals) != 1 || signals[0].Kind != "ssh.bruteforce" {
+		t.Fatalf("SSH event did not remain active inside hysteresis band: %+v", signals)
+	}
+
+	missing := eventRuleObservation(now.Add(2 * time.Minute))
+	if signals := evaluateEventSignals(&between, missing, []domain.Event{active}); len(signals) != 1 || signals[0].Detail != active.Detail {
+		t.Fatalf("missing SSH telemetry incorrectly recovered or rewrote the event: %+v", signals)
+	}
+
+	clear := eventRuleObservation(now.Add(3 * time.Minute))
+	clear.SSH = &domain.SSHAuthObservation{
+		WindowStart: now.Add(-7 * time.Minute), WindowEnd: now.Add(3 * time.Minute), FailedTotal: 2,
+		Sources: []domain.SSHAuthSource{{Address: "203.0.113.9", Count: 2}},
+	}
+	if signals := evaluateEventSignals(&missing, clear, []domain.Event{active}); len(signals) != 0 {
+		t.Fatalf("quiet SSH window did not recover the event: %+v", signals)
+	}
+
+	critical := observation
+	critical.ObservedAt = now.Add(4 * time.Minute)
+	critical.SSH = &domain.SSHAuthObservation{
+		WindowStart: now.Add(-6 * time.Minute), WindowEnd: now.Add(4 * time.Minute), FailedTotal: 100,
+		Sources: []domain.SSHAuthSource{{Address: "203.0.113.9", Count: 60}, {Address: "198.51.100.8", Count: 40}},
+	}
+	if signals := evaluateEventSignals(&clear, critical, nil); len(signals) != 1 || signals[0].Severity != domain.SeverityCritical {
+		t.Fatalf("critical SSH spike was not escalated: %+v", signals)
+	}
+}

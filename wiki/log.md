@@ -166,3 +166,11 @@
 - `95d7b7c` 的两套 GitHub CI 均暴露同一确定性问题：测试重试继承 fixture server 中已确认事件，且 Linux 的移动端页面比 macOS 少 15px。
 - 每个 Playwright 场景现在先显式重置可变 fixture 状态；Security 移动画布固定为完整基线高度，仍比较整页而不是裁掉内容或放宽像素阈值。
 - 本地完整 `npm test`（含 race、生成契约、五场景 Chromium 与七张视觉基线）重新通过；推送后的双 CI 继续作为最终证据。
+
+## [2026-08-08] implementation | M5 SSH 攻击来源
+
+- Agent 新增无参数 root helper，固定读取最近 10 分钟 OpenSSH journal，在 root 内聚合后只输出失败总量与 top 20 canonical source IP/count。
+- SQLite schema 7 保存 privacy-minimized SSH summary；非法、过时、重复或越界 source 数据 fail closed，原始日志、用户名、成功登录和端口不入 Hub。
+- Hub 新增 `ssh.bruteforce` 双阈值规则：30 total/10 per-source 开启，100/50 critical，10/3 解除；缺 telemetry 不误恢复。
+- Security fixture 用保留测试 IP 验证攻击来源与次数，手机详情改为完整换行；事件规则量化达到 7/7。
+- M5 实现项全部完成，五机 Agent 0.5.0、Hub 0.6.0/schema 7 的滚动发布与受控 live 证据仍待执行。

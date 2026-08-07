@@ -15,7 +15,8 @@ are deliberate:
   offline nodes, and a host-scoped recent 120-point trend from durable observation
   summaries. Its event center shows current and recovered incidents, filters by
   host/lifecycle, and performs explicit acknowledgement. Event transitions can
-  feed an optional reliable Webhook; historical SSH/login sources remain M5.
+  feed an optional reliable Webhook. SSH brute-force events show the bounded
+  ten-minute failure count and up to three leading source IPs.
 - **Operations** currently reports only read-only synchronization state. Any
   restart, deployment, or rollback remains M6/M7 and must use typed policy,
   confirmation, verification, and audit records.
@@ -59,7 +60,8 @@ risk visible until recovery. It shows host, kind, severity, duration, last
 observation, and lifecycle state; resolved history remains available by filter.
 Event API failure is isolated from current surface and history data. Webhook
 delivery is configured server-side and has no browser secret surface. This does
-not yet claim SSH-origin events.
+does not claim that a source IP identifies a person or organization; Lodge does
+not perform attribution or GeoIP lookup.
 
 ## Source and embedded assets
 

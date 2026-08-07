@@ -203,5 +203,13 @@ func CollectStatus() shared.Status {
 		s.Warnings = append(s.Warnings, dwarn)
 	}
 
+	ssh, sshWarning := collectSSHAuthSummary()
+	if ssh != nil {
+		s.SSH = ssh
+	}
+	if sshWarning != "" {
+		s.Warnings = append(s.Warnings, sshWarning)
+	}
+
 	return s
 }

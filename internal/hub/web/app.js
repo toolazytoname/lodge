@@ -955,6 +955,7 @@ function eventKindLabel(kind) {
         "resource.load": "系统负载",
         "workload.failed": "服务失败",
         "listener.added": "新增监听",
+        "ssh.bruteforce": "SSH 爆破",
     };
     return labels[kind] ?? kind;
 }

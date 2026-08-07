@@ -241,4 +241,11 @@ CREATE INDEX event_notification_cooldown_idx
     ON event_notification_outbox(channel, dedupe_key, transition, delivered_at DESC);
 `,
 	},
+	{
+		version: 7,
+		name:    "ssh_auth_failure_summary",
+		sql: `
+ALTER TABLE observations ADD COLUMN ssh_auth_json TEXT;
+`,
+	},
 }

@@ -18,6 +18,11 @@ It deliberately excludes the internal event deduplication key, Agent
 credentials, Hub session data, Webhook secret, raw observation payloads, and
 network diagnostics.
 
+An SSH brute-force event detail can contain source IP addresses. Treat the
+receiver as part of the management trust boundary, restrict its retention and
+access, and do not configure a third-party endpoint that should not receive
+this operational data.
+
 ## Configuration
 
 Add the optional `webhook` object to the owner-only Hub config:
