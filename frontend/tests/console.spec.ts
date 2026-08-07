@@ -134,10 +134,10 @@ test.describe("Lodge Web console", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#historyTrends .history-trend-card")).toHaveCount(4);
     await expectNoHorizontalOverflow(page);
-    // Linux and macOS round the final mobile text line one pixel differently.
-    // Pin only the visual-regression canvas so the snapshot still compares the
-    // complete page without turning host font metrics into a false failure.
-    await page.addStyleTag({ content: "html, body { min-height: 2226px !important; }" });
+    // Linux and macOS round the complete posture-card stack differently. Pin
+    // only the full-page canvas so both still compare every rendered pixel;
+    // this never crops content or relaxes the visual-diff threshold.
+    await page.addStyleTag({ content: "html, body { min-height: 3323px !important; }" });
     await expect(page).toHaveScreenshot("security-history-390.png", { fullPage: true });
   });
 
