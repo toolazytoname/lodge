@@ -199,7 +199,7 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#actionList .action-row")).toHaveCount(3);
     await expectNoHorizontalOverflow(page);
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-    await page.addStyleTag({ content: "html, body { min-height: 1951px !important; }" });
+    await page.addStyleTag({ content: "html, body { min-height: 2548px !important; }" });
     await expect(page).toHaveScreenshot("operations-390.png", { fullPage: true });
   });
 
