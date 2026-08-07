@@ -34,7 +34,7 @@ hub 主动拉取（非 agent 推送），机器都在同一个 tailnet 里；age
 
 ## 安全模型
 
-- **agent 绝不以 root 运行**，专用系统账号，不加入 `docker` 组（docker 组等价 root）。特权操作走 `/etc/sudoers.d/lodge-agent` 的完整命令行精确匹配白名单，agent 内部用固定 argv 经 `exec.Command` 执行，不经 shell。
+- **agent 绝不以 root 运行**，专用系统账号，不加入 `docker` 组（docker 组等价 root）。特权操作走 `/etc/sudoers.d/lodge-agent` 的完整命令行精确匹配白名单，agent 内部用固定 argv 经 `exec.Command` 执行，不经 shell；自定义进程归属 helper 只输出脱敏 basename 与不可逆目录指纹，不读取命令行、环境变量或完整路径。
 - **hub 登录**：Argon2id 慢哈希 verifier，不保存明文密码；独立随机密钥签名会话，Cookie 使用 `Secure`、`HttpOnly`、`SameSite=Strict`，写操作验证 CSRF token；连续失败按指数退避锁定。
 - **管理面边界**：生产管理面只允许在 Tailnet 内开放；登录认证是纵深防御，不是公网暴露的许可。受控运维和 vault 仍在路线图中，未完成前不作为安全承诺。
 - **持久化边界**：Agent URL/token 只存在于 `0600` 私有配置和进程内存，不进入 SQLite；数据库、WAL、备份均为 `0600`，迁移有版本与校验和门禁。

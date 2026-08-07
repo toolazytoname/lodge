@@ -33,6 +33,14 @@ Do not use `cat` to display a token and do not interpolate a token into `curl`,
 do not stream a token through an unverified `ssh host cat ... | ssh hub ...`
 pipeline.
 
+The generated read-only sudoers policy includes one exact self-invocation,
+`/usr/local/bin/lodge-agent --collect-process-origins`. The binary is
+root-owned and the `lodge` account cannot replace it. This helper reads only
+PID/UID, process and executable basenames, and the working-directory basename
+plus a one-way fingerprint. It never reads or emits `cmdline`, environment
+variables, or the full working-directory path. Additional arguments do not
+match either the Agent allowlist or sudoers policy.
+
 ## Atomic Hub enrollment
 
 Copy `/etc/lodge-agent/token` through a trusted channel into a uniquely named,

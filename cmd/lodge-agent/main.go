@@ -17,6 +17,7 @@ func main() {
 	tokenFile := flag.String("token-file", "/etc/lodge-agent/token", "token 文件路径")
 	check := flag.Bool("check", false, "采集一次状态与服务清单并打印 JSON，用于验证（不启动服务）")
 	printSudoers := flag.Bool("print-sudoers", false, "生成本机 sudoers 内容并退出（供 install-agent.sh 写入）")
+	collectProcessOrigins := flag.Bool("collect-process-origins", false, "以 JSONL 输出脱敏进程来源并退出（仅供精确 sudoers 调用）")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
 
@@ -31,6 +32,12 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Print(out)
+		return
+	case *collectProcessOrigins:
+		if err := agent.WriteProcessOrigins(os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "采集进程来源失败:", err)
+			os.Exit(1)
+		}
 		return
 	case *check:
 		runCheck()

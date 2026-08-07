@@ -84,4 +84,14 @@ func TestCommandByName(t *testing.T) {
 	if ok {
 		t.Fatal("命令被追加参数后不应命中白名单")
 	}
+
+	// 进程来源 helper 只能按完整 argv 调用；追加任意 flag 都必须被拒绝。
+	c, ok = commandByName(processOriginsCommand)
+	if !ok || c.Write {
+		t.Fatal("脱敏进程来源 helper 应命中只读白名单")
+	}
+	_, ok = commandByName(append(append([]string{}, processOriginsCommand...), "--token-file", "/tmp/evil"))
+	if ok {
+		t.Fatal("进程来源 helper 被追加参数后不应命中白名单")
+	}
 }

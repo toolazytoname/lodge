@@ -164,6 +164,8 @@ func TestDiscoverAttributesHostNetworkSocketToDockerContainer(t *testing.T) {
 		switch {
 		case argvEqual(argv, dockerPS):
 			return []byte(`{"ID":"` + containerID + `","Names":"cpa-manager-plus","Image":"example/cpa:latest","State":"running","Status":"Up","Ports":""}` + "\n"), nil, nil
+		case argvEqual(argv, processOriginsCommand):
+			return nil, nil, nil
 		case argvEqual(argv, ssCmd):
 			return []byte(`LISTEN 0 4096 *:18317 *:* users:(("cpa-manager-plu",pid=2397979,fd=3))` + "\n"), nil, nil
 		default:
@@ -188,5 +190,50 @@ func TestDiscoverAttributesHostNetworkSocketToDockerContainer(t *testing.T) {
 	}
 	if service.Ports[0].Port != 18317 || service.MaxExposure != shared.ExposurePublic {
 		t.Fatalf("host-network endpoint was not retained: %+v", service)
+	}
+}
+
+func TestDiscoverGroupsCustomProcessPortsByRedactedOrigin(t *testing.T) {
+	originalRunPriv := runPriv
+	originalCgroupFor := cgroupFor
+	t.Cleanup(func() {
+		runPriv = originalRunPriv
+		cgroupFor = originalCgroupFor
+	})
+
+	runPriv = func(argv []string) ([]byte, []byte, error) {
+		switch {
+		case argvEqual(argv, dockerPS):
+			return nil, nil, nil
+		case argvEqual(argv, processOriginsCommand):
+			return []byte(`{"pid":481732,"uid":1001,"comm":"node","executable":"node","cwdBase":"image","cwdFingerprint":"0123456789abcdef"}` + "\n"), nil, nil
+		case argvEqual(argv, ssCmd):
+			return []byte("LISTEN 0 511 *:44101 *:* users:((\"node\",pid=481732,fd=18))\n" +
+				"LISTEN 0 511 127.0.0.1:33271 *:* users:((\"node\",pid=481732,fd=19))\n"), nil, nil
+		default:
+			t.Fatalf("unexpected privileged command: %v", argv)
+			return nil, nil, nil
+		}
+	}
+	cgroupFor = func(pid int) cgroupOwner {
+		if pid != 481732 {
+			t.Fatalf("unexpected pid: %d", pid)
+		}
+		return cgroupOwner{kind: shared.KindProcess}
+	}
+
+	result := Discover()
+	if len(result.Warnings) != 0 || len(result.Services) != 1 {
+		t.Fatalf("custom process discovery failed: %+v", result)
+	}
+	service := result.Services[0]
+	if service.Key != "process:838af199f2579ac5" {
+		t.Fatalf("unexpected stable process key: %q", service.Key)
+	}
+	if service.Name != "image · node" || service.Unidentified || service.PID != 481732 {
+		t.Fatalf("custom process was not identified: %+v", service)
+	}
+	if len(service.Ports) != 2 || service.MaxExposure != shared.ExposurePublic {
+		t.Fatalf("custom process ports were not grouped: %+v", service)
 	}
 }

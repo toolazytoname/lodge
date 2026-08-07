@@ -265,9 +265,16 @@ func Discover() shared.ServicesResponse {
 	} else if !isDockerMissing(string(stderr)) {
 		warns = append(warns, "docker ps 失败: "+firstLine(string(stderr)))
 	}
+	processOrigins := map[int]processOrigin{}
+	if stdout, stderr, err := runPriv(processOriginsCommand); err == nil {
+		processOrigins = parseProcessOrigins(stdout)
+	} else {
+		warns = append(warns, "进程来源采集失败: "+firstLine(string(stderr)))
+	}
 
 	// 2. 监听套接字
 	seenProcPort := map[string]bool{} // 裸进程端口去重
+	processServices := map[string]*shared.Service{}
 	if stdout, stderr, err := runPriv(ssCmd); err == nil {
 		for _, s := range parseSS(string(stdout)) {
 			portKey := s.proto + "/" + strconv.Itoa(s.port)
@@ -300,6 +307,24 @@ func Discover() shared.ServicesResponse {
 				svc.Ports = append(svc.Ports, port)
 			default:
 				// 裸进程：监听了端口却归不到容器或单元 —— 最值得看的对象。
+				if origin, identified := processOrigins[s.pid]; identified {
+					key := origin.workloadKey()
+					svc := processServices[key]
+					if svc == nil {
+						svc = &shared.Service{
+							Key: key, Kind: shared.KindProcess, Name: origin.workloadName(s.proc),
+							PID: s.pid, Status: "running",
+						}
+						processServices[key] = svc
+						services = append(services, svc)
+					} else if svc.PID != s.pid {
+						svc.PID = 0
+					}
+					if !hasPort(svc.Ports, port) {
+						svc.Ports = append(svc.Ports, port)
+					}
+					continue
+				}
 				if seenProcPort[portKey] {
 					continue
 				}

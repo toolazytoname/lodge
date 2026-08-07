@@ -8,7 +8,9 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.1.0"
+const AgentVersion = "0.2.0"
+
+var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 
 // PrivCommand 描述一条需要经 sudo 以 root 执行的命令。
 //
@@ -35,6 +37,7 @@ var privilegedRead = []PrivCommand{
 	{Argv: []string{"docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}"}, Desc: "列出所有容器（含完整 ID）"},
 	{Argv: []string{"docker", "system", "df", "--format", "{{json .}}"}, Desc: "docker 磁盘占用"},
 	{Argv: []string{"ss", "-tlnpH"}, Desc: "监听套接字（含 PID，需 root 才能跨用户）"},
+	{Argv: processOriginsCommand, Desc: "输出脱敏进程来源（不含参数、环境变量或完整路径）"},
 }
 
 // privilegedWrite 是有副作用的白名单动作。

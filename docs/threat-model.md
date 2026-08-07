@@ -47,6 +47,10 @@
 - `lodge` is not in `docker`, `sudo`, `wheel`, or equivalent groups.
 - Action targets must be discovered and permitted by a root-owned policy.
 - Commands use fixed argv, deadlines, bounded output, and no shell.
+- The root-only process-origin collector reads only PID/UID, process and
+  executable basenames, and a working-directory basename plus one-way
+  fingerprint. It never reads or emits command lines, environments, or full
+  paths; its self-invocation is an exact sudoers entry with no dynamic args.
 - Every state-changing operation has an append-only logical audit entry.
 
 ### Secrets

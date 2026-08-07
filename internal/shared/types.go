@@ -117,7 +117,7 @@ type Port struct {
 //
 // Key 是跨轮次的稳定标识，hub 用它把「本轮观测」与「用户注解」关联起来：
 //
-//	docker:<容器名>    systemd:<单元名>    port:<proto>/<端口>
+//	docker:<容器名>    systemd:<单元名>    process:<来源指纹>    port:<proto>/<端口>
 //
 // 容器重建、进程重启后 Key 不变，用户起的别名就不会丢。
 type Service struct {
@@ -133,7 +133,7 @@ type Service struct {
 	Health string `json:"health,omitempty"`
 	PID    int    `json:"pid,omitempty"`
 	Ports  []Port `json:"ports,omitempty"`
-	// Unidentified 标记「监听了端口但归不到任何容器或单元」的进程。
+	// Unidentified 标记「监听了端口但无法获得可靠来源」的进程。
 	// 这类恰恰是最值得看的 —— 本次会话就是这样发现 bytebunny 上
 	// 有个身份不明的 python3 在 0.0.0.0:8765 上听着。
 	Unidentified bool `json:"unidentified,omitempty"`
