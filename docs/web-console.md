@@ -22,6 +22,26 @@ has supplied evidence. It must not turn a failed API request into a misleading
 zero count. Empty inventory, loading, offline, partial failure, and total failure
 are separate product states.
 
+## Active Web-link checks
+
+`检查入口` is an explicit authenticated action, not a background availability
+monitor. It asks the Hub to check the de-duplicated URLs currently displayed
+from operator annotations, redacted proxy routes, and conservative Web-port
+inference. Results are labelled **Hub 可达**, **HTTP 5xx**, or **Hub 不可达**;
+links without evidence remain **未检查**.
+
+The status is deliberately scoped to the Hub's network view:
+
+- HTTP 100–499 is reachable because an HTTP endpoint answered, including login
+  pages, redirects, and authorization failures;
+- HTTP 500–599 is degraded;
+- DNS, connection, TLS, and timeout failures are unreachable;
+- the check does not follow redirects or prove Internet/public reachability,
+  application correctness, or browser-side reachability.
+
+Only the latest bounded metadata is retained in SQLite. Raw network errors,
+response bodies, headers, resolved addresses, and credentials are excluded.
+
 ## Source and embedded assets
 
 `frontend/src/app.ts` and `frontend/src/app.css` are the editable sources.
@@ -55,6 +75,7 @@ The deterministic fixture server uses only invented host names and
 - a partial services API failure with usable host data;
 - a total API failure with explicit unavailable values;
 - service search, risk ordering, dialog focus, and URL protocol rejection.
+- persisted link status plus the CSRF-protected active-check interaction.
 
 Reference screenshots live in `frontend/tests/__screenshots__`. Time, locale,
 timezone, data, and viewport are fixed. Update screenshots only for an intended

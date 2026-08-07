@@ -88,3 +88,29 @@ export interface SessionResponse {
   authed: boolean;
   csrfToken?: string;
 }
+
+export interface WebLinkCheckSummary {
+  total: number;
+  reachable: number;
+  degraded: number;
+  unreachable: number;
+  checkedAt?: string;
+}
+
+export interface WebLinkCheckView {
+  agentId: string;
+  serviceKey: string;
+  url: string;
+  state: WebLinkState;
+  httpStatus?: number;
+  latencyMs: number;
+  errorKind?: string;
+  checkedAt: string;
+}
+
+export interface WebLinkChecksResponse {
+  checks: Array<WebLinkCheckView>;
+  summary: WebLinkCheckSummary;
+}
+
+export type WebLinkState = "reachable" | "degraded" | "unreachable";

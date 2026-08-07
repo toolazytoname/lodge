@@ -1,5 +1,7 @@
 package hub
 
+import "github.com/toolazytoname/lodge/internal/domain"
+
 // SessionResponse is the browser-visible authentication state.
 type SessionResponse struct {
 	Authed    bool   `json:"authed"`
@@ -45,4 +47,29 @@ type AnnotationInput struct {
 	URL    string `json:"url,omitempty"`
 	Hidden bool   `json:"hidden,omitempty"`
 	Notes  string `json:"notes,omitempty"`
+}
+
+// WebLinkCheckView is bounded probe evidence from the Hub's network view.
+type WebLinkCheckView struct {
+	AgentID    string              `json:"agentId"`
+	ServiceKey string              `json:"serviceKey"`
+	URL        string              `json:"url"`
+	State      domain.WebLinkState `json:"state"`
+	HTTPStatus int                 `json:"httpStatus,omitempty"`
+	LatencyMS  int64               `json:"latencyMs"`
+	ErrorKind  string              `json:"errorKind,omitempty"`
+	CheckedAt  string              `json:"checkedAt"`
+}
+
+type WebLinkCheckSummary struct {
+	Total       int    `json:"total"`
+	Reachable   int    `json:"reachable"`
+	Degraded    int    `json:"degraded"`
+	Unreachable int    `json:"unreachable"`
+	CheckedAt   string `json:"checkedAt,omitempty"`
+}
+
+type WebLinkChecksResponse struct {
+	Checks  []WebLinkCheckView  `json:"checks"`
+	Summary WebLinkCheckSummary `json:"summary"`
 }

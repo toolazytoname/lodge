@@ -100,3 +100,11 @@
 - 自动覆盖 390/1280/1920、empty、offline、partial failure、total error、搜索和安全注解输入，共 9 个关键场景。
 - 提交 5 张视觉基线；`npm test` 与 CI 安装浏览器并阻断行为或截图漂移，失败时保留 7 天 trace/screenshot/diff。
 - 全错误显示 `N/A` 而不是误导性的 0；只有成功返回空数组才表示没有资产。
+
+## [2026-08-08] implementation | M4 Hub 视角 Web 入口检查
+
+- 新增 SQLite schema 5，按 host/workload/URL 原子保存最新入口检查元数据，不保存响应内容、原始错误、解析地址或凭据。
+- 主动检查仅由已登录操作者通过 CSRF 保护的 POST 触发；每轮最多 64 个 URL、8 并发，使用有界 `HEAD`、禁用 redirect 与环境 proxy。
+- UI 区分未检查、Hub 可达、HTTP 5xx 与 Hub 不可达，并明确不把 Hub 视角等同于公网或浏览器视角。
+- fixture 验证 CSRF 请求头与主动检查交互，关键端到端场景增至 10；三档宽度视觉基线已更新并人工检查。
+- 实现已通过局部门禁，真实 Hub 部署和 live 可达率证据仍待事务发布后记录。

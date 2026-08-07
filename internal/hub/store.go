@@ -2,9 +2,11 @@ package hub
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/toolazytoname/lodge/internal/domain"
 	"github.com/toolazytoname/lodge/internal/shared"
 )
 
@@ -18,6 +20,8 @@ type Store interface {
 	Snapshot() []AgentSnapshot
 	Annotations(agentID string) map[string]Annotation
 	SetAnnotation(context.Context, string, string, Annotation) error
+	WebLinkChecks(context.Context) ([]domain.WebLinkCheck, error)
+	ReplaceWebLinkChecks(context.Context, []domain.WebLinkCheck) error
 }
 
 // MemStore is the non-durable runtime projection used by tests and wrapped by
@@ -28,6 +32,7 @@ type MemStore struct {
 	agents []AgentConfig
 	snaps  map[string]*AgentSnapshot
 	anns   map[string]map[string]Annotation
+	checks []domain.WebLinkCheck
 }
 
 func NewMemStore() *MemStore {
@@ -117,5 +122,35 @@ func (s *MemStore) SetAnnotation(ctx context.Context, agentID, key string, annot
 	annotation.Key = key
 	annotation.AgentID = agentID
 	s.anns[agentID][key] = annotation
+	return nil
+}
+
+func (s *MemStore) WebLinkChecks(ctx context.Context) ([]domain.WebLinkCheck, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]domain.WebLinkCheck(nil), s.checks...), nil
+}
+
+func (s *MemStore) ReplaceWebLinkChecks(ctx context.Context, checks []domain.WebLinkCheck) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	seen := make(map[[3]string]struct{}, len(checks))
+	for _, check := range checks {
+		if err := check.Validate(); err != nil {
+			return err
+		}
+		key := [3]string{string(check.HostID), check.WorkloadKey, check.URL}
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("duplicate Web link check %s/%s", check.HostID, check.WorkloadKey)
+		}
+		seen[key] = struct{}{}
+	}
+	s.mu.Lock()
+	s.checks = append([]domain.WebLinkCheck(nil), checks...)
+	s.mu.Unlock()
 	return nil
 }

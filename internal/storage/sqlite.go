@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 4
+	currentSchemaVersion = 5
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -273,6 +273,69 @@ ON CONFLICT(host_id, workload_key) DO UPDATE SET
 		return fmt.Errorf("upsert annotation %s/%s: %w", annotation.HostID, annotation.WorkloadKey, err)
 	}
 	return nil
+}
+
+// ReplaceWebLinkChecks atomically replaces the latest full probe set. A stale
+// URL disappears as soon as it is no longer part of the current service view.
+func (s *SQLite) ReplaceWebLinkChecks(ctx context.Context, checks []domain.WebLinkCheck) error {
+	seen := make(map[[3]string]struct{}, len(checks))
+	for _, check := range checks {
+		if err := check.Validate(); err != nil {
+			return err
+		}
+		key := [3]string{string(check.HostID), check.WorkloadKey, check.URL}
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("duplicate Web link check %s/%s", check.HostID, check.WorkloadKey)
+		}
+		seen[key] = struct{}{}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, "DELETE FROM web_link_checks"); err != nil {
+		return err
+	}
+	for _, check := range checks {
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO web_link_checks(host_id, workload_key, url, state, http_status, latency_ms, error_kind, checked_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			string(check.HostID), check.WorkloadKey, check.URL, string(check.State), check.HTTPStatus,
+			check.LatencyMS, check.ErrorKind, formatTime(check.CheckedAt),
+		); err != nil {
+			return fmt.Errorf("insert Web link check %s/%s: %w", check.HostID, check.WorkloadKey, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite) WebLinkChecks(ctx context.Context) ([]domain.WebLinkCheck, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT host_id, workload_key, url, state, http_status, latency_ms, error_kind, checked_at
+FROM web_link_checks ORDER BY host_id, workload_key, url`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var checks []domain.WebLinkCheck
+	for rows.Next() {
+		var check domain.WebLinkCheck
+		var checkedAt string
+		if err := rows.Scan(&check.HostID, &check.WorkloadKey, &check.URL, &check.State, &check.HTTPStatus,
+			&check.LatencyMS, &check.ErrorKind, &checkedAt); err != nil {
+			return nil, err
+		}
+		check.CheckedAt, err = parseTime(checkedAt)
+		if err != nil {
+			return nil, err
+		}
+		if err := check.Validate(); err != nil {
+			return nil, fmt.Errorf("stored Web link check is invalid: %w", err)
+		}
+		checks = append(checks, check)
+	}
+	return checks, rows.Err()
 }
 
 // ImportAnnotations atomically imports legacy annotations exactly once per

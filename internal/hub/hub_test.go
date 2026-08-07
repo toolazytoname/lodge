@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/toolazytoname/lodge/internal/domain"
 	"github.com/toolazytoname/lodge/internal/shared"
 )
 
@@ -36,6 +37,19 @@ func newTestServer(t *testing.T, store Store, password string) *Server {
 		t.Fatal(err)
 	}
 	return server
+}
+
+type fixedWebLinkProber struct{}
+
+func (fixedWebLinkProber) Probe(_ context.Context, targets []webLinkTarget, checkedAt time.Time) []domain.WebLinkCheck {
+	checks := make([]domain.WebLinkCheck, 0, len(targets))
+	for _, target := range targets {
+		checks = append(checks, domain.WebLinkCheck{
+			HostID: target.hostID, WorkloadKey: target.workloadKey, URL: target.url,
+			State: domain.WebLinkReachable, HTTPStatus: http.StatusNoContent, LatencyMS: 9, CheckedAt: checkedAt,
+		})
+	}
+	return checks
 }
 
 func TestJoinServices(t *testing.T) {
@@ -507,6 +521,63 @@ func TestAnnotationRejectsUnknownAgentAndOversizedBody(t *testing.T) {
 	s.ServeHTTP(w, request)
 	if w.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("超大 body 应返回 413，得到 %d", w.Code)
+	}
+}
+
+func TestWebLinkChecksRequireAuthenticationCSRFAndPersistEvidence(t *testing.T) {
+	store := NewMemStore()
+	ctx := context.Background()
+	if err := store.SetAgents(ctx, []AgentConfig{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	services := []shared.Service{{
+		Key: "systemd:caddy.service", Kind: shared.KindSystemd, Name: "caddy",
+		Routes:      []shared.ProxyRoute{{Scheme: "https", Host: "app.example.test", Port: 443, Path: "/"}},
+		MaxExposure: shared.ExposurePublic,
+	}}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, nil, services, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, store, "pw")
+	server.prober = fixedWebLinkProber{}
+
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/link-checks", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated link checks returned HTTP %d", w.Code)
+	}
+
+	cookie, csrfToken := loginSession(t, server, "pw")
+	request := httptest.NewRequest(http.MethodPost, "/api/link-checks", nil)
+	request.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("link probe without CSRF returned HTTP %d", w.Code)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/link-checks", nil)
+	request.AddCookie(cookie)
+	request.Header.Set("X-CSRF-Token", csrfToken)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusOK {
+		t.Fatalf("link probe returned HTTP %d: %s", w.Code, w.Body.String())
+	}
+	var response WebLinkChecksResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Summary.Total != 1 || response.Summary.Reachable != 1 || len(response.Checks) != 1 {
+		t.Fatalf("link probe response mismatch: %+v", response)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/link-checks", nil)
+	request.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"state":"reachable"`) {
+		t.Fatalf("persisted link evidence missing: HTTP %d %s", w.Code, w.Body.String())
 	}
 }
 

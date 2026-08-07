@@ -40,6 +40,12 @@
 - User and Agent data is rendered without inline JavaScript or unsafe HTML interpolation.
 - Request bodies, fields, command output, and log reads have size limits.
 - Security headers are set by the Hub, including a restrictive Content Security Policy.
+- Active Web-link checks are an authenticated, CSRF-protected management
+  capability. They use only absolute credential-free http(s) targets from the
+  current service view, `HEAD`, no redirects, no environment proxy, no response
+  body, bounded concurrency and deadlines, and sanitized persisted errors.
+  Private destinations are intentionally in scope, so this endpoint must never
+  become an unauthenticated general request proxy.
 
 ### Privileged actions
 
@@ -94,6 +100,9 @@
   mode, and must pass integrity and source-version checks.
 - Observation retention defaults to 30 days and runs with foreign-key cascades;
   a failed write or retention sweep is logged instead of silently ignored.
+- Latest Web-link evidence is replaced atomically and never changes immutable
+  observation history. A reachable result means only that the Hub received an
+  HTTP response, not that the service is publicly reachable or semantically healthy.
 
 ## Release review
 

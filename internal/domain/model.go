@@ -162,6 +162,30 @@ type Annotation struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+// WebLinkState is an active HTTP probe result from the Hub's network
+// perspective. It is intentionally separate from socket binding and endpoint
+// reachability: a valid URL can still be unavailable or return a server error.
+type WebLinkState string
+
+const (
+	WebLinkReachable   WebLinkState = "reachable"
+	WebLinkDegraded    WebLinkState = "degraded"
+	WebLinkUnreachable WebLinkState = "unreachable"
+)
+
+// WebLinkCheck stores only bounded probe metadata. Response bodies, headers,
+// resolved addresses, and raw network errors are never retained.
+type WebLinkCheck struct {
+	HostID      HostID       `json:"hostId"`
+	WorkloadKey string       `json:"workloadKey"`
+	URL         string       `json:"url"`
+	State       WebLinkState `json:"state"`
+	HTTPStatus  int          `json:"httpStatus,omitempty"`
+	LatencyMS   int64        `json:"latencyMs"`
+	ErrorKind   string       `json:"errorKind,omitempty"`
+	CheckedAt   time.Time    `json:"checkedAt"`
+}
+
 type Severity string
 
 const (
@@ -446,6 +470,48 @@ func (a Annotation) Validate() error {
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil {
 			return errors.New("annotation URL must be absolute http/https without credentials")
 		}
+	}
+	return nil
+}
+
+func (check WebLinkCheck) Validate() error {
+	if err := validateIdentifier("host id", string(check.HostID), 128); err != nil {
+		return err
+	}
+	if err := validateIdentifier("workload key", check.WorkloadKey, 512); err != nil {
+		return err
+	}
+	if check.CheckedAt.IsZero() {
+		return errors.New("Web link check time must not be zero")
+	}
+	if check.LatencyMS < 0 || check.LatencyMS > int64((time.Hour)/time.Millisecond) {
+		return errors.New("Web link latency is out of range")
+	}
+	if len(check.URL) > 2048 {
+		return errors.New("Web link URL exceeds 2048 bytes")
+	}
+	parsed, err := url.Parse(check.URL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil {
+		return errors.New("Web link URL must be absolute http/https without credentials")
+	}
+	if len(check.ErrorKind) > 64 || !utf8.ValidString(check.ErrorKind) {
+		return errors.New("Web link error kind is invalid")
+	}
+	switch check.State {
+	case WebLinkReachable:
+		if check.HTTPStatus < 100 || check.HTTPStatus >= 500 || check.ErrorKind != "" {
+			return errors.New("reachable Web link requires HTTP 100..499 and no error")
+		}
+	case WebLinkDegraded:
+		if check.HTTPStatus < 500 || check.HTTPStatus > 599 || check.ErrorKind != "" {
+			return errors.New("degraded Web link requires HTTP 5xx and no error")
+		}
+	case WebLinkUnreachable:
+		if check.HTTPStatus != 0 || check.ErrorKind == "" {
+			return errors.New("unreachable Web link requires a sanitized error kind and no HTTP status")
+		}
+	default:
+		return fmt.Errorf("invalid Web link state %q", check.State)
 	}
 	return nil
 }

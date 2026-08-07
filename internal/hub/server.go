@@ -11,8 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 
+	"github.com/toolazytoname/lodge/internal/domain"
 	"github.com/toolazytoname/lodge/internal/shared"
 )
 
@@ -26,6 +29,7 @@ const (
 	maxAliasRunes          = 120
 	maxNotesRunes          = 4000
 	maxURLBytes            = 2048
+	webLinkProbeBudget     = 15 * time.Second
 )
 
 // Server is the Hub HTTP boundary. A configured authenticator protects every
@@ -35,6 +39,8 @@ type Server struct {
 	authn   *authenticator
 	mux     *http.ServeMux
 	limiter *loginLimiter
+	prober  webLinkProbeRunner
+	probeMu sync.Mutex
 }
 
 // NewServerWithAuth requires an Argon2id verifier and an independent signing
@@ -44,7 +50,7 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{store: store, authn: authn, limiter: newLoginLimiter()}
+	s := &Server{store: store, authn: authn, limiter: newLoginLimiter(), prober: newWebLinkProber()}
 	s.mux = http.NewServeMux()
 
 	// 公开路由：登录、会话查询、前端静态资源。
@@ -61,7 +67,69 @@ func NewServerWithAuth(store Store, passwordHash string, sessionKey []byte) (*Se
 	s.mux.HandleFunc("/api/agents", s.auth(s.agents))
 	s.mux.HandleFunc("/api/services", s.auth(s.services))
 	s.mux.HandleFunc("/api/annotation", s.auth(s.annotation))
+	s.mux.HandleFunc("/api/link-checks", s.auth(s.linkChecks))
 	return s, nil
+}
+
+func (s *Server) linkChecks(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		checks, err := s.store.WebLinkChecks(r.Context())
+		if err != nil {
+			log.Printf("lodge hub read Web link checks: %v", err)
+			writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "link check persistence failed"})
+			return
+		}
+		writeJSONHub(w, http.StatusOK, webLinkChecksResponse(checks))
+	case http.MethodPost:
+		if !s.probeMu.TryLock() {
+			writeJSONHub(w, http.StatusConflict, map[string]string{"error": "link check already running"})
+			return
+		}
+		defer s.probeMu.Unlock()
+		targets := currentWebLinkTargets(s.store)
+		if len(targets) > maxWebLinkProbeTargets {
+			writeJSONHub(w, http.StatusUnprocessableEntity, map[string]string{"error": "too many registered Web links"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), webLinkProbeBudget)
+		defer cancel()
+		checks := s.prober.Probe(ctx, targets, time.Now().UTC())
+		if err := s.store.ReplaceWebLinkChecks(r.Context(), checks); err != nil {
+			log.Printf("lodge hub persist Web link checks: %v", err)
+			writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "link check persistence failed"})
+			return
+		}
+		writeJSONHub(w, http.StatusOK, webLinkChecksResponse(checks))
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		writeJSONHub(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+	}
+}
+
+func webLinkChecksResponse(checks []domain.WebLinkCheck) WebLinkChecksResponse {
+	response := WebLinkChecksResponse{Checks: make([]WebLinkCheckView, 0, len(checks))}
+	for _, check := range checks {
+		checkedAt := check.CheckedAt.UTC().Format(time.RFC3339Nano)
+		response.Checks = append(response.Checks, WebLinkCheckView{
+			AgentID: string(check.HostID), ServiceKey: check.WorkloadKey, URL: check.URL,
+			State: check.State, HTTPStatus: check.HTTPStatus, LatencyMS: check.LatencyMS,
+			ErrorKind: check.ErrorKind, CheckedAt: checkedAt,
+		})
+		response.Summary.Total++
+		if response.Summary.CheckedAt == "" || checkedAt > response.Summary.CheckedAt {
+			response.Summary.CheckedAt = checkedAt
+		}
+		switch check.State {
+		case domain.WebLinkReachable:
+			response.Summary.Reachable++
+		case domain.WebLinkDegraded:
+			response.Summary.Degraded++
+		case domain.WebLinkUnreachable:
+			response.Summary.Unreachable++
+		}
+	}
+	return response
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -22,8 +22,13 @@ const pageMeta = {
 const state = {
     agents: [],
     groups: [],
+    linkChecks: {
+        checks: [],
+        summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 },
+    },
     agentsLoaded: false,
     servicesLoaded: false,
+    linkChecksLoaded: false,
 };
 let authed = false;
 let csrfToken = "";
@@ -221,6 +226,7 @@ async function refresh() {
     const results = await Promise.allSettled([
         api("/api/agents"),
         api("/api/services"),
+        api("/api/link-checks"),
     ]);
     if (!authed) {
         setRefreshing(false);
@@ -229,6 +235,7 @@ async function refresh() {
     const failures = [];
     const agentsResult = results[0];
     const servicesResult = results[1];
+    const linkChecksResult = results[2];
     if (agentsResult.status === "fulfilled") {
         state.agents = agentsResult.value;
         state.agentsLoaded = true;
@@ -242,6 +249,13 @@ async function refresh() {
     }
     else {
         failures.push(`服务：${errorMessage(servicesResult.reason)}`);
+    }
+    if (linkChecksResult.status === "fulfilled") {
+        state.linkChecks = linkChecksResult.value;
+        state.linkChecksLoaded = true;
+    }
+    else {
+        failures.push(`入口检查：${errorMessage(linkChecksResult.reason)}`);
     }
     renderAll();
     updateConnectionState(failures.length > 0);
@@ -363,6 +377,38 @@ function allWebTargets(includeHidden = false) {
         return true;
     });
 }
+function linkCheckFor(target) {
+    return state.linkChecks.checks.find((check) => check.agentId === target.agentID
+        && check.serviceKey === target.serviceKey
+        && safeWebURL(check.url) === target.url);
+}
+function linkCheckLabel(check) {
+    if (!check)
+        return "未检查";
+    if (check.state === "reachable")
+        return "Hub 可达";
+    if (check.state === "degraded")
+        return `HTTP ${check.httpStatus ?? "5xx"}`;
+    return "Hub 不可达";
+}
+function linkCheckTitle(check) {
+    if (!check)
+        return "尚未从 Hub 发起主动检查";
+    const status = check.httpStatus ? `HTTP ${check.httpStatus}` : check.errorKind || "network";
+    return `Hub 主动检查：${status} · ${check.latencyMs}ms · ${formatLastSeen(check.checkedAt)}`;
+}
+function webLinkMetricDetail() {
+    const summary = state.linkChecks.summary;
+    if (!state.linkChecksLoaded || summary.total === 0) {
+        return { detail: "尚未从 Hub 主动检查", tone: "accent" };
+    }
+    const detail = `${summary.reachable}/${summary.total} Hub 可达`;
+    if (summary.unreachable > 0)
+        return { detail, tone: "critical" };
+    if (summary.degraded > 0)
+        return { detail, tone: "warning" };
+    return { detail, tone: "good" };
+}
 function metricCard(label, value, detail, tone = "") {
     const card = element("article", `metric-card ${tone}`.trim());
     card.append(element("span", "metric-label", label), element("strong", "metric-value", value), element("span", "metric-detail", detail));
@@ -377,6 +423,7 @@ function renderOverview() {
     const pressureHosts = state.agents.filter((agent) => (agent.memUsedPct ?? 0) >= 80 || (agent.diskUsedPct ?? 0) >= 85).length;
     const attentionCount = state.agents.length - onlineHosts + failedServices + unidentified + pressureHosts;
     const targets = allWebTargets();
+    const linkMetric = webLinkMetricDetail();
     replaceChildren(byID("overviewMetrics"), [
         state.agentsLoaded
             ? metricCard("在线主机", `${onlineHosts}/${state.agents.length}`, "Agent 实时连接", onlineHosts === state.agents.length ? "good" : "critical")
@@ -385,7 +432,7 @@ function renderOverview() {
             ? metricCard("工作负载", entries.length, "已发现并归因的服务")
             : metricCard("工作负载", "N/A", "服务数据暂不可用", "critical"),
         state.servicesLoaded
-            ? metricCard("Web 入口", targets.length, "已发现的 http(s) 链接", "accent")
+            ? metricCard("Web 入口", targets.length, linkMetric.detail, linkMetric.tone)
             : metricCard("Web 入口", "N/A", "服务数据暂不可用", "critical"),
         state.agentsLoaded || state.servicesLoaded
             ? metricCard("需要关注", attentionCount, attentionCount ? "离线、失败或资源压力" : "当前没有高优先级信号", attentionCount ? "warning" : "good")
@@ -481,11 +528,13 @@ function renderQuickLinks(targets) {
         return;
     }
     const nodes = targets.slice(0, 7).map((target) => {
+        const check = linkCheckFor(target);
         const link = element("a", "quick-link");
         link.href = target.url;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.append(element("span", `scope-mark ${target.exposure}`, exposureLabel[target.exposure]), element("span", "quick-link-copy"), element("span", "open-label", "打开"));
+        link.append(element("span", `scope-mark ${target.exposure}`, exposureLabel[target.exposure]), element("span", "quick-link-copy"), element("span", `open-label ${check?.state ?? "unknown"}`, linkCheckLabel(check)));
+        link.title = linkCheckTitle(check);
         const copy = link.children.item(1);
         if (copy)
             copy.append(element("strong", "", target.serviceName), element("small", "", `${target.agentName} · ${target.label}`));
@@ -657,10 +706,12 @@ function serviceRow(entry) {
     if (targets.length) {
         const links = element("div", "access-links");
         targets.slice(0, 2).forEach((target) => {
-            const link = element("a", "access-link", target.label);
+            const check = linkCheckFor(target);
+            const link = element("a", `access-link ${check?.state ?? "unknown"}`, target.label);
             link.href = target.url;
             link.target = "_blank";
             link.rel = "noopener noreferrer";
+            link.title = linkCheckTitle(check);
             links.append(link);
         });
         if (targets.length > 2)
@@ -754,6 +805,30 @@ function renderOperations() {
     });
     replaceChildren(byID("syncSummary"), rows);
 }
+async function probeWebLinks() {
+    const button = byID("probeLinksBtn");
+    button.disabled = true;
+    button.textContent = "检查中";
+    button.setAttribute("aria-busy", "true");
+    setNotice("正在从 Hub 检查登记的 Web 入口，最多等待 15 秒。");
+    try {
+        state.linkChecks = await api("/api/link-checks", { method: "POST" });
+        state.linkChecksLoaded = true;
+        renderAll();
+        const summary = state.linkChecks.summary;
+        setNotice(summary.total
+            ? `Hub 入口检查完成：${summary.reachable}/${summary.total} 可达，${summary.degraded} 个返回 5xx，${summary.unreachable} 个网络不可达。`
+            : "当前没有可检查的 Web 入口。");
+    }
+    catch (probeError) {
+        setNotice(`入口检查失败：${errorMessage(probeError)}`);
+    }
+    finally {
+        button.disabled = false;
+        button.textContent = "检查入口";
+        button.removeAttribute("aria-busy");
+    }
+}
 function openAnnotation(entry) {
     editingService = { agentID: entry.agent.id, agentName: entry.agent.name, service: entry.service };
     byID("annotationTitle").textContent = `管理 ${serviceDisplayName(entry.service)}`;
@@ -817,6 +892,7 @@ async function saveAnnotation(event) {
 byID("loginBtn").addEventListener("click", () => void login());
 byID("logoutBtn").addEventListener("click", () => void logout());
 byID("refreshBtn").addEventListener("click", () => void refresh());
+byID("probeLinksBtn").addEventListener("click", () => void probeWebLinks());
 byID("dismissNotice").addEventListener("click", () => setNotice(null));
 byID("pw").addEventListener("keydown", (event) => {
     if (event.key === "Enter")

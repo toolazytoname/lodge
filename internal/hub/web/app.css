@@ -328,6 +328,10 @@ textarea:focus-visible {
   color: var(--accent);
 }
 
+.inline-link:disabled {
+  color: var(--subtle);
+}
+
 .sidebar-footer > .text-button {
   width: max-content;
 }
@@ -577,6 +581,12 @@ textarea:focus-visible {
   margin-bottom: 14px;
 }
 
+.panel-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .panel-heading h2,
 .section-heading h2,
 .planned-panel h2,
@@ -761,6 +771,18 @@ textarea:focus-visible {
 .open-label {
   color: var(--muted);
   font-size: 10px;
+}
+
+.open-label.reachable {
+  color: var(--accent);
+}
+
+.open-label.degraded {
+  color: var(--warning);
+}
+
+.open-label.unreachable {
+  color: var(--critical);
 }
 
 .section-block {
@@ -1117,14 +1139,37 @@ textarea:focus-visible {
 }
 
 .access-link {
-  display: block;
+  display: inline-flex;
   max-width: 170px;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
   color: var(--info);
   font-size: 10px;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.access-link::before {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--subtle);
+  content: "";
+}
+
+.access-link.reachable::before {
+  background: var(--accent);
+}
+
+.access-link.degraded::before {
+  background: var(--warning);
+}
+
+.access-link.unreachable::before {
+  background: var(--critical);
 }
 
 .access-link:hover {

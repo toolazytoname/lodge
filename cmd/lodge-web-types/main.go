@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/toolazytoname/lodge/internal/domain"
 	"github.com/toolazytoname/lodge/internal/hub"
 	"github.com/toolazytoname/lodge/internal/shared"
 )
@@ -51,6 +52,7 @@ func generate() ([]byte, error) {
 			reflect.TypeOf(hub.AgentSummary{}),
 			reflect.TypeOf(hub.AgentServices{}),
 			reflect.TypeOf(hub.AnnotationInput{}),
+			reflect.TypeOf(hub.WebLinkChecksResponse{}),
 		},
 		seen:  make(map[reflect.Type]bool),
 		types: make(map[string]string),
@@ -94,6 +96,8 @@ func (generator *typeGenerator) add(value reflect.Type) error {
 			generator.types[value.Name()] = "export type Exposure = \"local\" | \"tailnet\" | \"public\" | \"other\";\n"
 		case reflect.TypeOf(shared.Kind("")):
 			generator.types[value.Name()] = "export type Kind = \"docker\" | \"systemd\" | \"process\";\n"
+		case reflect.TypeOf(domain.WebLinkState("")):
+			generator.types[value.Name()] = "export type WebLinkState = \"reachable\" | \"degraded\" | \"unreachable\";\n"
 		default:
 			generator.types[value.Name()] = fmt.Sprintf("export type %s = string;\n", value.Name())
 		}

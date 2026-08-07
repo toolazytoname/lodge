@@ -24,6 +24,11 @@ and embedded JavaScript/CSS are checked for drift in every quality run. This kee
 the single-binary deployment model without maintaining a second handwritten API
 model.
 
+The browser may explicitly ask the Hub to check the current Web links. The Hub
+performs bounded metadata-only `HEAD` probes from its own network perspective,
+then atomically stores the latest result set. It does not proxy response data to
+the browser. See [ADR 0006](adr/0006-hub-web-link-probes.md).
+
 ## Trust boundaries
 
 1. **Browser to Hub**: human authentication, CSRF protection, output encoding, and operation confirmation.
@@ -37,6 +42,8 @@ model.
 - **Workload**: Docker container (with optional Compose project/service identity), systemd unit, or identified process.
 - **Endpoint**: a protocol/address/port plus binding and independently evidenced reachability.
 - **ProxyRoute**: a redacted HTTP(S) scheme/host/port/path published by a Caddy or Nginx workload, with optional credential-free upstream authorities.
+- **WebLinkCheck**: latest bounded HTTP probe evidence for one Host, Workload,
+  and URL, explicitly scoped to the Hub's network perspective.
 - **Observation**: an immutable collection result at a point in time.
 - **Event**: a meaningful transition derived from observations.
 - **Operation**: a requested, authorized, executed, and audited state change.
@@ -51,8 +58,8 @@ translates them and rejects duplicate identities, cross-host references,
 invalid endpoints, and unevidenced reachability claims.
 
 Durable state is stored through `internal/storage` in owner-only SQLite. The
-schema normalizes immutable observations, workload/endpoint/proxy-route children, events,
-annotations, and operation audit records. Agent credentials remain runtime
+schema normalizes immutable observations, workload/endpoint/proxy-route children, annotations,
+latest Web-link checks, events, and operation audit records. Agent credentials remain runtime
 configuration rather than durable inventory data. See
 [`docs/storage.md`](storage.md) for migration, backup, and restore invariants.
 

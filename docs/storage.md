@@ -14,6 +14,7 @@ The schema stores:
   credential;
 - immutable observations and their workload, endpoint, and redacted proxy-route children;
 - annotations;
+- the latest bounded Web-link probe result set;
 - event lifecycle records with active-event deduplication;
 - operation audit records.
 
@@ -25,6 +26,11 @@ Schema v4 adds normalized Caddy/Nginx proxy routes. It stores only scheme,
 validated host, port, path matcher, and credential-free upstream authorities;
 raw configuration, certificate/key paths, headers, query strings, and
 credentials never enter SQLite.
+Schema v5 adds the latest Hub-scoped Web-link checks, keyed by host, workload,
+and URL. Each row contains only state, HTTP status when present, latency,
+sanitized error category, and check time. Replacing a probe run is atomic; raw
+errors, response headers/bodies, resolved addresses, and credentials are never
+stored.
 
 ## Database invariants
 

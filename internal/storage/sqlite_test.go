@@ -112,6 +112,45 @@ func TestSQLiteMigrationAndHostSync(t *testing.T) {
 	}
 }
 
+func TestWebLinkChecksReplaceAtomically(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	checks := []domain.WebLinkCheck{
+		{HostID: "host-a", WorkloadKey: "docker:admin", URL: "https://admin.example.test/", State: domain.WebLinkUnreachable, ErrorKind: "timeout", LatencyMS: 3000, CheckedAt: now},
+		{HostID: "host-a", WorkloadKey: "docker:web", URL: "https://app.example.test/", State: domain.WebLinkReachable, HTTPStatus: 204, LatencyMS: 14, CheckedAt: now},
+	}
+	if err := store.ReplaceWebLinkChecks(ctx, checks); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.WebLinkChecks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(loaded, checks) {
+		t.Fatalf("Web link checks mismatch:\n got: %+v\nwant: %+v", loaded, checks)
+	}
+	if err := store.ReplaceWebLinkChecks(ctx, checks[:1]); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err = store.WebLinkChecks(ctx)
+	if err != nil || len(loaded) != 1 || loaded[0].URL != checks[0].URL {
+		t.Fatalf("stale Web link checks were not replaced: %+v, %v", loaded, err)
+	}
+	invalid := checks[1]
+	invalid.HTTPStatus = 0
+	if err := store.ReplaceWebLinkChecks(ctx, []domain.WebLinkCheck{invalid}); err == nil {
+		t.Fatal("invalid replacement was accepted")
+	}
+	loaded, err = store.WebLinkChecks(ctx)
+	if err != nil || len(loaded) != 1 || loaded[0].URL != checks[0].URL {
+		t.Fatalf("invalid replacement modified durable checks: %+v, %v", loaded, err)
+	}
+}
+
 func TestMigrationPlanMustBeContiguousAndComplete(t *testing.T) {
 	tests := []struct {
 		name string
@@ -193,6 +232,63 @@ func TestSQLiteUpgradesVersionOneAndPreservesData(t *testing.T) {
 	}
 	if len(hosts) != 1 || hosts[0].ID != "host-a" {
 		t.Fatalf("v1 host was not preserved: %+v", hosts)
+	}
+}
+
+func TestSQLiteUpgradesVersionFourAndAddsWebLinkChecks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	createVersionOneDatabase(t, path)
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrations[1:4] {
+		if _, err := db.Exec(migration.sql); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(
+			"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
+			migration.version, migration.name, migration.checksum(), formatTime(time.Now()),
+		); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec("PRAGMA user_version = 4"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var version int
+	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != currentSchemaVersion {
+		t.Fatalf("schema version = %d, want %d", version, currentSchemaVersion)
+	}
+	var tableCount int
+	if err := store.db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'web_link_checks'").Scan(&tableCount); err != nil {
+		t.Fatal(err)
+	}
+	if tableCount != 1 {
+		t.Fatal("v4 to v5 migration did not create web_link_checks")
+	}
+	hosts, err := store.Hosts(context.Background())
+	if err != nil || len(hosts) != 1 || hosts[0].ID != "host-a" {
+		t.Fatalf("v4 host was not preserved: %+v, %v", hosts, err)
 	}
 }
 

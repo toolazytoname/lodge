@@ -93,6 +93,35 @@ function buildFixture(mode) {
   return { agents, groups };
 }
 
+function buildLinkChecks(mode) {
+  const fixture = buildFixture(mode);
+  const checkedAt = "2026-08-08T00:00:00Z";
+  const checks = fixture.groups.flatMap((group) => group.services.flatMap((service) =>
+    (service.routes || []).map((route) => {
+      const unreachable = mode === "offline" && group.agent.id === "harbor";
+      return {
+        agentId: group.agent.id,
+        serviceKey: service.key,
+        url: route.url,
+        state: unreachable ? "unreachable" : "reachable",
+        ...(unreachable ? { errorKind: "timeout" } : { httpStatus: 204 }),
+        latencyMs: unreachable ? 3000 : 18,
+        checkedAt,
+      };
+    }),
+  ));
+  return {
+    checks,
+    summary: {
+      total: checks.length,
+      reachable: checks.filter((check) => check.state === "reachable").length,
+      degraded: checks.filter((check) => check.state === "degraded").length,
+      unreachable: checks.filter((check) => check.state === "unreachable").length,
+      ...(checks.length ? { checkedAt } : {}),
+    },
+  };
+}
+
 function fixtureMode(requestURL, cookieHeader = "") {
   const requested = requestURL.searchParams.get("fixture");
   if (requested) return requested;
@@ -150,6 +179,18 @@ const server = createServer(async (request, response) => {
     if (requestURL.pathname === "/api/services") {
       if (mode === "error" || mode === "partial") sendJSON(response, 503, { error: "fixture services unavailable" });
       else sendJSON(response, 200, buildFixture(mode).groups);
+      return;
+    }
+    if (requestURL.pathname === "/api/link-checks") {
+      if (request.method === "POST" && request.headers["x-csrf-token"] !== "fixture-csrf") {
+        sendJSON(response, 403, { error: "fixture csrf" });
+      } else if (request.method !== "GET" && request.method !== "POST") {
+        sendJSON(response, 405, { error: "fixture method not allowed" });
+      } else if (mode === "error") {
+        sendJSON(response, 503, { error: "fixture link checks unavailable" });
+      } else {
+        sendJSON(response, 200, buildLinkChecks(mode));
+      }
       return;
     }
     if (requestURL.pathname === "/api/annotation" && request.method === "POST") {

@@ -94,6 +94,14 @@ func (s *SQLiteStore) SetAnnotation(ctx context.Context, agentID, key string, an
 	return s.runtime.SetAnnotation(context.Background(), agentID, key, annotation)
 }
 
+func (s *SQLiteStore) WebLinkChecks(ctx context.Context) ([]domain.WebLinkCheck, error) {
+	return s.database.WebLinkChecks(ctx)
+}
+
+func (s *SQLiteStore) ReplaceWebLinkChecks(ctx context.Context, checks []domain.WebLinkCheck) error {
+	return s.database.ReplaceWebLinkChecks(ctx, checks)
+}
+
 func (s *SQLiteStore) Backup(ctx context.Context, destination string) error {
 	return s.database.Backup(ctx, destination)
 }

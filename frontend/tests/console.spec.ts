@@ -38,8 +38,12 @@ test.describe("Lodge Web console", () => {
     await expect(page.getByRole("heading", { name: "全局状态" })).toBeVisible();
     await expect(page.locator("#hostPreview .host-card")).toHaveCount(5);
     await expect(page.locator("#overviewMetrics .metric-value").nth(1)).toHaveText("55");
+    await expect(page.locator("#overviewMetrics .metric-detail").nth(2)).toHaveText("5/5 Hub 可达");
     await expect(page.locator("#riskSignals .signal-row")).toHaveCount(4);
     await expectNoHorizontalOverflow(page);
+
+    await page.getByRole("button", { name: "检查入口", exact: true }).click();
+    await expect(page.locator("#notice")).toContainText("5/5 可达");
 
     await openServices(page);
     await expect(page.locator(".service-row")).toHaveCount(55);
@@ -121,6 +125,6 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#overviewMetrics .metric-value")).toHaveText(["N/A", "N/A", "N/A", "N/A"]);
     await expect(page.locator("#hostPreview")).toContainText("主机数据暂时不可用");
     await expect(page).toHaveScreenshot("overview-error-1280.png", { fullPage: true });
-    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/services", "/api/services"]);
+    expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/link-checks", "/api/services", "/api/services"]);
   });
 });

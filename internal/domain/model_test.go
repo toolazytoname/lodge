@@ -106,3 +106,28 @@ func TestAnnotationRequiresSafeDurableIdentityAndURL(t *testing.T) {
 		t.Fatal("non-http annotation URL should be rejected")
 	}
 }
+
+func TestWebLinkCheckRequiresConsistentEvidence(t *testing.T) {
+	check := WebLinkCheck{
+		HostID: "host-a", WorkloadKey: "docker:web", URL: "https://app.example.test/",
+		State: WebLinkReachable, HTTPStatus: 204, LatencyMS: 12, CheckedAt: time.Now().UTC(),
+	}
+	if err := check.Validate(); err != nil {
+		t.Fatalf("valid Web link check was rejected: %v", err)
+	}
+	check.URL = "https://user:secret@app.example.test/"
+	if err := check.Validate(); err == nil {
+		t.Fatal("credential-bearing Web link was accepted")
+	}
+	check.URL = "https://app.example.test/"
+	check.State = WebLinkUnreachable
+	check.HTTPStatus = 0
+	check.ErrorKind = ""
+	if err := check.Validate(); err == nil {
+		t.Fatal("unreachable Web link without sanitized error evidence was accepted")
+	}
+	check.ErrorKind = "timeout"
+	if err := check.Validate(); err != nil {
+		t.Fatalf("evidenced unreachable Web link was rejected: %v", err)
+	}
+}

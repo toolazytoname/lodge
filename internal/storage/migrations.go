@@ -195,4 +195,24 @@ CREATE TABLE proxy_routes (
 ) STRICT;
 `,
 	},
+	{
+		version: 5,
+		name:    "web_link_checks",
+		sql: `
+CREATE TABLE web_link_checks (
+    host_id TEXT NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+    workload_key TEXT NOT NULL,
+    url TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('reachable', 'degraded', 'unreachable')),
+    http_status INTEGER NOT NULL DEFAULT 0 CHECK (http_status BETWEEN 0 AND 599),
+    latency_ms INTEGER NOT NULL CHECK (latency_ms >= 0),
+    error_kind TEXT NOT NULL DEFAULT '',
+    checked_at TEXT NOT NULL,
+    PRIMARY KEY (host_id, workload_key, url)
+) STRICT;
+
+CREATE INDEX web_link_checks_state_time_idx
+    ON web_link_checks(state, checked_at DESC);
+`,
+	},
 }
