@@ -29,6 +29,7 @@ bash -n deploy/*.sh scripts/*.sh
 bash scripts/test-tailnet-management.sh
 bash scripts/test-install-hub.sh
 bash scripts/test-install-agent.sh
+bash scripts/test-bootstrap-lodge-canary.sh
 
 step "generated TypeScript Web contract and build"
 npm run check:web

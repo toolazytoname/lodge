@@ -101,3 +101,14 @@ Agent `0.7.0` hosts are deployed, but no host has a deployment policy or
 non-empty deployment state. This proves platform compatibility and zero
 ambient authority; it is not evidence that a real business release or rollback
 has been exercised.
+
+## Isolated first-production canary
+
+For an operator who does not yet have a reviewed stateless business service,
+[`deploy/bootstrap-lodge-canary.sh`](../deploy/bootstrap-lodge-canary.sh)
+creates an intentionally isolated Nginx canary on one chosen root console. It
+refuses to overwrite an existing canary directory or deployment policy, uses two
+fixed official-image digests, binds only `127.0.0.1:18080`, limits memory to
+64 MiB and processes to 32, has no data volume, and verifies loopback HTTP before
+installing a root-only policy. It is a real Host policy installation and must be
+run only after operator approval; it does not run as part of a repository build.
