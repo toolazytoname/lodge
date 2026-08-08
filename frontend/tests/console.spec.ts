@@ -190,7 +190,7 @@ test.describe("Lodge Web console", () => {
     await deploymentConfirmation.fill("确认部署 Gateway 到 Version 2");
     await expect(deploy).toBeEnabled();
     await deploy.click();
-    await expect(deploymentDialog.locator("#actionResultSummary")).toContainText("发布已受理");
+    await expect(deploymentDialog.locator("#actionResultSummary")).toContainText("发布成功");
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("部署");
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("成功");
     await expect(page.locator("#notice")).toContainText("健康验证已通过");

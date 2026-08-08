@@ -163,6 +163,7 @@ const historyByAgent = new Map<string, HistoryLoadState>();
 const actionsByAgent = new Map<string, ActionLoadState>();
 const deploymentsByAgent = new Map<string, DeploymentLoadState>();
 const trackedDeploymentOperations = new Set<string>();
+let activeDeploymentOperationID: string | null = null;
 
 function byID<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -1848,6 +1849,7 @@ function closeActionDialog(): void {
   if (dialog.open) dialog.close();
   pendingAction = null;
   pendingDeployment = null;
+  activeDeploymentOperationID = null;
   byID<HTMLInputElement>("actionConfirmation").value = "";
   byID("actionResultLogs").textContent = "";
 }
@@ -1891,10 +1893,11 @@ function showActionExecutionResult(response: ActionExecutionResponse): void {
 }
 
 function showDeploymentAccepted(response: DeploymentExecutionResponse): void {
+  activeDeploymentOperationID = response.operation.id;
   rememberOperation(response.operation);
   replaceChildren(byID("actionResultSummary"), [
-    element("strong", "success", "发布已受理"),
-    element("span", "", "Hub 正在后台执行。最终结果会自动写入下方操作记录，关闭窗口不会中断任务。"),
+    element("strong", "pending", "发布进行中"),
+    element("span", "", "Hub 已持久化受理请求，正在执行并验证健康状态。此窗口会在终态时明确显示结果；关闭窗口不会中断任务。"),
   ]);
   byID("actionResult").classList.remove("hidden");
   byID("actionConfirmationFields").classList.add("hidden");
@@ -1903,6 +1906,28 @@ function showDeploymentAccepted(response: DeploymentExecutionResponse): void {
   byID<HTMLButtonElement>("executeActionBtn").classList.add("hidden");
   byID<HTMLButtonElement>("cancelActionBtn").textContent = "关闭";
   renderOperations();
+}
+
+function showDeploymentTerminalResult(operation: OperationView, agentName: string, stackLabel: string): void {
+  const succeeded = operation.state === "succeeded";
+  const automaticRollback = operation.state === "rolled_back";
+  const title = succeeded
+    ? operation.kind === "rollback" ? "回滚完成" : "发布成功"
+    : automaticRollback ? "发布未通过，已自动回滚" : "发布失败";
+  const detail = operation.resultSummary || operationErrorLabel(operation.errorKind)
+    || (succeeded ? "健康验证已通过。" : "请查看操作记录中的类型化失败原因。");
+  if (activeDeploymentOperationID === operation.id && byID<HTMLDialogElement>("actionDialog").open) {
+    replaceChildren(byID("actionResultSummary"), [
+      element("strong", succeeded ? "success" : "failure", title),
+      element("span", "", detail),
+    ]);
+    byID("actionResult").classList.remove("hidden");
+    byID<HTMLButtonElement>("cancelActionBtn").textContent = "关闭";
+  }
+  const prefix = `${agentName} · ${stackLabel}：`;
+  if (succeeded) setNotice(`${prefix}${operation.kind === "rollback" ? "回滚完成，健康验证已通过。" : "发布成功，健康验证已通过。"}`);
+  else if (automaticRollback) setNotice(`${prefix}发布未通过验证，已自动回滚并写入审计。`);
+  else setNotice(`${prefix}发布失败，${operationErrorLabel(operation.errorKind) || "请查看操作记录"}。`);
 }
 
 function operationIsTerminal(operation: OperationView): boolean {
@@ -1929,13 +1954,7 @@ async function trackDeploymentOperation(operationID: string, agentName: string, 
       }
       const operation = state.operations.operations.find((candidate) => candidate.id === operationID);
       if (!operation || !operationIsTerminal(operation)) continue;
-      if (operation.state === "succeeded") {
-        setNotice(`${agentName} · ${stackLabel}：发布成功，健康验证已通过。`);
-      } else if (operation.state === "rolled_back") {
-        setNotice(`${agentName} · ${stackLabel}：发布未通过验证，已自动回滚并写入审计。`);
-      } else {
-        setNotice(`${agentName} · ${stackLabel}：发布失败，${operationErrorLabel(operation.errorKind) || "请查看操作记录"}。`);
-      }
+      showDeploymentTerminalResult(operation, agentName, stackLabel);
       void loadSelectedDeployments(true);
       return;
     }

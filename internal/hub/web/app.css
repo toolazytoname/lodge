@@ -2218,6 +2218,10 @@ textarea:focus-visible {
   color: var(--accent);
 }
 
+.action-result-summary strong.pending {
+  color: var(--warning);
+}
+
 .action-result-summary strong.failure {
   color: var(--critical);
 }
