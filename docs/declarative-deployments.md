@@ -112,3 +112,11 @@ fixed official-image digests, binds only `127.0.0.1:18080`, limits memory to
 64 MiB and processes to 32, has no data volume, and verifies loopback HTTP before
 installing a root-only policy. It is a real Host policy installation and must be
 run only after operator approval; it does not run as part of a repository build.
+
+For the reviewed one-shot SSH path, the operator may create only the exact
+`lodge-admin` sudo grant for `/usr/local/sbin/lodge-bootstrap-canary-once.sh`. The script
+first validates a transferred file, then root installs it at a root-owned `0700`
+path before granting the exact command. It removes both that exact grant and the
+one-shot script on success and failure; it does not retain general root or
+deployment authority. The transferred file must be verified against the
+published SHA-256 before that grant is created.

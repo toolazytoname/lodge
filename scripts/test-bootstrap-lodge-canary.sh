@@ -6,6 +6,12 @@ script="deploy/bootstrap-lodge-canary.sh"
 bash -n "$script"
 grep -Fx 'readonly PROJECT_DIR="/srv/lodge-canary"' "$script" >/dev/null
 grep -Fx 'readonly LOOPBACK_PORT="18080"' "$script" >/dev/null
+grep -Fx 'readonly TEMP_SUDOERS_FILE="/etc/sudoers.d/lodge-canary-bootstrap"' "$script" >/dev/null
+grep -Fx 'readonly TEMP_SCRIPT_FILE="/usr/local/sbin/lodge-bootstrap-canary-once.sh"' "$script" >/dev/null
+grep -Fx 'readonly TEMP_SUDOERS_CONTENT="lodge-admin ALL=(root) NOPASSWD: /usr/bin/bash /usr/local/sbin/lodge-bootstrap-canary-once.sh"' "$script" >/dev/null
+grep -F 'a failed bootstrap cannot leave deployment authority behind' "$script" >/dev/null
+grep -F 'rm -f -- "$TEMP_SUDOERS_FILE"' "$script" >/dev/null
+grep -F 'rm -f -- "$TEMP_SCRIPT_FILE"' "$script" >/dev/null
 grep -F '127.0.0.1:${LOOPBACK_PORT}:80' "$script" >/dev/null
 grep -F 'mem_limit: 64m' "$script" >/dev/null
 grep -F 'pids_limit: 32' "$script" >/dev/null

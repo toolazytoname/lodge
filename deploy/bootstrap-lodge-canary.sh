@@ -10,6 +10,9 @@ readonly COMPOSE_FILE="$PROJECT_DIR/compose.yaml"
 readonly POLICY_FILE="/etc/lodge-agent/deployments.json"
 readonly AGENT_BIN="/usr/local/bin/lodge-agent"
 readonly LOOPBACK_PORT="18080"
+readonly TEMP_SUDOERS_FILE="/etc/sudoers.d/lodge-canary-bootstrap"
+readonly TEMP_SCRIPT_FILE="/usr/local/sbin/lodge-bootstrap-canary-once.sh"
+readonly TEMP_SUDOERS_CONTENT="lodge-admin ALL=(root) NOPASSWD: /usr/bin/bash /usr/local/sbin/lodge-bootstrap-canary-once.sh"
 readonly V1_IMAGE="nginx@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4"
 readonly V2_IMAGE="nginx@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591"
 
@@ -25,7 +28,18 @@ command -v curl >/dev/null || die "未找到 curl，无法验证 loopback 健康
 [ ! -e "$POLICY_FILE" ] && [ ! -L "$POLICY_FILE" ] || die "拒绝覆盖已有部署策略：$POLICY_FILE"
 
 tmp_dir="$(mktemp -d)"
-trap 'rm -rf -- "$tmp_dir"' EXIT
+cleanup() {
+  rm -rf -- "$tmp_dir"
+  # When started through the one-shot least-privilege path, remove only the
+  # exact grant that permits this exact script. This runs on both success and
+  # failure, so a failed bootstrap cannot leave deployment authority behind.
+  if [ -f "$TEMP_SUDOERS_FILE" ] && [ "$(cat "$TEMP_SUDOERS_FILE")" = "$TEMP_SUDOERS_CONTENT" ]; then
+    rm -f -- "$TEMP_SUDOERS_FILE"
+    rm -f -- "$TEMP_SCRIPT_FILE"
+    info "已移除一次性 lodge-admin 部署授权"
+  fi
+}
+trap cleanup EXIT
 
 cat >"$tmp_dir/compose.yaml" <<EOF
 services:
