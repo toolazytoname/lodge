@@ -286,3 +286,9 @@
 - 已有 UFW/Fail2Ban 保持不动。创建 backup、locked-password `lodge-admin`、Mac key 后先验证新 Tailnet 会话。
 - 发现同名 sudo alias 的既有冲突；在任何 sshd 修改前改为无 alias 的精确命令白名单，完整 `visudo -c` 通过且额外参数仍被拒。
 - `01-` drop-in 经 test+reload 生效；新管理员成功，公网 root key、password-only 与 Tailnet root 均被拒绝。仅剩 banwagong 的逐机访问收口。
+
+## [2026-08-08] rollout | banwagong SSH 访问收口与 sudo 残余风险
+
+- 最后一台完成 backup、locked-password `lodge-admin`、精确 sudo、新 Tailnet 会话、`01-` drop-in test+reload；effective OpenSSH 关闭 password/root/keyboard-interactive，保留 key 和 3/30。
+- `lodge-admin` 成功；公网 root key、password-only、Tailnet root 均被拒，五台访问收口完成。
+- 既有 `/etc/sudoers.d/hermes-ro` 权限错误使全局 `visudo -c` 报错。Lodge 不自动 chmod 这个非本项目文件，避免意外启用其既有权限；自身 0440 精确 sudo 已独立 parse 和实际验证。云边界、UFW/Fail2Ban 仍待独立门禁。

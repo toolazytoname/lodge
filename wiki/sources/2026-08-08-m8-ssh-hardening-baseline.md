@@ -76,3 +76,14 @@ as exact commands without an alias and passed full `visudo -c`. A root-owned
 `01-` drop-in then passed test and reload. The effective 3/30 key-only non-root
 OpenSSH profile, fresh `lodge-admin` session, and rejection of public root-key,
 password-only, and Tailnet root were all verified.
+
+## banwagong rollout outcome and residual sudo finding
+
+banwagong completed the final access rollout: its verified `lodge-admin`,
+root-owned `01-` profile, test/reload, and all three root/password rejection
+paths passed. This closes the five-host password/OpenSSH-root/Tailnet-root
+access objective. A pre-existing `hermes-ro` sudoers file has bad permissions,
+so complete `visudo -c` reports it. Lodge did not alter that file because making
+it active can change existing privilege; the Lodge-specific exact 0440 policy
+was parsed and exercised successfully. Cloud edge, firewall and Fail2Ban remain
+separate evidence gates.

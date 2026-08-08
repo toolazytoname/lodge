@@ -77,21 +77,21 @@
       "id": "ssh_password_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with SSH password authentication disabled",
-      "current": 4,
+      "current": 5,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Ali, bytebunny, bytedragon, and tencent rollouts on 2026-08-08: effective sshd -T reports PasswordAuthentication no after sshd -t and reload; public password login was rejected and fresh lodge-admin Tailnet sessions succeeded"
+      "evidence": "All five 2026-08-08 rollouts: effective sshd -T reports PasswordAuthentication no after sshd -t and reload; public password login was rejected and fresh lodge-admin Tailnet sessions succeeded"
     },
     {
       "id": "ssh_root_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with OpenSSH PermitRootLogin disabled",
-      "current": 4,
+      "current": 5,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Ali, bytebunny, bytedragon, and tencent rollouts on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. The independently verified Tailnet SSH policy rejects root"
+      "evidence": "All five 2026-08-08 rollouts: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. The independently verified Tailnet SSH policy rejects root"
     },
     {
       "id": "tailscale_ssh_root_denied_hosts",
@@ -101,7 +101,17 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Tailnet policy changed on 2026-08-08 from autogroup:nonroot, root to exact lodge-admin with check mode retained; it applies to all five devices. Fresh Ali, bytebunny, and bytedragon root requests were denied while lodge-admin sessions succeeded"
+      "evidence": "Tailnet policy changed on 2026-08-08 from autogroup:nonroot, root to exact lodge-admin with check mode retained; fresh root requests were denied and lodge-admin sessions succeeded on all five devices"
+    },
+    {
+      "id": "sudo_policy_global_validation_hosts",
+      "dimension": "security",
+      "name": "Hosts with a clean global sudo policy validation",
+      "current": 4,
+      "target": 5,
+      "unit": "hosts",
+      "direction": "increase",
+      "evidence": "banwagong has a pre-existing /etc/sudoers.d/hermes-ro permissions error; Lodge's own 0440 exact sudo entry is independently parsed and exercised, but the unrelated file is not auto-corrected because doing so can enable its prior policy"
     },
     {
       "id": "current_security_posture_controls",

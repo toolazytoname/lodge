@@ -142,8 +142,9 @@ not be forced onto the current stack.
 - [x] Tailnet SSH policy: deny root and retain only `lodge-admin`, verified against both pilots
 - [x] bytedragon rollout: non-root Tailnet key account, cloud-init-safe OpenSSH closure, and post-change rejection tests
 - [x] tencent rollout: non-root Tailnet key account, existing-sudo compatibility correction, and post-change rejection tests
-- [ ] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
-- [ ] Disable SSH password, keyboard-interactive, and root remote login one host at a time
+- [x] banwagong rollout: non-root Tailnet key account, existing-policy warning isolated, and post-change rejection tests
+- [x] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
+- [x] Disable SSH password, keyboard-interactive, and root remote login one host at a time
 - [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate
 
 The 2026-08-08 baseline found every host still accepts password authentication and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali additionally have no active UFW or Fail2Ban layer; tencent has both; banwagong has active UFW but no active Fail2Ban. Tailscale is running on all five, but it does not by itself close public SSH. The detailed evidence and non-lockout sequence are in [`ssh-hardening.md`](ssh-hardening.md). Ali and bytebunny subsequently completed the approved OpenSSH-side pilots; the remaining three hosts retain the baseline until their own recovery and administrator gates are verified.
@@ -168,6 +169,8 @@ password-authentication value; the Lodge drop-in now precedes it. The approved
 Tailnet SSH policy was then changed from `autogroup:nonroot, root` to the exact
 `lodge-admin` local user while retaining check mode. Fresh tests reject a
 Tailnet `root` request on both pilots and still admit `lodge-admin`, closing the
-previously independent root-access path. bytedragon and tencent then completed
-their recovery-gated rollouts and public root-key/password rejection tests.
-Only banwagong remains before the per-host access closure is complete.
+previously independent root-access path. bytedragon, tencent, and banwagong
+then completed their recovery-gated rollouts and public root-key/password
+rejection tests. All five hosts now have a verified non-root Tailnet key
+administrator and closed password/OpenSSH-root/Tailnet-root access paths. Public
+port-22 cloud policy and local firewall/Fail2Ban posture remain separate gates.

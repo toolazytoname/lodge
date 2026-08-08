@@ -108,6 +108,20 @@ keyboard-interactive, and root disabled, public-key enabled, and 3/30 limits.
 Fresh `lodge-admin` succeeds; public root-key, password-only, and Tailnet root
 attempts are rejected. Existing UFW/Fail2Ban were deliberately left intact.
 
+## banwagong rollout outcome — 2026-08-08
+
+banwagong had active UFW but inactive Fail2Ban and the same password/root
+OpenSSH exposure. Its backup, locked-password key administrator, fresh Tailnet
+session, and exact sudo behavior were verified before the `01-` drop-in passed
+`sshd -t` and reload. Effective OpenSSH is key-only/non-root with 3/30 limits;
+fresh `lodge-admin` succeeds, while public root-key, password-only, and Tailnet
+root attempts are rejected. A pre-existing `/etc/sudoers.d/hermes-ro` file has
+unsafe permissions and causes full `visudo -c` to report an error. Lodge did not
+modify that unrelated file: its own exact sudo entry parsed, is mode 0440, and
+was exercised successfully. Correcting the existing file would enable whatever
+policy it contains, so it is a separately reviewed security task rather than an
+automatic chmod.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates

@@ -114,6 +114,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 tencent 完成：保留既有 UFW/Fail2Ban；创建管理员后发现 sudo 命令 alias 与既有环境冲突，先改为无 alias 的精确 whitelist 并全局验证，再配置 sshd。新管理员可用，OpenSSH root/password/keyboard-interactive 关闭，公网 root-key、密码和 Tailnet root 全部拒绝。仅剩 banwagong。
 
+> 2026-08-08 M8 五机访问收口完成：banwagong 同样完成 non-root 管理员、`01-` profile、test+reload 与四类连接验证，至此五台都关闭 password/OpenSSH-root/Tailnet-root，并保留可用 `lodge-admin`。banwagong 的既有 `hermes-ro` sudoers 权限错误被明确记录但未擅改，因修复会激活非 Lodge 的历史权限。M8 余项是云端 22、firewall/Fail2Ban 和该既有 sudo 文件的独立审查，不应混入已完成的访问收口。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。
