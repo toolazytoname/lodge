@@ -317,3 +317,8 @@
 
 - 将最初的 SSH/UFW/Fail2Ban 基线明确标为历史快照，避免它与五机已完成的 key-only/non-root SSH 收口、4/5 已验证公网 22 关闭相互矛盾。
 - 未把仍待 provider 证据的 banwagong 或本地 firewall/Fail2Ban 例外标记为完成。
+
+## [2026-08-08] audit | M8 五机当前连通性复核
+
+- 新公网 TCP 22 probes 表明 bytebunny、bytedragon、Ali、tencent 均超时，banwagong 仍可连通。
+- 五台独立的 `lodge-admin` Tailnet 新会话全部成功；因此当前云边界计数仍是 4/5，banwagong 是唯一公网 SSH 例外，不能由 UFW 状态推断其 provider 规则。

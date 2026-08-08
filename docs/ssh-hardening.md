@@ -165,6 +165,15 @@ firewall for the Beijing instance. A fresh TCP probe to `43.143.252.243:22` time
 out, while a new `lodge-admin` session over Tailnet succeeded. Probes to ports 8388
 and 10809 also timed out; no business firewall rule was edited.
 
+## Five-host freshness check — 2026-08-08
+
+A new independent probe confirmed that bytebunny, bytedragon, Ali, and tencent
+continue to time out on public TCP 22, while a fresh Tailnet `lodge-admin` login
+works on each of all five hosts. banwagong remains the only host whose public TCP
+22 connection succeeds. This records an observed reachability result; it does
+not replace the pending host-firewall change or identify the upstream provider
+rule responsible for it.
+
 ## Non-negotiable safety gates
 
 Do not make a host change until all gates for that one host are true:

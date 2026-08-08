@@ -209,3 +209,9 @@ Tencent Lighthouse subsequently removed its Internet-wide TCP 22 firewall rule f
 the Beijing instance. A fresh public probe to `43.143.252.243:22` timed out while a
 new `lodge-admin` Tailnet session succeeded; the verified public-SSH closure count
 is now 4/5. No business firewall rules were changed.
+
+A subsequent five-host freshness check retained that result: bytebunny,
+bytedragon, Ali, and tencent public TCP 22 probes timed out, while each fresh
+`lodge-admin` Tailnet login succeeded. banwagong remained the sole public-22
+exception, although its Tailnet administrator was also healthy. This is evidence
+of the current boundary, not permission to infer a provider firewall policy.
