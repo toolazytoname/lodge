@@ -91,7 +91,17 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Ali and bytebunny pilots on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. Tailnet SSH policy still separately permits root and is explicitly outstanding"
+      "evidence": "Ali and bytebunny pilots on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. The independently verified Tailnet SSH policy now rejects root on both pilots"
+    },
+    {
+      "id": "tailscale_ssh_root_denied_hosts",
+      "dimension": "security",
+      "name": "Pilots with Tailnet SSH root denied",
+      "current": 2,
+      "target": 5,
+      "unit": "hosts",
+      "direction": "increase",
+      "evidence": "Tailnet policy changed on 2026-08-08 from autogroup:nonroot, root to exact lodge-admin with check mode retained; fresh Ali and bytebunny root requests were denied while lodge-admin sessions succeeded"
     },
     {
       "id": "current_security_posture_controls",

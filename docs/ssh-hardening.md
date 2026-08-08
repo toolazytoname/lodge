@@ -71,14 +71,15 @@ backup directory; the validated Lodge drop-in was placed before cloud-init as
 has password and keyboard-interactive authentication disabled, root login
 disabled, public-key authentication enabled, and 3/30 limits.
 
-Both completed pilots also revealed a separate access plane: the current
-Tailscale SSH policy can map a Tailnet `root` request directly to local root.
-This is not an OpenSSH configuration failure—`PermitRootLogin no` is effective
-for OpenSSH—but it prevents claiming full remote-root closure. Before changing
-another host, either update the Tailnet SSH policy to deny root while allowing
-`lodge-admin`, or explicitly disable Tailscale SSH on the pilots and use normal
-key-only OpenSSH over the Tailnet. The former is the preferred long-term option
-when retaining Tailscale SSH check mode.
+Both completed pilots also revealed a separate access plane: the then-current
+Tailscale SSH policy could map a Tailnet `root` request directly to local root.
+The operator approved the preferred resolution on 2026-08-08. The visual policy
+was changed from `autogroup:nonroot, root` to the exact `lodge-admin` local
+user, retaining `autogroup:member` → `autogroup:self` and check mode. Fresh
+Tailnet tests reject `root` on Ali and bytebunny while both `lodge-admin`
+sessions remain successful. This closes the independent Tailnet root path;
+future hosts must create and verify `lodge-admin` before relying on Tailscale
+SSH for administration.
 
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 

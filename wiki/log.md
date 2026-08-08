@@ -268,4 +268,9 @@
 ## [2026-08-08] pilot | bytebunny OpenSSH 收口与 Tailnet root 边界
 
 - bytebunny 完成相同的 non-root key 管理员、精确 sudo、备份、Tailnet 新会话、`sshd -t`+reload 与公网拒绝验证。cloud-init 的 `50-cloud-init.conf` 先读入 password 设置，首个 `99-` drop-in 被安全发现未生效；保留备份后改为先于它的 `01-` drop-in，复验后 effective OpenSSH password/root/keyboard-interactive 都已关闭。
-- 两台试点均发现 Tailnet SSH policy 可把 `root` 映射到本地 root；这独立于 OpenSSH `PermitRootLogin no`。因此不能宣称完整 remote-root closure，下一主机暂停，等待 Tailnet policy deny-root/allow-lodge-admin 或显式关闭 Tailscale SSH 的选择。
+- 两台试点均发现 Tailnet SSH policy 可把 `root` 映射到本地 root；这独立于 OpenSSH `PermitRootLogin no`。因此暂停下一主机，等待 Tailnet policy deny-root/allow-lodge-admin 或显式关闭 Tailscale SSH 的选择。
+
+## [2026-08-08] security | Tailnet SSH root 权限收口
+
+- 经操作者授权，将唯一 Tailscale SSH rule 的 target user 从 `autogroup:nonroot, root` 改为精确 `lodge-admin`，保留 member-to-self 与 check mode。
+- 新会话实测 Ali、bytebunny 的 Tailnet `root` 均被 policy 拒绝；两台 `lodge-admin` 均正常登录。至此两台试点的 OpenSSH 与 Tailnet SSH root 路径都已收口。

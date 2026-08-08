@@ -139,6 +139,7 @@ not be forced onto the current stack.
 - [x] Current privacy-minimized SSH/firewall/Fail2Ban/Tailnet posture in the Security page
 - [x] Ali pilot: non-root Tailnet key account, OpenSSH password/root closure, and post-change rejection tests
 - [x] bytebunny pilot: non-root Tailnet key account and OpenSSH password/root closure, including cloud-init ordering correction
+- [x] Tailnet SSH policy: deny root and retain only `lodge-admin`, verified against both pilots
 - [ ] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
 - [ ] Disable SSH password, keyboard-interactive, and root remote login one host at a time
 - [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate
@@ -161,8 +162,8 @@ Ali and bytebunny now have effective OpenSSH password, keyboard-interactive, and
 root login disabled, with a fresh `lodge-admin` Tailnet session and public root
 and password-only rejection checks recorded. bytebunny required an ordering
 correction because cloud-init's `50-cloud-init.conf` set the first effective
-password-authentication value; the Lodge drop-in now precedes it. A separate
-Tailnet SSH policy still maps a Tailnet `root` request to local root on both
-pilots. That policy bypasses OpenSSH's `PermitRootLogin no`, so full root-access
-closure remains pending an explicit Tailnet-policy decision; the next host must
-not be changed until that boundary is resolved.
+password-authentication value; the Lodge drop-in now precedes it. The approved
+Tailnet SSH policy was then changed from `autogroup:nonroot, root` to the exact
+`lodge-admin` local user while retaining check mode. Fresh tests reject a
+Tailnet `root` request on both pilots and still admit `lodge-admin`, closing the
+previously independent root-access path.

@@ -51,7 +51,8 @@ OpenSSH verification then reported password, keyboard-interactive, and root
 login disabled with public-key authentication and 3/30 limits. Fresh
 `lodge-admin` Tailnet login and public root/password rejection tests passed.
 
-Both pilots retain a separate unresolved Tailnet SSH policy boundary: a Tailnet
-`root` request is still mapped to local root independently of OpenSSH. This does
-not invalidate `PermitRootLogin no`, but it means full remote-root closure cannot
-be claimed until Tailnet policy denies root or Tailscale SSH is disabled.
+The separate Tailnet SSH policy boundary was resolved on 2026-08-08. Its sole
+rule now retains member-to-self check mode but permits only the exact local
+`lodge-admin` user. Fresh Ali and bytebunny tests reject Tailnet `root` and
+retain successful `lodge-admin` sessions, completing remote-root closure for
+both access planes on the pilots.
