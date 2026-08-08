@@ -144,6 +144,7 @@ not be forced onto the current stack.
 - [x] bytedragon cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
 - [x] bytebunny cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
 - [x] Ali cloud edge: verified removal of an Internet-wide all-traffic rule and its covered SSH/proxy ports while Tailnet administration remains available
+- [x] tencent cloud edge: verified removal of Internet-wide TCP 22 in Tencent Lighthouse while Tailnet administration remains available
 - [x] tencent rollout: non-root Tailnet key account, existing-sudo compatibility correction, and post-change rejection tests
 - [x] banwagong rollout: non-root Tailnet key account, existing-policy warning isolated, and post-change rejection tests
 - [x] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
@@ -194,3 +195,8 @@ labeled `gost 转发`. Fresh public probes to SSH and the two previously exposed
 proxy listeners (22, 8388, and 10809) all timed out, while `lodge-admin`
 Tailnet access succeeded. This explicitly accepts loss of that forgotten public
 gost exposure; the verified public-SSH closure count is now 3/5.
+
+Tencent Lighthouse subsequently removed its Internet-wide TCP 22 firewall rule for
+the Beijing instance. A fresh public probe to `43.143.252.243:22` timed out while a
+new `lodge-admin` Tailnet session succeeded; the verified public-SSH closure count
+is now 4/5. No business firewall rules were changed.

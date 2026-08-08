@@ -151,6 +151,13 @@ that public gost path rather than silently replacing it with guessed ports.
 
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
+## Tencent cloud-edge outcome — 2026-08-08
+
+The operator removed the Internet-wide TCP 22 rule from the Tencent Lighthouse
+firewall for the Beijing instance. A fresh TCP probe to `43.143.252.243:22` timed
+out, while a new `lodge-admin` session over Tailnet succeeded. Probes to ports 8388
+and 10809 also timed out; no business firewall rule was edited.
+
 ## Non-negotiable safety gates
 
 Do not make a host change until all gates for that one host are true:

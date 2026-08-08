@@ -307,3 +307,8 @@
 
 - Ali 未保留单独 22，而有一条描述为 `gost 转发` 的 `所有流量 / 0.0.0.0/0`；它覆盖 SSH 与实际监听的 8388、10809。
 - 操作者确认不再需要后删除这条唯一宽规则。新公网 probes 对 22、8388、10809 均超时，`lodge-admin` Tailnet 登录成功；公网 SSH 已关闭 3/5，且该 forgotten public gost path 被明确退役。
+
+## [2026-08-08] cloud-edge | tencent 公网 SSH 关闭
+
+- 操作者在腾讯云 Lighthouse 北京实例防火墙中删除公网 TCP 22 规则；未编辑业务规则。
+- 新 `43.143.252.243:22` probe 超时，`lodge-admin` Tailnet 登录仍成功；8388、10809 亦未对公网开放。公网 SSH 已关闭 4/5，banwagong 仍需独立 provider 证据。
