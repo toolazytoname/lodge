@@ -111,13 +111,13 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "banwagong has a pre-existing /etc/sudoers.d/hermes-ro permissions error; Lodge's own 0440 exact sudo entry is independently parsed and exercised, but the unrelated file is not auto-corrected because doing so can enable its prior policy"
+      "evidence": "All five hosts pass global sudoers validation. banwagong's historical /etc/sudoers.d/hermes-ro granted hermes-ro NOPASSWD: ALL with unsafe mode 0644; after content review it was moved to root-only /root/lodge-quarantine rather than chmodded, and visudo -c then parsed only the intended policies"
     },
     {
       "id": "public_ssh_closed_hosts",
       "dimension": "security",
       "name": "Hosts with Internet TCP 22 independently verified closed",
-      "current": 4,
+      "current": 5,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",

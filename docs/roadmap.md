@@ -152,7 +152,7 @@ not be forced onto the current stack.
 - [x] Disable SSH password, keyboard-interactive, and root remote login one host at a time
 - [x] Remove or allowlist public port 22 at the cloud edge or host firewall without interrupting Tailnet administration
 - [x] Review and record deliberate local firewall and Fail2Ban posture after public SSH closure
-- [ ] Inspect the pre-existing banwagong `hermes-ro` sudoers policy before any repair
+- [x] Isolate the pre-existing banwagong `hermes-ro` full-root sudoers policy after review
 
 The 2026-08-08 *initial* baseline found every host accepting password authentication
 and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali
@@ -232,3 +232,12 @@ choice rather than an unmeasured gap: a future public-SSH exception must include
 an explicit Fail2Ban decision. The existing banwagong `hermes-ro` policy is
 still not repaired automatically because changing its permissions could activate
 unknown legacy privileges.
+
+The banwagong review resolved the final local exception: `hermes-ro` was a
+real historical UID 1000 account with a mode-0644 sudoers file granting
+`NOPASSWD: ALL`—not a read-only policy. It had no observed process, systemd
+unit, or cron reference. The operator moved the file into root-only
+`/root/lodge-quarantine` rather than correcting its mode, then `visudo -c`
+parsed `/etc/sudoers` and the intended Lodge policies cleanly. A fresh Tailnet
+check confirms the file is absent from `/etc/sudoers.d` and `lodge-admin` has
+no sudo-policy warning.

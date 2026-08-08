@@ -332,3 +332,8 @@
 
 - 独立服务检查确认仅 tencent 的 `fail2ban-client` 已安装、active、enabled；bytebunny、bytedragon、Ali、banwagong 均未安装。
 - 因五台公网 TCP 22 都已关闭，将其记录为有意的 defence-in-depth 选择，而非把每机安装 Fail2Ban 误当作安全完成条件。任何未来公网 SSH 例外必须重新明确 jail/log 兼容性；banwagong 的 `hermes-ro` 仍待内容审查。
+
+## [2026-08-08] remediation | banwagong `hermes-ro` sudoers 隔离
+
+- 内容审查确认该 mode-0644 文件实际为 `hermes-ro ALL=(ALL) NOPASSWD: ALL`，账号存在且 UID 1000；未观察到其进程、unit 或 cron 引用。这不是 read-only 权限。
+- 操作者未 chmod 启用历史规则，而是将其移至 root-only `/root/lodge-quarantine`。随后 `visudo -c` 仅报告 intended sudoers parsed OK；Tailnet 再检确认 `/etc/sudoers.d/hermes-ro` 不存在且 `lodge-admin` sudo 无 policy warning。全局 sudoers 验证为 5/5。

@@ -193,6 +193,19 @@ documented defence-in-depth choices rather than a claim that every host needs a
 ban daemon. Any future exception that reopens public SSH must explicitly decide
 whether compatible Fail2Ban logging and jail coverage are required.
 
+## banwagong historical sudoers isolation — 2026-08-08
+
+Review showed that `/etc/sudoers.d/hermes-ro` was mode 0644 and contained
+`hermes-ro ALL=(ALL) NOPASSWD: ALL`. The filename was therefore misleading:
+it was a potential full-root rule for a real UID 1000 account, not a
+read-only restriction. There was no observed process, unit, or cron reference
+to that account. The operator moved the file to a root-only dated copy under
+`/root/lodge-quarantine`, rather than making its mode valid and potentially
+activating it. `visudo -c` then parsed `/etc/sudoers`, `README`,
+`lodge-admin`, and `lodge-agent` cleanly; a fresh Tailnet check also proved
+the historical path absent while `lodge-admin` retained its intended limited
+sudo policy.
+
 ## Non-negotiable safety gates
 
 Do not make a host change until all gates for that one host are true:

@@ -128,6 +128,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 Fail2Ban 处置：复核后仅 tencent 安装且 active/enabled；其余四台没有该 binary。由于 Internet TCP 22 已 5/5 关闭，这被记录为明确的纵深防御取舍，而不是用“每机装 daemon”替代边界验证。banwagong 的非 Lodge `hermes-ro` 内容仍需先审查才可能修复。
 
+> 2026-08-08 M8 历史 sudoers 收口：banwagong 的 `hermes-ro` 经内容审查为真实 UID 1000 的 `NOPASSWD: ALL`，绝非 read-only。因 mode 0644，不能通过 chmod 贸然启用；操作者将文件隔离至 root-only `/root/lodge-quarantine`。`visudo -c` 随后全部 parsed OK，Tailnet 再检确认原路径消失，五机全局 sudoers 验证为 5/5。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。
