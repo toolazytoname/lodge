@@ -81,6 +81,20 @@ sessions remain successful. This closes the independent Tailnet root path;
 future hosts must create and verify `lodge-admin` before relying on Tailscale
 SSH for administration.
 
+## bytedragon rollout outcome — 2026-08-08
+
+bytedragon had the same `50-cloud-init.conf` ordering characteristic as
+bytebunny, so its approved root-owned hardening drop-in was installed as
+`01-lodge-hardening.conf` from the start. A locked-password `lodge-admin` with
+the operator's existing Mac key and the exact maintenance sudo whitelist was
+created first; a fresh Tailnet session and exact sudo test succeeded before
+OpenSSH was changed. `sshd -t` passed, `ssh.service` reloaded, and effective
+OpenSSH reports password, keyboard-interactive, and root login disabled with
+public-key enabled and 3/30 limits. A fresh `lodge-admin` session still
+succeeds, while public root-key and password-only attempts to its public address
+are both rejected. Its root-only rollback copy remains under the dated backup
+directory; cloud-edge port 22, UFW, and Fail2Ban are still separate gates.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates

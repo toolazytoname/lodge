@@ -274,3 +274,9 @@
 
 - 经操作者授权，将唯一 Tailscale SSH rule 的 target user 从 `autogroup:nonroot, root` 改为精确 `lodge-admin`，保留 member-to-self 与 check mode。
 - 新会话实测 Ali、bytebunny 的 Tailnet `root` 均被 policy 拒绝；两台 `lodge-admin` 均正常登录。至此两台试点的 OpenSSH 与 Tailnet SSH root 路径都已收口。
+
+## [2026-08-08] rollout | bytedragon SSH 访问收口
+
+- 通过原有 root 入口完成 backup、locked-password `lodge-admin`、Mac key 与精确 sudo；先验证新的 Tailnet 管理员会话和额外 sudo 参数拒绝。
+- 以先于 `50-cloud-init.conf` 的 root-owned `01-lodge-hardening.conf` 通过 `sshd -t` 后 reload。effective OpenSSH 为 password/root/keyboard-interactive disabled、public-key enabled、3/30。
+- 新 `lodge-admin` 正常；公网 root key 与 password-only 均被拒绝。Tailnet policy 已全网拒绝 root；云边界、UFW、Fail2Ban 仍待后续主机级收口。

@@ -110,6 +110,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 Tailnet SSH root 边界已收口：经操作者批准，唯一规则从 `autogroup:nonroot, root` 变为精确 `lodge-admin`，member-to-self check mode 保留。Ali 与 bytebunny 新会话均证明 Tailnet `root` 被拒绝，而 `lodge-admin` 可用；因此两台试点不再有独立 Tailnet root 绕过路径。
 
+> 2026-08-08 M8 bytedragon 完成：其 cloud-init 同样要求 Lodge drop-in 位于 `50-` 之前；独立管理员先验证、`sshd -t`+reload 后，OpenSSH password/root/keyboard-interactive 已关闭且公钥保留。Tailnet `lodge-admin` 可用，公网 root-key 和密码尝试均被拒绝。Ali、bytebunny、bytedragon 现为三台完整访问收口证据，剩余 tencent 与 banwagong 仍按独立 recovery gate 推进。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

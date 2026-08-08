@@ -56,3 +56,13 @@ rule now retains member-to-self check mode but permits only the exact local
 `lodge-admin` user. Fresh Ali and bytebunny tests reject Tailnet `root` and
 retain successful `lodge-admin` sessions, completing remote-root closure for
 both access planes on the pilots.
+
+## bytedragon rollout outcome
+
+bytedragon then passed the same recovery-gated rollout. The operator key,
+locked-password `lodge-admin`, exact sudo allowlist, backup, and fresh Tailnet
+session were verified before change. Its cloud-init ordering was handled with an
+`01-` root-owned drop-in; `sshd -t`, reload, and effective OpenSSH output confirm
+password, keyboard-interactive, and root login are disabled with 3/30 limits.
+Fresh `lodge-admin` succeeds and both public root-key and password-only attempts
+are rejected. Cloud-edge and local firewall work remains outside this rollout.

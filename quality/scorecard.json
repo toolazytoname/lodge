@@ -77,31 +77,31 @@
       "id": "ssh_password_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with SSH password authentication disabled",
-      "current": 2,
+      "current": 3,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Ali and bytebunny pilots on 2026-08-08: effective sshd -T reports PasswordAuthentication no after sshd -t and reload; public password login was rejected and fresh lodge-admin Tailnet sessions succeeded"
+      "evidence": "Ali, bytebunny, and bytedragon rollouts on 2026-08-08: effective sshd -T reports PasswordAuthentication no after sshd -t and reload; public password login was rejected and fresh lodge-admin Tailnet sessions succeeded"
     },
     {
       "id": "ssh_root_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with OpenSSH PermitRootLogin disabled",
-      "current": 2,
+      "current": 3,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Ali and bytebunny pilots on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. The independently verified Tailnet SSH policy now rejects root on both pilots"
+      "evidence": "Ali, bytebunny, and bytedragon rollouts on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. The independently verified Tailnet SSH policy rejects root"
     },
     {
       "id": "tailscale_ssh_root_denied_hosts",
       "dimension": "security",
       "name": "Pilots with Tailnet SSH root denied",
-      "current": 2,
+      "current": 5,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Tailnet policy changed on 2026-08-08 from autogroup:nonroot, root to exact lodge-admin with check mode retained; fresh Ali and bytebunny root requests were denied while lodge-admin sessions succeeded"
+      "evidence": "Tailnet policy changed on 2026-08-08 from autogroup:nonroot, root to exact lodge-admin with check mode retained; it applies to all five devices. Fresh Ali, bytebunny, and bytedragon root requests were denied while lodge-admin sessions succeeded"
     },
     {
       "id": "current_security_posture_controls",
