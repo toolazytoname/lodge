@@ -1,5 +1,12 @@
 # Wiki Log
 
+## [2026-08-08] deployment | M7 isolated stateless canary bootstrap
+
+- 在 banwagong 通过 root console 对校验后的临时 helper 建立了唯一、精确的 `lodge-admin` sudo 许可；root-owned `0700` helper 运行后在成功或失败路径均删除该许可和自身。
+- 引导写入 root-owned canary Compose 与部署策略，启动固定 Nginx baseline digest；`127.0.0.1:18080` HTTP 健康检查通过，未暴露公网端口、未挂载数据卷。
+- 后续 Tailnet SSH 独立复核确认一次性 sudoers 文件与 helper 均不存在，`lodge-admin` 已恢复原本只读/SSH 维护白名单。
+- M7 尚未完成：必须从已认证 Lodge Operations 读取实时 policy，执行 1.27.4 immutable release，再执行该 policy 的回滚并验证持久审计；不能绕开 Hub/Agent 受控链路。
+
 ## [2026-08-06] query | Lodge 服务器统一管理与安全路线
 
 - 审阅当前 hub/agent 实现与部署脚本。

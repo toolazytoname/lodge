@@ -132,6 +132,19 @@ recovery. The remaining live acceptance therefore requires either an explicitly
 approved isolated stateless canary or a reviewed application refactor; it must
 not be forced onto the current stack.
 
+On 2026-08-08 the explicitly approved isolated canary was bootstrapped on
+banwagong. It starts the reviewed `nginx@sha256:814a…e4` baseline with no data
+volume, `64 MiB`/`32`-PID limits, and loopback-only `127.0.0.1:18080`; its HTTP
+health check passed. `/srv/lodge-canary` is `root:root 0755`; the root-only
+policy was accepted by the Agent during bootstrap. A checksum-verified,
+root-owned one-shot bootstrap helper was temporarily authorized for
+`lodge-admin`, then both the exact sudoers entry and helper were absent after
+execution; the normal restricted SSH sudo list was restored. The remaining M7
+production proof is intentionally narrower: authenticate to the live Hub,
+submit the policy-projected `nginx-1.27.4-alpine` release through Operations,
+verify durable success and health, then submit its policy-projected rollback and
+verify the durable rollback result. No direct root release command will be used.
+
 ## M8 — SSH access hardening
 
 - [x] Read-only five-host effective SSH, listener, firewall, Fail2Ban, and Tailscale baseline
