@@ -116,6 +116,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 五机访问收口完成：banwagong 同样完成 non-root 管理员、`01-` profile、test+reload 与四类连接验证，至此五台都关闭 password/OpenSSH-root/Tailnet-root，并保留可用 `lodge-admin`。banwagong 的既有 `hermes-ro` sudoers 权限错误被明确记录但未擅改，因修复会激活非 Lodge 的历史权限。M8 余项是云端 22、firewall/Fail2Ban 和该既有 sudo 文件的独立审查，不应混入已完成的访问收口。
 
+> 2026-08-08 M8 首个云边界验收：bytedragon 的唯一关联火山引擎安全组已只删除公网 `TCP 22 / 0.0.0.0/0`。从外网的新连接超时、Tailnet `lodge-admin` 成功，量化为公网 SSH 已关闭 1/5；其余主机仍逐台处理，业务端口和其他规则未动。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

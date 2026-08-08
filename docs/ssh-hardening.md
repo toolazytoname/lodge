@@ -122,6 +122,15 @@ was exercised successfully. Correcting the existing file would enable whatever
 policy it contains, so it is a separately reviewed security task rather than an
 automatic chmod.
 
+## bytedragon cloud-edge outcome — 2026-08-08
+
+After visual verification of the instance ID and its single attached `Default`
+security group, the operator removed only the inbound TCP 22 rule sourced from
+`0.0.0.0/0`. Other business, inter-security-group, and ICMP rules were left
+unchanged. A fresh probe to `115.191.48.113:22` timed out, while a fresh
+`lodge-admin` Tailnet session succeeded. This is the first independently
+verified cloud-edge closure; it must not be extrapolated to the remaining hosts.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates

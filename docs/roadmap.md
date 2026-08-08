@@ -141,6 +141,7 @@ not be forced onto the current stack.
 - [x] bytebunny pilot: non-root Tailnet key account and OpenSSH password/root closure, including cloud-init ordering correction
 - [x] Tailnet SSH policy: deny root and retain only `lodge-admin`, verified against both pilots
 - [x] bytedragon rollout: non-root Tailnet key account, cloud-init-safe OpenSSH closure, and post-change rejection tests
+- [x] bytedragon cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
 - [x] tencent rollout: non-root Tailnet key account, existing-sudo compatibility correction, and post-change rejection tests
 - [x] banwagong rollout: non-root Tailnet key account, existing-policy warning isolated, and post-change rejection tests
 - [x] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
@@ -174,3 +175,9 @@ then completed their recovery-gated rollouts and public root-key/password
 rejection tests. All five hosts now have a verified non-root Tailnet key
 administrator and closed password/OpenSSH-root/Tailnet-root access paths. Public
 port-22 cloud policy and local firewall/Fail2Ban posture remain separate gates.
+
+The first cloud-edge acceptance is complete for bytedragon: its exact
+`0.0.0.0/0` TCP 22 rule was removed from the only attached Fire Volcano Engine
+security group. A fresh Internet TCP probe timed out while a fresh
+`lodge-admin` Tailnet session succeeded. This is one host only; the other four
+public-edge policies remain independently unverified.

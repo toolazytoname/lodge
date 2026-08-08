@@ -114,6 +114,16 @@
       "evidence": "banwagong has a pre-existing /etc/sudoers.d/hermes-ro permissions error; Lodge's own 0440 exact sudo entry is independently parsed and exercised, but the unrelated file is not auto-corrected because doing so can enable its prior policy"
     },
     {
+      "id": "public_ssh_closed_hosts",
+      "dimension": "security",
+      "name": "Hosts with Internet TCP 22 independently verified closed",
+      "current": 1,
+      "target": 5,
+      "unit": "hosts",
+      "direction": "increase",
+      "evidence": "bytedragon on 2026-08-08: the exact 0.0.0.0/0 TCP 22 ingress rule was removed from its only attached security group; a fresh public probe timed out while lodge-admin Tailnet access succeeded"
+    },
+    {
       "id": "current_security_posture_controls",
       "dimension": "security",
       "name": "Current Security-page access posture controls",

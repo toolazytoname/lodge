@@ -292,3 +292,8 @@
 - 最后一台完成 backup、locked-password `lodge-admin`、精确 sudo、新 Tailnet 会话、`01-` drop-in test+reload；effective OpenSSH 关闭 password/root/keyboard-interactive，保留 key 和 3/30。
 - `lodge-admin` 成功；公网 root key、password-only、Tailnet root 均被拒，五台访问收口完成。
 - 既有 `/etc/sudoers.d/hermes-ro` 权限错误使全局 `visudo -c` 报错。Lodge 不自动 chmod 这个非本项目文件，避免意外启用其既有权限；自身 0440 精确 sudo 已独立 parse 和实际验证。云边界、UFW/Fail2Ban 仍待独立门禁。
+
+## [2026-08-08] cloud-edge | bytedragon 公网 SSH 关闭
+
+- 操作者在已核验的唯一关联火山引擎 `Default` 安全组中，仅删除 `TCP 22 / 0.0.0.0/0` 入方向规则；不改业务端口、组间规则或 ICMP。
+- 新公网 22 TCP probe 超时，新的 `lodge-admin` Tailnet 会话成功。`public_ssh_closed_hosts` 现为 1/5；其他主机云边界不作推断。
