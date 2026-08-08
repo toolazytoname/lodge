@@ -150,8 +150,9 @@ test.describe("Lodge Web console", () => {
     await expect(page.getByRole("heading", { name: "已批准发布" })).toBeVisible();
     await expect(page.locator("#deploymentList .deployment-row")).toHaveCount(2);
     await expect(page.locator("#deploymentList")).toContainText("sha256:222222222222…");
-    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(5);
-    await expect(page.locator("#operationsMetrics .metric-value")).toHaveText(["5", "2", "0", "2"]);
+    await expect(page.getByRole("heading", { name: "North 操作记录" })).toBeVisible();
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(1);
+    await expect(page.locator("#operationsMetrics .metric-value")).toHaveText(["5", "2", "0", "0"]);
     await page.getByRole("button", { name: "读取日志 Gateway", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "读取日志 Gateway" });
     await expect(dialog).toBeVisible();
@@ -168,7 +169,7 @@ test.describe("Lodge Web console", () => {
     await expect(dialog.locator("#actionResultSummary")).toContainText("动作完成");
     await expect(dialog.locator("#actionResultLogs")).toContainText("gateway ready");
     await expect(dialog.locator("#actionLogNotice")).toContainText("关闭后即清除");
-    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(6);
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(2);
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("读取日志");
     await expectNoHorizontalOverflow(page);
     // Preserve the complete page while neutralizing platform font-metric
@@ -194,9 +195,17 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("部署");
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("成功");
     await expect(page.locator("#notice")).toContainText("健康验证已通过");
-    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(7);
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(3);
     await deploymentDialog.locator("#cancelActionBtn").click();
     await expect(deploymentDialog).not.toBeVisible();
+
+    await page.locator("#actionAgent").selectOption("south");
+    await expect(page.getByRole("heading", { name: "South 操作记录" })).toBeVisible();
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(1);
+    await expect(page.locator("#operationAudit")).toContainText("已回滚");
+    await expect(page.locator("#operationsMetrics .metric-value")).toHaveText(["5", "2", "0", "1"]);
+    await page.locator("#actionAgent").selectOption("north");
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(3);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#actionList .action-row")).toHaveCount(3);
@@ -251,7 +260,7 @@ test.describe("Lodge Web console", () => {
     await page.goto("/?fixture=deployments-error#operations");
     await expect(page.locator("#actionList .action-row")).toHaveCount(3);
     await expect(page.locator("#deploymentList")).toContainText("发布策略暂时不可用");
-    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(5);
+    await expect(page.locator("#operationAudit .operation-row")).toHaveCount(1);
     expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/deployments", "/api/events", "/api/events", "/api/history", "/api/link-checks", "/api/operations", "/api/services", "/api/services"]);
   });
 });

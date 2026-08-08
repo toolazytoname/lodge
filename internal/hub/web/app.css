@@ -1724,13 +1724,10 @@ textarea:focus-visible {
 }
 
 .operations-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
-  gap: 14px;
+  display: block;
 }
 
 .action-panel,
-.operation-boundary-panel,
 .deployment-panel,
 .operation-audit-panel {
   padding: 18px;

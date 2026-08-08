@@ -224,20 +224,9 @@
                   <select id="actionAgent"></select>
                 </label>
               </div>
-              <p class="action-boundary-copy">清单实时来自主机上的 root-only 策略；Hub 不能提交命令、参数或路径。</p>
+              <p class="action-boundary-copy">安全约束已内嵌到每个允许动作：主机策略决定范围、每次逐字确认、全局串行执行并在变更后验证结果。</p>
               <div id="actionCapabilityStatus" class="action-capability-status" aria-live="polite"></div>
               <div id="actionList" class="action-list"></div>
-            </section>
-            <section class="panel operation-boundary-panel" aria-labelledby="operationBoundaryTitle">
-              <div><p class="eyebrow">SAFETY BOUNDARY</p><h2 id="operationBoundaryTitle">执行边界</h2></div>
-              <ul class="boundary-checks">
-                <li><strong>策略在主机</strong><span>策略缺失即禁用，页面不能扩大权限。</span></li>
-                <li><strong>逐字确认</strong><span>每次执行都需输入当前动作的确认短语。</span></li>
-                <li><strong>串行与验后</strong><span>全局一次一个动作，变更后验证目标状态。</span></li>
-                <li><strong>日志不落库</strong><span>有界脱敏日志只在本次结果窗口显示。</span></li>
-              </ul>
-              <div class="sync-divider"><span>Agent 同步</span></div>
-              <div id="syncSummary" class="sync-summary"></div>
             </section>
           </div>
           <section class="panel deployment-panel section-block" aria-labelledby="deploymentTitle">
@@ -259,7 +248,7 @@
               <div>
                 <p class="eyebrow">DURABLE AUDIT</p>
                 <h2 id="operationAuditTitle">操作记录</h2>
-                <p>仅保存动作、目标、状态、会话标识和类型化结果；不保存日志正文。</p>
+                <p id="operationAuditDescription">选择主机后，仅显示该主机的动作、状态、会话标识和类型化结果；不保存日志正文。</p>
               </div>
             </div>
             <div id="operationAudit" class="operation-audit" aria-live="polite"></div>

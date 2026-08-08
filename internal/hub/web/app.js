@@ -1399,11 +1399,18 @@ function operationDuration(operation) {
 }
 function renderOperationAudit() {
     const audit = byID("operationAudit");
+    const selectedAgent = state.agents.find((agent) => agent.id === selectedActionAgent);
+    byID("operationAuditTitle").textContent = selectedAgent ? `${selectedAgent.name} 操作记录` : "操作记录";
+    byID("operationAuditDescription").textContent = selectedAgent
+        ? `仅显示 ${selectedAgent.name} 的动作、状态、会话标识和类型化结果；不保存日志正文。`
+        : "选择主机后显示该主机的动作、状态、会话标识和类型化结果；不保存日志正文。";
     if (!state.operationsLoaded) {
         replaceChildren(audit, [emptyState(state.operationsError ? `操作记录暂时不可用：${state.operationsError}` : "正在读取持久化操作记录…", state.operationsError ? "error" : "loading")]);
         return;
     }
-    const operations = state.operations.operations;
+    const operations = selectedActionAgent
+        ? state.operations.operations.filter((operation) => operation.agentId === selectedActionAgent)
+        : state.operations.operations;
     if (!operations.length) {
         replaceChildren(audit, [emptyState("还没有受控操作记录。首个动作完成后会在这里留下审计轨迹。")]);
         return;
@@ -1498,33 +1505,18 @@ function renderOperations() {
         ...actions.map((action) => action.targetKey),
         ...deployments.map((deployment) => `deployment:${deployment.stackKey}`),
     ]).size;
-    const inFlight = state.operations.operations.filter((operation) => operation.state === "requested" || operation.state === "running").length;
-    const failed = state.operations.operations.filter((operation) => operation.state === "failed" || operation.state === "rolled_back").length;
+    const scopedOperations = selectedActionAgent
+        ? state.operations.operations.filter((operation) => operation.agentId === selectedActionAgent)
+        : state.operations.operations;
+    const inFlight = scopedOperations.filter((operation) => operation.state === "requested" || operation.state === "running").length;
+    const failed = scopedOperations.filter((operation) => operation.state === "failed" || operation.state === "rolled_back").length;
     const capabilitiesLoaded = Boolean(loaded?.response && deploymentLoaded?.response);
     replaceChildren(byID("operationsMetrics"), [
         metricCard("受控能力", capabilitiesLoaded ? actions.length + deployments.length : "N/A", selectedAgent ? selectedAgent.name : "未选择主机", actions.length + deployments.length ? "good" : "calm"),
         metricCard("批准目标", capabilitiesLoaded ? targetCount : "N/A", "来自 root-only 策略", targetCount ? "info" : "calm"),
-        metricCard("执行中", state.operationsLoaded ? inFlight : "N/A", "全局串行门禁", inFlight ? "warning" : "good"),
-        metricCard("失败 / 回滚", state.operationsLoaded ? failed : "N/A", `最近 ${state.operations.operations.length} 条记录`, failed ? "critical" : "good"),
+        metricCard("执行中", state.operationsLoaded ? inFlight : "N/A", selectedAgent ? `${selectedAgent.name} 当前记录` : "尚未选择主机", inFlight ? "warning" : "good"),
+        metricCard("失败 / 回滚", state.operationsLoaded ? failed : "N/A", selectedAgent ? `${selectedAgent.name} 最近 ${scopedOperations.length} 条记录` : "尚未选择主机", failed ? "critical" : "good"),
     ]);
-    if (!state.agentsLoaded) {
-        replaceChildren(byID("syncSummary"), [emptyState("资产同步状态暂时不可用。", "error")]);
-    }
-    else if (!state.agents.length) {
-        replaceChildren(byID("syncSummary"), [emptyState("尚未纳管主机。")]);
-    }
-    else {
-        const rows = state.agents.map((agent) => {
-            const group = state.groups.find((item) => item.agent.id === agent.id);
-            const row = element("div", "sync-row");
-            row.append(element("span", `status-dot ${agent.online ? "online" : "offline"}`), element("span", "sync-copy"), element("span", "sync-version", group?.agent.agentVersion ? `Agent ${group.agent.agentVersion}` : "版本未知"));
-            const copy = row.children.item(1);
-            if (copy)
-                copy.append(element("strong", "", agent.name), element("small", "", formatLastSeen(agent.lastSeen || group?.agent.lastSeen)));
-            return row;
-        });
-        replaceChildren(byID("syncSummary"), rows);
-    }
     const status = byID("actionCapabilityStatus");
     const list = byID("actionList");
     if (!state.agentsLoaded || !selectedAgent) {
