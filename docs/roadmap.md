@@ -159,9 +159,10 @@ and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali
 additionally had no active UFW or Fail2Ban layer; tencent had both; banwagong had
 active UFW but no active Fail2Ban. That snapshot is historical rather than a
 current-state claim: all five subsequently passed the recovery-gated OpenSSH and
-Tailnet-root closure. Public port-22 cloud policy is independently verified closed
-for four hosts; banwagong and the deliberate local firewall/Fail2Ban exceptions
-remain open work. Tailscale alone is not evidence that Internet SSH is closed.
+Tailnet-root closure. Public TCP 22 is independently verified closed for all five
+hosts, including banwagong's host-firewall closure; its Fail2Ban disposition and
+historical sudoers rule were reviewed and recorded. Tailscale alone is not
+evidence that Internet SSH is closed.
 The detailed evidence and non-lockout sequence are in
 [`ssh-hardening.md`](ssh-hardening.md).
 
