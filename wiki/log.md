@@ -297,3 +297,8 @@
 
 - 操作者在已核验的唯一关联火山引擎 `Default` 安全组中，仅删除 `TCP 22 / 0.0.0.0/0` 入方向规则；不改业务端口、组间规则或 ICMP。
 - 新公网 22 TCP probe 超时，新的 `lodge-admin` Tailnet 会话成功。`public_ssh_closed_hosts` 现为 1/5；其他主机云边界不作推断。
+
+## [2026-08-08] cloud-edge | bytebunny 公网 SSH 关闭
+
+- 操作者在独立火山引擎账号删除 bytebunny 的公网 TCP 22 入站规则；新 `115.191.29.26:22` probe 超时，而 `lodge-admin` Tailnet 登录仍成功。
+- bytebunny、bytedragon 在两个独立账号均已验证关闭，`public_ssh_closed_hosts` 为 2/5；Ali、tencent、banwagong 仍需各自 provider 证据。

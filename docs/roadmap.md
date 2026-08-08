@@ -142,6 +142,7 @@ not be forced onto the current stack.
 - [x] Tailnet SSH policy: deny root and retain only `lodge-admin`, verified against both pilots
 - [x] bytedragon rollout: non-root Tailnet key account, cloud-init-safe OpenSSH closure, and post-change rejection tests
 - [x] bytedragon cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
+- [x] bytebunny cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
 - [x] tencent rollout: non-root Tailnet key account, existing-sudo compatibility correction, and post-change rejection tests
 - [x] banwagong rollout: non-root Tailnet key account, existing-policy warning isolated, and post-change rejection tests
 - [x] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
@@ -181,3 +182,8 @@ The first cloud-edge acceptance is complete for bytedragon: its exact
 security group. A fresh Internet TCP probe timed out while a fresh
 `lodge-admin` Tailnet session succeeded. This is one host only; the other four
 public-edge policies remain independently unverified.
+
+bytebunny then received the same independent cloud-edge verification under its
+separate Fire Volcano Engine account: public `115.191.29.26:22` timed out and
+fresh Tailnet `lodge-admin` access remained available. The verified count is now
+2/5; Ali, tencent, and banwagong remain separate cloud/provider decisions.

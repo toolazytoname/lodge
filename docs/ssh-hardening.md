@@ -131,6 +131,14 @@ unchanged. A fresh probe to `115.191.48.113:22` timed out, while a fresh
 `lodge-admin` Tailnet session succeeded. This is the first independently
 verified cloud-edge closure; it must not be extrapolated to the remaining hosts.
 
+## bytebunny cloud-edge outcome — 2026-08-08
+
+The operator separately removed bytebunny's Internet-wide TCP 22 rule in its
+own Fire Volcano Engine account. A fresh public probe to `115.191.29.26:22`
+timed out, while a fresh `lodge-admin` Tailnet session succeeded. Together with
+bytedragon this verifies two independent cloud accounts rather than assuming a
+shared security-group result.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates
