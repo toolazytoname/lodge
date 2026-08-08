@@ -433,7 +433,10 @@ async function refresh(): Promise<void> {
 
   renderAll();
   if (activePage === "security") void loadSelectedHistory(true);
-  if (activePage === "operations") void loadSelectedCapabilities(true);
+  if (activePage === "operations") {
+    void refreshOperationAudit();
+    void loadSelectedCapabilities(true);
+  }
   updateConnectionState(failures.length > 0);
   if (failures.length) {
     const noUsableData = !state.agentsLoaded && !state.servicesLoaded;
@@ -470,6 +473,7 @@ function setPage(page: PageID, updateHash = true): void {
   if (page === "operations") {
     syncActionAgentSelect();
     renderOperations();
+    void refreshOperationAudit();
     void loadSelectedCapabilities(false);
   }
   window.scrollTo({ top: 0, behavior: "instant" });
@@ -1924,7 +1928,7 @@ function operationIsTerminal(operation: OperationView): boolean {
   return operation.state === "succeeded" || operation.state === "failed" || operation.state === "rolled_back";
 }
 
-async function trackDeploymentOperation(operationID: string, agentName: string, stackLabel: string): Promise<void> {
+async function trackDeploymentOperation(operationID: string, agentID: string, agentName: string, stackLabel: string): Promise<void> {
   if (trackedDeploymentOperations.has(operationID)) return;
   trackedDeploymentOperations.add(operationID);
   try {
@@ -1933,7 +1937,9 @@ async function trackDeploymentOperation(operationID: string, agentName: string, 
         await new Promise<void>((resolve) => window.setTimeout(resolve, 1_500));
       }
       try {
-        state.operations = await api<OperationsResponse>("/api/operations?limit=100");
+        const operations = await api<OperationsResponse>(`/api/operations?agent=${encodeURIComponent(agentID)}&limit=100`);
+        if (selectedActionAgent !== agentID) continue;
+        state.operations = operations;
         state.operationsLoaded = true;
         state.operationsError = "";
         renderOperations();
@@ -1957,11 +1963,22 @@ async function trackDeploymentOperation(operationID: string, agentName: string, 
 }
 
 async function refreshOperationAudit(): Promise<void> {
+  const agentID = selectedActionAgent;
+  if (!agentID) {
+    state.operations = { operations: [] };
+    state.operationsLoaded = true;
+    state.operationsError = "";
+    renderOperations();
+    return;
+  }
   try {
-    state.operations = await api<OperationsResponse>("/api/operations?limit=100");
+    const operations = await api<OperationsResponse>(`/api/operations?agent=${encodeURIComponent(agentID)}&limit=100`);
+    if (selectedActionAgent !== agentID) return;
+    state.operations = operations;
     state.operationsLoaded = true;
     state.operationsError = "";
   } catch (operationError) {
+    if (selectedActionAgent !== agentID) return;
     state.operationsError = errorMessage(operationError);
   }
   renderOperations();
@@ -2015,7 +2032,7 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
       });
       showDeploymentAccepted(response);
       setNotice(`${deployment.agentName} · ${deployment.definition.stackLabel}：发布已受理，正在后台执行。`);
-      void trackDeploymentOperation(response.operation.id, deployment.agentName, deployment.definition.stackLabel);
+      void trackDeploymentOperation(response.operation.id, deployment.agentID, deployment.agentName, deployment.definition.stackLabel);
     }
   } catch (actionError) {
     const audited = action ? executionResponseFromError(actionError) : null;
@@ -2143,6 +2160,7 @@ byID<HTMLSelectElement>("eventStateFilter").addEventListener("change", renderEve
 byID<HTMLSelectElement>("actionAgent").addEventListener("change", (event) => {
   selectedActionAgent = (event.currentTarget as HTMLSelectElement).value;
   renderOperations();
+  void refreshOperationAudit();
   void loadSelectedCapabilities(false);
 });
 byID<HTMLButtonElement>("dismissNotice").addEventListener("click", () => setNotice(null));

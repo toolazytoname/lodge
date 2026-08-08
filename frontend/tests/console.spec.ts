@@ -143,6 +143,11 @@ test.describe("Lodge Web console", () => {
 
   test("operations page gates actions and asynchronous immutable releases", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
+    const operationAuditRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/operations") operationAuditRequests.push(`${url.pathname}${url.search}`);
+    });
     await page.goto("/?fixture=normal#operations");
 
     await expect(page.getByRole("heading", { name: "已批准动作" })).toBeVisible();
@@ -204,8 +209,10 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#operationAudit .operation-row")).toHaveCount(1);
     await expect(page.locator("#operationAudit")).toContainText("已回滚");
     await expect(page.locator("#operationsMetrics .metric-value")).toHaveText(["5", "2", "0", "1"]);
+    await expect.poll(() => operationAuditRequests).toContain("/api/operations?agent=south&limit=100");
     await page.locator("#actionAgent").selectOption("north");
     await expect(page.locator("#operationAudit .operation-row")).toHaveCount(3);
+    await expect.poll(() => operationAuditRequests).toContain("/api/operations?agent=north&limit=100");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#actionList .action-row")).toHaveCount(3);

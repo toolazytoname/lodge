@@ -315,8 +315,10 @@ async function refresh() {
     renderAll();
     if (activePage === "security")
         void loadSelectedHistory(true);
-    if (activePage === "operations")
+    if (activePage === "operations") {
+        void refreshOperationAudit();
         void loadSelectedCapabilities(true);
+    }
     updateConnectionState(failures.length > 0);
     if (failures.length) {
         const noUsableData = !state.agentsLoaded && !state.servicesLoaded;
@@ -357,6 +359,7 @@ function setPage(page, updateHash = true) {
     if (page === "operations") {
         syncActionAgentSelect();
         renderOperations();
+        void refreshOperationAudit();
         void loadSelectedCapabilities(false);
     }
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -1720,7 +1723,7 @@ function showDeploymentTerminalResult(operation, agentName, stackLabel) {
 function operationIsTerminal(operation) {
     return operation.state === "succeeded" || operation.state === "failed" || operation.state === "rolled_back";
 }
-async function trackDeploymentOperation(operationID, agentName, stackLabel) {
+async function trackDeploymentOperation(operationID, agentID, agentName, stackLabel) {
     if (trackedDeploymentOperations.has(operationID))
         return;
     trackedDeploymentOperations.add(operationID);
@@ -1730,7 +1733,10 @@ async function trackDeploymentOperation(operationID, agentName, stackLabel) {
                 await new Promise((resolve) => window.setTimeout(resolve, 1_500));
             }
             try {
-                state.operations = await api("/api/operations?limit=100");
+                const operations = await api(`/api/operations?agent=${encodeURIComponent(agentID)}&limit=100`);
+                if (selectedActionAgent !== agentID)
+                    continue;
+                state.operations = operations;
                 state.operationsLoaded = true;
                 state.operationsError = "";
                 renderOperations();
@@ -1756,12 +1762,25 @@ async function trackDeploymentOperation(operationID, agentName, stackLabel) {
     }
 }
 async function refreshOperationAudit() {
+    const agentID = selectedActionAgent;
+    if (!agentID) {
+        state.operations = { operations: [] };
+        state.operationsLoaded = true;
+        state.operationsError = "";
+        renderOperations();
+        return;
+    }
     try {
-        state.operations = await api("/api/operations?limit=100");
+        const operations = await api(`/api/operations?agent=${encodeURIComponent(agentID)}&limit=100`);
+        if (selectedActionAgent !== agentID)
+            return;
+        state.operations = operations;
         state.operationsLoaded = true;
         state.operationsError = "";
     }
     catch (operationError) {
+        if (selectedActionAgent !== agentID)
+            return;
         state.operationsError = errorMessage(operationError);
     }
     renderOperations();
@@ -1817,7 +1836,7 @@ async function executePendingAction(event) {
             });
             showDeploymentAccepted(response);
             setNotice(`${deployment.agentName} · ${deployment.definition.stackLabel}：发布已受理，正在后台执行。`);
-            void trackDeploymentOperation(response.operation.id, deployment.agentName, deployment.definition.stackLabel);
+            void trackDeploymentOperation(response.operation.id, deployment.agentID, deployment.agentName, deployment.definition.stackLabel);
         }
     }
     catch (actionError) {
@@ -1945,6 +1964,7 @@ byID("eventStateFilter").addEventListener("change", renderEvents);
 byID("actionAgent").addEventListener("change", (event) => {
     selectedActionAgent = event.currentTarget.value;
     renderOperations();
+    void refreshOperationAudit();
     void loadSelectedCapabilities(false);
 });
 byID("dismissNotice").addEventListener("click", () => setNotice(null));
