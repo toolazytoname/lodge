@@ -7,6 +7,13 @@
 - Operations 主机选择现在同时限定指标和操作记录；移除了不随选择变化、占据版面的全局“执行边界/Agent 同步”卡片。安全约束保留为当前允许动作旁的简明说明。
 - 前端端到端回归现在还断言切换 North/South 会实际请求 `/api/operations?agent=<id>`，而非仅在旧的全局缓存中过滤；发布轮询也只查询目标主机。完整质量门禁通过。该 UX 修复仍需随下一次 Hub 发布进入 live 页面。
 
+## [2026-08-08] deployment | Hub 98d69a7 controlled live upgrade
+
+- bytedragon 的 Hub 已从通过两条 GitHub Actions 的 `98d69a7` 构建候选升级；Linux AMD64 候选 SHA-256 为 `c8f1ca1055c6c1e4a7aa2c14730ac4e574a9c35a169611c70818a207adb05ce3`。
+- 云控制台 root Shell 只运行了 checksum-bound one-shot helper。该 helper 复核候选、安装器和 systemd unit 的摘要，调用事务安装器，安装器本身创建 rollback bundle、验证 Hub HTTP 与 SQLite，再创建 post-deploy backup。
+- Tailnet `/api/session` 在升级后返回未认证会话响应；线上 `app.js` 已包含 `/api/operations?agent=${encodeURIComponent(agentID)}`，证明 Operations 主机级审计刷新代码已被服务。
+- 复核确认临时 sudoers、root helper、候选、临时安装目录与短入口均已删除；`lodge-admin` 恢复为仅 SSH 维护白名单。M7 的真实 canary release/rollback 审计仍待完成。
+
 ## [2026-08-08] deployment | M7 isolated stateless canary bootstrap
 
 - 在 banwagong 通过 root console 对校验后的临时 helper 建立了唯一、精确的 `lodge-admin` sudo 许可；root-owned `0700` helper 运行后在成功或失败路径均删除该许可和自身。
