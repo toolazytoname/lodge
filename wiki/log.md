@@ -322,3 +322,8 @@
 
 - 新公网 TCP 22 probes 表明 bytebunny、bytedragon、Ali、tencent 均超时，banwagong 仍可连通。
 - 五台独立的 `lodge-admin` Tailnet 新会话全部成功；因此当前云边界计数仍是 4/5，banwagong 是唯一公网 SSH 例外，不能由 UFW 状态推断其 provider 规则。
+
+## [2026-08-08] host-firewall | banwagong 公网 SSH 关闭
+
+- 操作者通过 root provider console 在 UFW 先加入 `tailscale0` 的 SSH allow，再删除通用 TCP 22 allow；其他业务端口未改。
+- 新 `67.216.196.122:22` Internet TCP probe 超时，而 `lodge-admin` Tailnet 登录仍成功。公网 SSH 已关闭 5/5；Fail2Ban inactive 与既有 `hermes-ro` sudoers 权限问题继续单独审查。

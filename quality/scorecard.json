@@ -107,7 +107,7 @@
       "id": "sudo_policy_global_validation_hosts",
       "dimension": "security",
       "name": "Hosts with a clean global sudo policy validation",
-      "current": 4,
+      "current": 5,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
@@ -121,7 +121,7 @@
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "bytebunny and bytedragon each removed Internet-wide TCP 22 in separate Fire Volcano Engine accounts; Ali removed an Internet-wide all-traffic rule covering 22/8388/10809; tencent removed its Internet TCP 22 rule in Tencent Lighthouse. Fresh public probes timed out while lodge-admin Tailnet access succeeded"
+      "evidence": "bytebunny and bytedragon each removed Internet-wide TCP 22 in separate Fire Volcano Engine accounts; Ali removed an Internet-wide all-traffic rule covering 22/8388/10809; tencent removed its Internet TCP 22 rule in Tencent Lighthouse; banwagong removed its generic UFW SSH allowance after adding a tailscale0-only SSH allow. Fresh public probes timed out while lodge-admin Tailnet access succeeded"
     },
     {
       "id": "current_security_posture_controls",

@@ -124,6 +124,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 tencent 云边界验收：操作者仅从腾讯云 Lighthouse 北京实例防火墙删除公网 TCP 22。新公网 22 TCP probe 超时，Tailnet `lodge-admin` 成功；8388、10809 也未开放。公网 SSH 已关闭 4/5，未动业务规则。
 
+> 2026-08-08 M8 banwagong 主机防火墙验收：操作者在 provider root console 中先允许 `tailscale0` 入站 SSH，再删除通用 UFW TCP 22 allow。新公网 22 TCP probe 超时、Tailnet `lodge-admin` 成功，公网 SSH 已关闭 5/5；其 Fail2Ban inactive 和非 Lodge `hermes-ro` sudoers 例外仍独立待审。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

@@ -174,6 +174,16 @@ works on each of all five hosts. banwagong remains the only host whose public TC
 not replace the pending host-firewall change or identify the upstream provider
 rule responsible for it.
 
+## banwagong host-firewall outcome — 2026-08-08
+
+The operator used the root provider console to add an SSH allow rule scoped to
+`tailscale0` and then remove the generic UFW TCP 22 allowance. A new Internet
+TCP probe to `67.216.196.122:22` timed out, while a fresh Tailnet
+`lodge-admin` login continued to succeed. This completes the 5/5 public SSH
+closure count without changing the host's other UFW service rules. Its inactive
+Fail2Ban posture and unrelated `hermes-ro` sudoers permissions remain separate
+review items.
+
 ## Non-negotiable safety gates
 
 Do not make a host change until all gates for that one host are true:

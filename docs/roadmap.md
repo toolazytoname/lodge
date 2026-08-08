@@ -145,11 +145,13 @@ not be forced onto the current stack.
 - [x] bytebunny cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
 - [x] Ali cloud edge: verified removal of an Internet-wide all-traffic rule and its covered SSH/proxy ports while Tailnet administration remains available
 - [x] tencent cloud edge: verified removal of Internet-wide TCP 22 in Tencent Lighthouse while Tailnet administration remains available
+- [x] banwagong host firewall: verified public TCP 22 closure while Tailnet administration remains available
 - [x] tencent rollout: non-root Tailnet key account, existing-sudo compatibility correction, and post-change rejection tests
 - [x] banwagong rollout: non-root Tailnet key account, existing-policy warning isolated, and post-change rejection tests
 - [x] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
 - [x] Disable SSH password, keyboard-interactive, and root remote login one host at a time
-- [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate
+- [x] Remove or allowlist public port 22 at the cloud edge or host firewall without interrupting Tailnet administration
+- [ ] Review and record deliberate local firewall, Fail2Ban, and historical sudoers exceptions
 
 The 2026-08-08 *initial* baseline found every host accepting password authentication
 and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali
@@ -215,3 +217,9 @@ bytedragon, Ali, and tencent public TCP 22 probes timed out, while each fresh
 `lodge-admin` Tailnet login succeeded. banwagong remained the sole public-22
 exception, although its Tailnet administrator was also healthy. This is evidence
 of the current boundary, not permission to infer a provider firewall policy.
+
+banwagong then added its Tailnet-interface SSH allowance in UFW and removed the
+generic UFW SSH allowance. A new Internet TCP 22 probe timed out while a fresh
+`lodge-admin` Tailnet session succeeded. Public SSH closure is therefore
+independently verified for all 5/5 hosts. This does not mark its inactive
+Fail2Ban service or the pre-existing `hermes-ro` sudoers file as resolved.
