@@ -77,21 +77,21 @@
       "id": "ssh_password_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with SSH password authentication disabled",
-      "current": 3,
+      "current": 4,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Ali, bytebunny, and bytedragon rollouts on 2026-08-08: effective sshd -T reports PasswordAuthentication no after sshd -t and reload; public password login was rejected and fresh lodge-admin Tailnet sessions succeeded"
+      "evidence": "Ali, bytebunny, bytedragon, and tencent rollouts on 2026-08-08: effective sshd -T reports PasswordAuthentication no after sshd -t and reload; public password login was rejected and fresh lodge-admin Tailnet sessions succeeded"
     },
     {
       "id": "ssh_root_disabled_hosts",
       "dimension": "security",
       "name": "Hosts with OpenSSH PermitRootLogin disabled",
-      "current": 3,
+      "current": 4,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "Ali, bytebunny, and bytedragon rollouts on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. The independently verified Tailnet SSH policy rejects root"
+      "evidence": "Ali, bytebunny, bytedragon, and tencent rollouts on 2026-08-08: effective sshd -T reports PermitRootLogin no after sshd -t and reload; public root public-key login was rejected. The independently verified Tailnet SSH policy rejects root"
     },
     {
       "id": "tailscale_ssh_root_denied_hosts",

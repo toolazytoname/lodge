@@ -280,3 +280,9 @@
 - 通过原有 root 入口完成 backup、locked-password `lodge-admin`、Mac key 与精确 sudo；先验证新的 Tailnet 管理员会话和额外 sudo 参数拒绝。
 - 以先于 `50-cloud-init.conf` 的 root-owned `01-lodge-hardening.conf` 通过 `sshd -t` 后 reload。effective OpenSSH 为 password/root/keyboard-interactive disabled、public-key enabled、3/30。
 - 新 `lodge-admin` 正常；公网 root key 与 password-only 均被拒绝。Tailnet policy 已全网拒绝 root；云边界、UFW、Fail2Ban 仍待后续主机级收口。
+
+## [2026-08-08] rollout | tencent SSH 访问收口
+
+- 已有 UFW/Fail2Ban 保持不动。创建 backup、locked-password `lodge-admin`、Mac key 后先验证新 Tailnet 会话。
+- 发现同名 sudo alias 的既有冲突；在任何 sshd 修改前改为无 alias 的精确命令白名单，完整 `visudo -c` 通过且额外参数仍被拒。
+- `01-` drop-in 经 test+reload 生效；新管理员成功，公网 root key、password-only 与 Tailnet root 均被拒绝。仅剩 banwagong 的逐机访问收口。

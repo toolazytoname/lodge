@@ -112,6 +112,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 bytedragon 完成：其 cloud-init 同样要求 Lodge drop-in 位于 `50-` 之前；独立管理员先验证、`sshd -t`+reload 后，OpenSSH password/root/keyboard-interactive 已关闭且公钥保留。Tailnet `lodge-admin` 可用，公网 root-key 和密码尝试均被拒绝。Ali、bytebunny、bytedragon 现为三台完整访问收口证据，剩余 tencent 与 banwagong 仍按独立 recovery gate 推进。
 
+> 2026-08-08 M8 tencent 完成：保留既有 UFW/Fail2Ban；创建管理员后发现 sudo 命令 alias 与既有环境冲突，先改为无 alias 的精确 whitelist 并全局验证，再配置 sshd。新管理员可用，OpenSSH root/password/keyboard-interactive 关闭，公网 root-key、密码和 Tailnet root 全部拒绝。仅剩 banwagong。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。

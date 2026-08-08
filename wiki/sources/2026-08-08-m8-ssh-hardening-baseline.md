@@ -66,3 +66,13 @@ session were verified before change. Its cloud-init ordering was handled with an
 password, keyboard-interactive, and root login are disabled with 3/30 limits.
 Fresh `lodge-admin` succeeds and both public root-key and password-only attempts
 are rejected. Cloud-edge and local firewall work remains outside this rollout.
+
+## tencent rollout outcome
+
+tencent passed the same recovery-gated access rollout while preserving its
+already-active UFW and Fail2Ban. A duplicate pre-existing sudo command alias
+was safely caught before sshd change; the new account's whitelist was rewritten
+as exact commands without an alias and passed full `visudo -c`. A root-owned
+`01-` drop-in then passed test and reload. The effective 3/30 key-only non-root
+OpenSSH profile, fresh `lodge-admin` session, and rejection of public root-key,
+password-only, and Tailnet root were all verified.

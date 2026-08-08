@@ -95,6 +95,19 @@ succeeds, while public root-key and password-only attempts to its public address
 are both rejected. Its root-only rollback copy remains under the dated backup
 directory; cloud-edge port 22, UFW, and Fail2Ban are still separate gates.
 
+## tencent rollout outcome — 2026-08-08
+
+tencent already had active UFW and Fail2Ban, but retained password/root
+OpenSSH exposure. Its dedicated `lodge-admin`, key, dated rollback copy, and
+fresh Tailnet session were verified before changing sshd. An existing sudo
+environment exposed a duplicate command-alias warning when the shared alias was
+first introduced; no SSH setting was changed until the whitelist was rewritten
+without an alias and `visudo -c` passed the complete policy set. Its new `01-`
+drop-in then passed `sshd -t` and reload. Effective OpenSSH has password,
+keyboard-interactive, and root disabled, public-key enabled, and 3/30 limits.
+Fresh `lodge-admin` succeeds; public root-key, password-only, and Tailnet root
+attempts are rejected. Existing UFW/Fail2Ban were deliberately left intact.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates
