@@ -312,3 +312,8 @@
 
 - 操作者在腾讯云 Lighthouse 北京实例防火墙中删除公网 TCP 22 规则；未编辑业务规则。
 - 新 `43.143.252.243:22` probe 超时，`lodge-admin` Tailnet 登录仍成功；8388、10809 亦未对公网开放。公网 SSH 已关闭 4/5，banwagong 仍需独立 provider 证据。
+
+## [2026-08-08] documentation | M8 历史基线与当前状态校正
+
+- 将最初的 SSH/UFW/Fail2Ban 基线明确标为历史快照，避免它与五机已完成的 key-only/non-root SSH 收口、4/5 已验证公网 22 关闭相互矛盾。
+- 未把仍待 provider 证据的 banwagong 或本地 firewall/Fail2Ban 例外标记为完成。

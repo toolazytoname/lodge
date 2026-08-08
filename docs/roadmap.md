@@ -151,7 +151,16 @@ not be forced onto the current stack.
 - [x] Disable SSH password, keyboard-interactive, and root remote login one host at a time
 - [ ] Remove or allowlist public port 22 at the cloud edge; verify a host firewall and Fail2Ban posture where appropriate
 
-The 2026-08-08 baseline found every host still accepts password authentication and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali additionally have no active UFW or Fail2Ban layer; tencent has both; banwagong has active UFW but no active Fail2Ban. Tailscale is running on all five, but it does not by itself close public SSH. The detailed evidence and non-lockout sequence are in [`ssh-hardening.md`](ssh-hardening.md). Ali and bytebunny subsequently completed the approved OpenSSH-side pilots; the remaining three hosts retain the baseline until their own recovery and administrator gates are verified.
+The 2026-08-08 *initial* baseline found every host accepting password authentication
+and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali
+additionally had no active UFW or Fail2Ban layer; tencent had both; banwagong had
+active UFW but no active Fail2Ban. That snapshot is historical rather than a
+current-state claim: all five subsequently passed the recovery-gated OpenSSH and
+Tailnet-root closure. Public port-22 cloud policy is independently verified closed
+for four hosts; banwagong and the deliberate local firewall/Fail2Ban exceptions
+remain open work. Tailscale alone is not evidence that Internet SSH is closed.
+The detailed evidence and non-lockout sequence are in
+[`ssh-hardening.md`](ssh-hardening.md).
 
 The visibility slice is now live: after passing push CI `31224459335` and PR CI
 `31224462704`, all five Agents run `0.8.0` and the Hub runs `0.9.0`. Each Agent
