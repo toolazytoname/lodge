@@ -117,11 +117,11 @@
       "id": "public_ssh_closed_hosts",
       "dimension": "security",
       "name": "Hosts with Internet TCP 22 independently verified closed",
-      "current": 2,
+      "current": 3,
       "target": 5,
       "unit": "hosts",
       "direction": "increase",
-      "evidence": "bytebunny and bytedragon on 2026-08-08: each separate Fire Volcano Engine account had its Internet-wide TCP 22 ingress removed; fresh public probes timed out while lodge-admin Tailnet access succeeded"
+      "evidence": "bytebunny and bytedragon each removed Internet-wide TCP 22 in separate Fire Volcano Engine accounts; Ali removed an Internet-wide all-traffic rule covering 22/8388/10809. Fresh public probes timed out while lodge-admin Tailnet access succeeded"
     },
     {
       "id": "current_security_posture_controls",

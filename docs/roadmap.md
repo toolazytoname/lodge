@@ -143,6 +143,7 @@ not be forced onto the current stack.
 - [x] bytedragon rollout: non-root Tailnet key account, cloud-init-safe OpenSSH closure, and post-change rejection tests
 - [x] bytedragon cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
 - [x] bytebunny cloud edge: verified removal of Internet-wide TCP 22 while Tailnet administration remains available
+- [x] Ali cloud edge: verified removal of an Internet-wide all-traffic rule and its covered SSH/proxy ports while Tailnet administration remains available
 - [x] tencent rollout: non-root Tailnet key account, existing-sudo compatibility correction, and post-change rejection tests
 - [x] banwagong rollout: non-root Tailnet key account, existing-policy warning isolated, and post-change rejection tests
 - [x] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
@@ -187,3 +188,9 @@ bytebunny then received the same independent cloud-edge verification under its
 separate Fire Volcano Engine account: public `115.191.29.26:22` timed out and
 fresh Tailnet `lodge-admin` access remained available. The verified count is now
 2/5; Ali, tencent, and banwagong remain separate cloud/provider decisions.
+
+Ali subsequently removed a distinct Internet-wide all-traffic rule previously
+labeled `gost 转发`. Fresh public probes to SSH and the two previously exposed
+proxy listeners (22, 8388, and 10809) all timed out, while `lodge-admin`
+Tailnet access succeeded. This explicitly accepts loss of that forgotten public
+gost exposure; the verified public-SSH closure count is now 3/5.

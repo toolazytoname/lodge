@@ -302,3 +302,8 @@
 
 - 操作者在独立火山引擎账号删除 bytebunny 的公网 TCP 22 入站规则；新 `115.191.29.26:22` probe 超时，而 `lodge-admin` Tailnet 登录仍成功。
 - bytebunny、bytedragon 在两个独立账号均已验证关闭，`public_ssh_closed_hosts` 为 2/5；Ali、tencent、banwagong 仍需各自 provider 证据。
+
+## [2026-08-08] cloud-edge | Ali 公网 SSH 与忘记的 gost 暴露关闭
+
+- Ali 未保留单独 22，而有一条描述为 `gost 转发` 的 `所有流量 / 0.0.0.0/0`；它覆盖 SSH 与实际监听的 8388、10809。
+- 操作者确认不再需要后删除这条唯一宽规则。新公网 probes 对 22、8388、10809 均超时，`lodge-admin` Tailnet 登录成功；公网 SSH 已关闭 3/5，且该 forgotten public gost path 被明确退役。

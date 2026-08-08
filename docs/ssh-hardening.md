@@ -139,6 +139,16 @@ timed out, while a fresh `lodge-admin` Tailnet session succeeded. Together with
 bytedragon this verifies two independent cloud accounts rather than assuming a
 shared security-group result.
 
+## Ali cloud-edge outcome — 2026-08-08
+
+Ali did not retain a standalone TCP 22 rule. Instead, the associated security
+group had an Internet-wide all-traffic rule labeled `gost 转发`, which covered
+SSH and the currently listening public proxy ports 8388 and 10809. The operator
+confirmed the exposure was no longer needed and removed that one broad rule.
+Fresh public TCP probes to 22, 8388, and 10809 all timed out; a fresh
+`lodge-admin` Tailnet session remained successful. This intentionally retires
+that public gost path rather than silently replacing it with guessed ports.
+
 The risk priority is bytebunny, bytedragon, and Ali: each currently has both password authentication and no verified host-level firewall or Fail2Ban layer. The desired end state is not merely "Fail2Ban installed". Daily administration must use a named non-root key account over the tailnet; public port 22 must be removed or narrowly allowlisted at the cloud edge; and password/root SSH must be disabled after recovery has been proved.
 
 ## Non-negotiable safety gates
