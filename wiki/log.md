@@ -327,3 +327,8 @@
 
 - 操作者通过 root provider console 在 UFW 先加入 `tailscale0` 的 SSH allow，再删除通用 TCP 22 allow；其他业务端口未改。
 - 新 `67.216.196.122:22` Internet TCP probe 超时，而 `lodge-admin` Tailnet 登录仍成功。公网 SSH 已关闭 5/5；Fail2Ban inactive 与既有 `hermes-ro` sudoers 权限问题继续单独审查。
+
+## [2026-08-08] audit | Fail2Ban 收口后处置
+
+- 独立服务检查确认仅 tencent 的 `fail2ban-client` 已安装、active、enabled；bytebunny、bytedragon、Ali、banwagong 均未安装。
+- 因五台公网 TCP 22 都已关闭，将其记录为有意的 defence-in-depth 选择，而非把每机安装 Fail2Ban 误当作安全完成条件。任何未来公网 SSH 例外必须重新明确 jail/log 兼容性；banwagong 的 `hermes-ro` 仍待内容审查。

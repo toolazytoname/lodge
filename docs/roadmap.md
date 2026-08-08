@@ -151,7 +151,8 @@ not be forced onto the current stack.
 - [x] Verify a dedicated non-root Tailnet key administrator and recovery path for each host
 - [x] Disable SSH password, keyboard-interactive, and root remote login one host at a time
 - [x] Remove or allowlist public port 22 at the cloud edge or host firewall without interrupting Tailnet administration
-- [ ] Review and record deliberate local firewall, Fail2Ban, and historical sudoers exceptions
+- [x] Review and record deliberate local firewall and Fail2Ban posture after public SSH closure
+- [ ] Inspect the pre-existing banwagong `hermes-ro` sudoers policy before any repair
 
 The 2026-08-08 *initial* baseline found every host accepting password authentication
 and root remote login on a wildcard SSH listener. bytebunny, bytedragon, and Ali
@@ -223,3 +224,11 @@ generic UFW SSH allowance. A new Internet TCP 22 probe timed out while a fresh
 `lodge-admin` Tailnet session succeeded. Public SSH closure is therefore
 independently verified for all 5/5 hosts. This does not mark its inactive
 Fail2Ban service or the pre-existing `hermes-ro` sudoers file as resolved.
+
+A post-closure service audit found Fail2Ban installed and enabled only on
+tencent; bytebunny, bytedragon, Ali, and banwagong do not have the binary.
+With Internet TCP 22 closed on all five hosts, this is a recorded defence-in-depth
+choice rather than an unmeasured gap: a future public-SSH exception must include
+an explicit Fail2Ban decision. The existing banwagong `hermes-ro` policy is
+still not repaired automatically because changing its permissions could activate
+unknown legacy privileges.

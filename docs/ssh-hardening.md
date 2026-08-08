@@ -184,6 +184,15 @@ closure count without changing the host's other UFW service rules. Its inactive
 Fail2Ban posture and unrelated `hermes-ro` sudoers permissions remain separate
 review items.
 
+## Fail2Ban disposition after public SSH closure — 2026-08-08
+
+An independent service audit found `fail2ban-client` installed, active, and
+enabled on tencent. It is absent on bytebunny, bytedragon, Ali, and banwagong.
+Because Internet TCP 22 is now independently closed on every host, these are
+documented defence-in-depth choices rather than a claim that every host needs a
+ban daemon. Any future exception that reopens public SSH must explicitly decide
+whether compatible Fail2Ban logging and jail coverage are required.
+
 ## Non-negotiable safety gates
 
 Do not make a host change until all gates for that one host are true:

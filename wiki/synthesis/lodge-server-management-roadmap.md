@@ -126,6 +126,8 @@ Lodge 应成为“资产真相 + 风险感知 + 受控操作”的私人运维�
 
 > 2026-08-08 M8 banwagong 主机防火墙验收：操作者在 provider root console 中先允许 `tailscale0` 入站 SSH，再删除通用 UFW TCP 22 allow。新公网 22 TCP probe 超时、Tailnet `lodge-admin` 成功，公网 SSH 已关闭 5/5；其 Fail2Ban inactive 和非 Lodge `hermes-ro` sudoers 例外仍独立待审。
 
+> 2026-08-08 M8 Fail2Ban 处置：复核后仅 tencent 安装且 active/enabled；其余四台没有该 binary。由于 Internet TCP 22 已 5/5 关闭，这被记录为明确的纵深防御取舍，而不是用“每机装 daemon”替代边界验证。banwagong 的非 Lodge `hermes-ro` 内容仍需先审查才可能修复。
+
 ## 验收顺序
 
 1. 管理页面只能通过 Tailnet 访问，公网 22 不再开放，密码 SSH 与 root SSH 均关闭。
