@@ -7,6 +7,12 @@
 - Operations 主机选择现在同时限定指标和操作记录；移除了不随选择变化、占据版面的全局“执行边界/Agent 同步”卡片。安全约束保留为当前允许动作旁的简明说明。
 - 前端端到端回归现在还断言切换 North/South 会实际请求 `/api/operations?agent=<id>`，而非仅在旧的全局缓存中过滤；发布轮询也只查询目标主机。完整质量门禁通过。该 UX 修复仍需随下一次 Hub 发布进入 live 页面。
 
+## [2026-08-09] security | tencent legacy `dev` interactive-runtime retirement
+
+- `lodge-admin` 的只读盘点确认旧 `dev` 账户仍保有一个 `nas` tmux server、多个交互 shell 与 Happy/Claude 子进程；tmux socket 的用户隔离意味着新管理员看不到会话内容，也不能把它当作空会话删除。
+- 操作者在 provider root console 先执行 `loginctl terminate-user dev`。复核发现该操作结束了登录会话，但没有结束已被 PID 1 收养的旧交互进程；随后操作者显式终止 `dev` 的全部进程。复核为 `pgrep -u dev` 无输出、tmux socket 无输出。
+- `/home/dev/claude-app` 及其项目内容仍存在，未删除业务数据。`lodge-admin` 仍未获得该目录的写入权限：后续若要由新管理员维护该项目，必须通过 root console 安装 ACL 支持并仅对该项目路径配置显式 ACL 与默认 ACL；不得开放整个 `/home/dev`、恢复 `dev` 远程登录，或把 `lodge-admin` 加入 Docker/root 等效组。
+
 ## [2026-08-08] deployment | Hub 98d69a7 controlled live upgrade
 
 - bytedragon 的 Hub 已从通过两条 GitHub Actions 的 `98d69a7` 构建候选升级；Linux AMD64 候选 SHA-256 为 `c8f1ca1055c6c1e4a7aa2c14730ac4e574a9c35a169611c70818a207adb05ce3`。
