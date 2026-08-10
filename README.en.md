@@ -14,6 +14,12 @@
   <img src="https://img.shields.io/badge/stack-Go-00ADD8?style=flat-square" alt="Stack">
 </p>
 
+<p align="center">
+  <img src="docs/assets/console-overview-demo.png" alt="Lodge server and service console overview with fleet health, workloads, web entrypoints, risk signals, and host resources" width="960">
+  <br>
+  <sub>Anonymized demonstration data only—no real hostnames, domains, IP addresses, sessions, logs, or alert sources.</sub>
+</p>
+
 ---
 
 ## What this is

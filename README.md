@@ -14,6 +14,12 @@
   <img src="https://img.shields.io/badge/stack-Go-00ADD8?style=flat-square" alt="Stack">
 </p>
 
+<p align="center">
+  <img src="docs/assets/console-overview-demo.png" alt="Lodge 服务器与服务控制台概览：在线主机、工作负载、Web 入口、风险信号和主机资源" width="960">
+  <br>
+  <sub>匿名演示数据：不含真实主机名、域名、IP、登录态、服务日志或告警来源。</sub>
+</p>
+
 ---
 
 ## 这是什么
