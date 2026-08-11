@@ -46,6 +46,7 @@ function makeService(host, hostIndex, serviceIndex) {
     : undefined;
   const route = gateway
     ? {
+        kind: "proxy",
         scheme: "https",
         host: `${host.id}.fixture.example.test`,
         port: 443,
@@ -54,6 +55,38 @@ function makeService(host, hostIndex, serviceIndex) {
         url: `https://${host.id}.fixture.example.test/`,
       }
     : undefined;
+  const routes = route ? [route] : [];
+  if (gateway && host.id === "harbor") {
+    routes.push(
+      {
+        kind: "static",
+        scheme: "https",
+        host: "quota.example.test",
+        port: 443,
+        path: "/",
+        upstreams: [],
+        url: "https://quota.example.test/",
+      },
+      {
+        kind: "proxy",
+        scheme: "https",
+        host: "quota.example.test",
+        port: 443,
+        path: "/refresh",
+        upstreams: ["127.0.0.1:8791"],
+        url: "https://quota.example.test/refresh",
+      },
+      {
+        kind: "proxy",
+        scheme: "https",
+        host: "retired.example.test",
+        port: 9443,
+        path: "/",
+        upstreams: ["172.20.0.8:3000"],
+        url: "https://retired.example.test:9443/",
+      },
+    );
+  }
   return {
     key: `${gateway ? "docker" : "systemd"}:${name}${gateway ? "" : ".service"}`,
     kind: gateway ? "docker" : "systemd",
@@ -61,7 +94,7 @@ function makeService(host, hostIndex, serviceIndex) {
     status: failed ? "failed" : gateway ? "running" : "active/running",
     ...(gateway ? { image: "fixture/gateway:1.0" } : { unit: `${name}.service` }),
     ...(ports ? { ports } : {}),
-    ...(route ? { routes: [route], url: route.url } : {}),
+    ...(route ? { routes, url: route.url } : {}),
     maxExposure: hasPort ? exposure : "local",
     hidden: false,
     ...(serviceIndex === 4 ? { notes: "Fixture maintenance window: Sunday" } : {}),
@@ -108,12 +141,14 @@ function buildLinkChecks(mode) {
   const checks = fixture.groups.flatMap((group) => group.services.flatMap((service) =>
     (service.routes || []).map((route) => {
       const unreachable = mode === "offline" && group.agent.id === "harbor";
+      const degraded = route.host === "retired.example.test";
+      const protectedRoute = route.host === "quota.example.test" && route.path === "/";
       return {
         agentId: group.agent.id,
         serviceKey: service.key,
         url: route.url,
-        state: unreachable ? "unreachable" : "reachable",
-        ...(unreachable ? { errorKind: "timeout" } : { httpStatus: 204 }),
+        state: unreachable ? "unreachable" : degraded ? "degraded" : "reachable",
+        ...(unreachable ? { errorKind: "timeout" } : { httpStatus: degraded ? 502 : protectedRoute ? 401 : 204 }),
         latencyMs: unreachable ? 3000 : 18,
         checkedAt,
       };

@@ -47,7 +47,7 @@ remain available to internal rule evaluation without multiplying browser data.
 - **Host**: one unique physical or virtual machine. Multiple SSH users do not create multiple hosts.
 - **Workload**: Docker container (with optional Compose project/service identity), systemd unit, or identified process.
 - **Endpoint**: a protocol/address/port plus binding and independently evidenced reachability.
-- **ProxyRoute**: a redacted HTTP(S) scheme/host/port/path published by a Caddy or Nginx workload, with optional credential-free upstream authorities.
+- **ProxyRoute**: a redacted HTTP(S) scheme/host/port/path published by a Caddy or Nginx workload. Its explicit kind is `proxy`, `static`, `site`, or `unknown`; proxy routes may include credential-free upstream authorities while static routes never expose filesystem roots.
 - **WebLinkCheck**: latest bounded HTTP probe evidence for one Host, Workload,
   and URL, explicitly scoped to the Hub's network perspective.
 - **Observation**: an immutable collection result at a point in time.

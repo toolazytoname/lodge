@@ -35,7 +35,7 @@ are separate product states.
 `检查入口` is an explicit authenticated action, not a background availability
 monitor. It asks the Hub to check the de-duplicated URLs currently displayed
 from operator annotations, redacted proxy routes, and conservative Web-port
-inference. Results are labelled **Hub 可达**, **HTTP 5xx**, or **Hub 不可达**;
+inference. Results are labelled **Hub 可达**, **受保护**, **HTTP 5xx**, or **Hub 不可达**;
 links without evidence remain **未检查**.
 
 The status is deliberately scoped to the Hub's network view:
@@ -49,6 +49,12 @@ The status is deliberately scoped to the Hub's network view:
 
 Only the latest bounded metadata is retained in SQLite. Raw network errors,
 response bodies, headers, resolved addresses, and credentials are excluded.
+
+The Services page keeps every discovered domain and route accessible instead of
+collapsing overflow into a non-interactive count. An expandable relationship
+view distinguishes reverse proxies, static sites, generic site entries, and
+legacy unknown records. The adjacent action is deliberately named **编辑资料**:
+it changes operator annotations and is not a route mutation control.
 
 ## Event API boundary
 

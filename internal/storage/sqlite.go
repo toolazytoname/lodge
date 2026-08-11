@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 7
+	currentSchemaVersion = 8
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -531,9 +531,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			return 0, fmt.Errorf("encode proxy route %s upstreams: %w", route.Key, err)
 		}
 		if _, err := tx.ExecContext(ctx, `
-INSERT INTO proxy_routes(observation_id, workload_key, route_key, scheme, host, port, path, upstreams_json)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			observationID, route.WorkloadKey, route.Key, route.Scheme, route.Host, route.Port, route.Path, string(upstreamsJSON),
+INSERT INTO proxy_routes(observation_id, workload_key, route_key, route_kind, scheme, host, port, path, upstreams_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			observationID, route.WorkloadKey, route.Key, string(route.Kind), route.Scheme, route.Host, route.Port, route.Path, string(upstreamsJSON),
 		); err != nil {
 			return 0, fmt.Errorf("insert proxy route %s: %w", route.Key, err)
 		}
@@ -1229,7 +1229,7 @@ FROM endpoints WHERE observation_id = ? ORDER BY workload_key, endpoint_key`, id
 	}
 
 	routeRows, err := query.QueryContext(ctx, `
-SELECT workload_key, route_key, scheme, host, port, path, upstreams_json
+SELECT workload_key, route_key, route_kind, scheme, host, port, path, upstreams_json
 FROM proxy_routes WHERE observation_id = ? ORDER BY workload_key, route_key`, id)
 	if err != nil {
 		return domain.Observation{}, err
@@ -1238,7 +1238,7 @@ FROM proxy_routes WHERE observation_id = ? ORDER BY workload_key, route_key`, id
 		var route domain.ProxyRoute
 		var upstreamsJSON string
 		route.HostID = observation.HostID
-		if err := routeRows.Scan(&route.WorkloadKey, &route.Key, &route.Scheme, &route.Host, &route.Port, &route.Path, &upstreamsJSON); err != nil {
+		if err := routeRows.Scan(&route.WorkloadKey, &route.Key, &route.Kind, &route.Scheme, &route.Host, &route.Port, &route.Path, &upstreamsJSON); err != nil {
 			_ = routeRows.Close()
 			return domain.Observation{}, err
 		}

@@ -139,12 +139,17 @@ func TestObservationValidatesRedactedProxyRoutes(t *testing.T) {
 		Workloads: []Workload{{HostID: "host-a", Key: "systemd:caddy.service", Kind: WorkloadSystemd, Name: "caddy"}},
 		Routes: []ProxyRoute{{
 			HostID: "host-a", WorkloadKey: "systemd:caddy.service", Key: "https://app.example.test:443/",
-			Scheme: "https", Host: "app.example.test", Port: 443, Path: "/", Upstreams: []string{"127.0.0.1:3000"},
+			Kind: RouteProxy, Scheme: "https", Host: "app.example.test", Port: 443, Path: "/", Upstreams: []string{"127.0.0.1:3000"},
 		}},
 	}
 	if err := observation.Validate(); err != nil {
 		t.Fatalf("valid redacted proxy route was rejected: %v", err)
 	}
+	observation.Routes[0].Kind = "arbitrary"
+	if err := observation.Validate(); err == nil {
+		t.Fatal("unknown route kind should be rejected")
+	}
+	observation.Routes[0].Kind = RouteProxy
 	observation.Routes[0].Key = "https://other.example.test:443/"
 	if err := observation.Validate(); err == nil {
 		t.Fatal("route key inconsistent with its fields should be rejected")

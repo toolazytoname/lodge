@@ -248,4 +248,13 @@ CREATE INDEX event_notification_cooldown_idx
 ALTER TABLE observations ADD COLUMN ssh_auth_json TEXT;
 `,
 	},
+	{
+		version: 8,
+		name:    "web_route_kind",
+		sql: `
+ALTER TABLE proxy_routes ADD COLUMN route_kind TEXT NOT NULL DEFAULT 'unknown'
+    CHECK (route_kind IN ('unknown', 'proxy', 'static', 'site'));
+UPDATE proxy_routes SET route_kind = 'proxy' WHERE upstreams_json != '[]';
+`,
+	},
 }

@@ -185,12 +185,15 @@ export interface Port {
 }
 
 export interface ProxyRoute {
+  kind: RouteKind;
   scheme: string;
   host?: string;
   port: number;
   path: string;
   upstreams?: Array<string>;
 }
+
+export type RouteKind = string;
 
 export interface RouteView extends ProxyRoute {
   url?: string;

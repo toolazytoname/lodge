@@ -97,6 +97,7 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 			seenRoutes[key] = struct{}{}
 			observation.Routes = append(observation.Routes, domain.ProxyRoute{
 				HostID: domain.HostID(agent.ID), WorkloadKey: service.Key, Key: key,
+				Kind:   projectRouteKind(route.Kind),
 				Scheme: route.Scheme, Host: route.Host, Port: route.Port, Path: route.Path,
 				Upstreams: append([]string(nil), route.Upstreams...),
 			})
@@ -106,6 +107,19 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 		return domain.Observation{}, err
 	}
 	return observation, nil
+}
+
+func projectRouteKind(kind shared.RouteKind) domain.RouteKind {
+	switch kind {
+	case shared.RouteKindProxy:
+		return domain.RouteProxy
+	case shared.RouteKindStatic:
+		return domain.RouteStatic
+	case shared.RouteKindSite:
+		return domain.RouteSite
+	default:
+		return domain.RouteUnknown
+	}
 }
 
 func projectSSHAuth(summary *shared.SSHAuthSummary) (*domain.SSHAuthObservation, error) {

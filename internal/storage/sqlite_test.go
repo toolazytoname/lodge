@@ -54,7 +54,7 @@ func sampleObservation(at time.Time) domain.Observation {
 		}},
 		Routes: []domain.ProxyRoute{{
 			HostID: "host-a", WorkloadKey: "docker:web", Key: "https://web.example.test:443/",
-			Scheme: "https", Host: "web.example.test", Port: 443, Path: "/",
+			Kind: domain.RouteProxy, Scheme: "https", Host: "web.example.test", Port: 443, Path: "/",
 			Upstreams: []string{"127.0.0.1:8080"},
 		}},
 		Warnings: []string{"partial fixture warning"},
@@ -683,6 +683,75 @@ func TestSQLiteUpgradesVersionSixAndAddsSSHAuthSummary(t *testing.T) {
 	}
 	if version != currentSchemaVersion || columnCount != 1 {
 		t.Fatalf("v6 migration result: version=%d columnCount=%d", version, columnCount)
+	}
+}
+
+func TestSQLiteUpgradesVersionSevenAndClassifiesExistingProxyRoutes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	createVersionOneDatabase(t, path)
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrations[1:7] {
+		if _, err := db.Exec(migration.sql); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+		if _, err := db.Exec("INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)", migration.version, migration.name, migration.checksum(), formatTime(time.Now())); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec("PRAGMA user_version = 7"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO observations(host_id, observed_at, online) VALUES ('host-a', ?, 1)", formatTime(time.Now())); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO workloads(observation_id, workload_key, kind, name) VALUES (1, 'systemd:nginx.service', 'systemd', 'nginx')"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO proxy_routes(observation_id, workload_key, route_key, scheme, host, port, path, upstreams_json) VALUES (1, 'systemd:nginx.service', 'proxy', 'https', 'proxy.example.test', 443, '/', '[\"127.0.0.1:8080\"]'), (1, 'systemd:nginx.service', 'unknown', 'https', 'unknown.example.test', 443, '/', '[]')"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	rows, err := store.db.Query("SELECT route_key, route_kind FROM proxy_routes ORDER BY route_key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	want := map[string]string{"proxy": "proxy", "unknown": "unknown"}
+	for rows.Next() {
+		var key, kind string
+		if err := rows.Scan(&key, &kind); err != nil {
+			t.Fatal(err)
+		}
+		if kind != want[key] {
+			t.Fatalf("route %s kind = %q, want %q", key, kind, want[key])
+		}
+		delete(want, key)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing migrated routes: %v", want)
 	}
 }
 

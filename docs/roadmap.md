@@ -255,3 +255,19 @@ unit, or cron reference. The operator moved the file into root-only
 parsed `/etc/sudoers` and the intended Lodge policies cleanly. A fresh Tailnet
 check confirms the file is absent from `/etc/sudoers.d` and `lodge-admin` has
 no sudo-policy warning.
+
+## M9 — Domain and route assets
+
+- [x] Classify discovered routes as reverse proxy, static site, site entry, or unknown
+- [x] Discover named Nginx static sites without exposing filesystem paths
+- [x] Show every domain/route in an accessible expandable relationship view
+- [x] Search services by every discovered domain and distinguish protected HTTP endpoints
+- [x] Separate annotation editing from operational route maintenance in the UI language
+- [ ] Add policy-controlled retire/restore actions for reviewed Caddy and Nginx routes
+- [ ] Roll out Agent/Hub schema 8 and reconcile the live domain inventory
+
+The implementation fixture models a protected static quota site with a local
+refresh proxy and a degraded retired-domain candidate using only reserved
+`.example.test` names. Destructive route retirement remains intentionally open:
+it requires a root-owned allowlist, configuration validation, atomic backup,
+reload verification, and restore evidence rather than a generic remote editor.

@@ -88,18 +88,28 @@ type Endpoint struct {
 	ReachabilityCheckedAt *time.Time   `json:"reachabilityCheckedAt,omitempty"`
 }
 
+type RouteKind string
+
+const (
+	RouteUnknown RouteKind = "unknown"
+	RouteProxy   RouteKind = "proxy"
+	RouteStatic  RouteKind = "static"
+	RouteSite    RouteKind = "site"
+)
+
 // ProxyRoute is an immutable, redacted route observed on a proxy workload.
 // Upstreams are authorities only and are informational; they are not treated
 // as confirmed reachability or as credentials.
 type ProxyRoute struct {
-	HostID      HostID   `json:"hostId"`
-	WorkloadKey string   `json:"workloadKey"`
-	Key         string   `json:"key"`
-	Scheme      string   `json:"scheme"`
-	Host        string   `json:"host,omitempty"`
-	Port        int      `json:"port"`
-	Path        string   `json:"path"`
-	Upstreams   []string `json:"upstreams,omitempty"`
+	HostID      HostID    `json:"hostId"`
+	WorkloadKey string    `json:"workloadKey"`
+	Key         string    `json:"key"`
+	Kind        RouteKind `json:"kind"`
+	Scheme      string    `json:"scheme"`
+	Host        string    `json:"host,omitempty"`
+	Port        int       `json:"port"`
+	Path        string    `json:"path"`
+	Upstreams   []string  `json:"upstreams,omitempty"`
 }
 
 type Resources struct {
@@ -523,6 +533,9 @@ func (o Observation) Validate() error {
 		}
 		if err := validateIdentifier("proxy route key", route.Key, 1024); err != nil {
 			return err
+		}
+		if route.Kind != RouteUnknown && route.Kind != RouteProxy && route.Kind != RouteStatic && route.Kind != RouteSite {
+			return fmt.Errorf("proxy route %q has invalid kind %q", route.Key, route.Kind)
 		}
 		if route.Scheme != "http" && route.Scheme != "https" {
 			return fmt.Errorf("proxy route %q has invalid scheme %q", route.Key, route.Scheme)

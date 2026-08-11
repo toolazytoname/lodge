@@ -264,16 +264,27 @@ type Port struct {
 	Exposure Exposure `json:"exposure"`
 }
 
+// RouteKind describes how a Web route is served without exposing configuration.
+type RouteKind string
+
+const (
+	RouteKindUnknown RouteKind = "unknown"
+	RouteKindProxy   RouteKind = "proxy"
+	RouteKindStatic  RouteKind = "static"
+	RouteKindSite    RouteKind = "site"
+)
+
 // ProxyRoute is a redacted HTTP route published by a Caddy or Nginx workload.
 // Host may be empty for a default virtual host; the Hub can then use the
 // configured public host. Upstreams contain only validated host:port
 // authorities, never credentials, URLs, headers, config paths, or directives.
 type ProxyRoute struct {
-	Scheme    string   `json:"scheme"`
-	Host      string   `json:"host,omitempty"`
-	Port      int      `json:"port"`
-	Path      string   `json:"path"`
-	Upstreams []string `json:"upstreams,omitempty"`
+	Kind      RouteKind `json:"kind"`
+	Scheme    string    `json:"scheme"`
+	Host      string    `json:"host,omitempty"`
+	Port      int       `json:"port"`
+	Path      string    `json:"path"`
+	Upstreams []string  `json:"upstreams,omitempty"`
 }
 
 // Service 是发现出来的一个服务 —— GET /v1/services 的元素。

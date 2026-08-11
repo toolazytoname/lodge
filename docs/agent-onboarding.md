@@ -65,8 +65,10 @@ policy include is ignored without being read because it carries no route
 directives. This avoids `nginx -T` touching TLS material hidden by the Agent
 sandbox. Raw configuration, includes, certificate/key paths, headers, and
 authentication directives remain in root memory. Output is limited to validated
-HTTP(S) scheme/host/port/path records and credential-free upstream `host:port`
-authorities. Unsupported Docker imports/includes produce a bounded warning
+HTTP(S) scheme/host/port/path records, a bounded route kind, and credential-free
+upstream `host:port` authorities. Named Nginx virtual hosts that directly serve
+`root`, `alias`, `try_files`, or `index` content also emit a static `/` route
+without revealing the filesystem path. Unsupported Docker imports/includes produce a bounded warning
 rather than raw content.
 
 A fourth exact self-invocation, `--collect-ssh-auth`, reads an 8 MiB bounded tail

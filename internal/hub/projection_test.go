@@ -24,7 +24,7 @@ func TestProjectObservationSeparatesBindingFromReachability(t *testing.T) {
 				{Proto: "tcp6", Bind: "100.105.1.2", Port: 8080, Exposure: shared.ExposureTailnet},
 			},
 			Routes: []shared.ProxyRoute{{
-				Scheme: "https", Host: "web.example.test", Port: 443, Path: "/",
+				Kind: shared.RouteKindProxy, Scheme: "https", Host: "web.example.test", Port: 443, Path: "/",
 				Upstreams: []string{"127.0.0.1:8080"},
 			}},
 		}},
@@ -53,6 +53,9 @@ func TestProjectObservationSeparatesBindingFromReachability(t *testing.T) {
 	}
 	if len(observation.Routes) != 1 || observation.Routes[0].WorkloadKey != "docker:web" || observation.Routes[0].Host != "web.example.test" {
 		t.Fatalf("proxy route projection failed: %+v", observation.Routes)
+	}
+	if observation.Routes[0].Kind != domain.RouteProxy {
+		t.Fatalf("route kind projection failed: %+v", observation.Routes[0])
 	}
 }
 

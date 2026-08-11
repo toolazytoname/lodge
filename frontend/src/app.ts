@@ -60,6 +60,8 @@ interface WebTarget {
   exposure: ServiceExposure;
   url: string;
   label: string;
+  kind: "unknown" | "proxy" | "static" | "site";
+  upstreams: string[];
 }
 
 interface Signal {
@@ -537,11 +539,18 @@ function allServiceEntries(): ServiceEntry[] {
 }
 
 function serviceWebTargets(entry: ServiceEntry): WebTarget[] {
-  const candidates = [entry.service.url, ...(entry.service.routes ?? []).map((route) => route.url)];
+  const candidates = [
+    ...(entry.service.routes ?? []).map((route) => ({
+      url: route.url,
+      kind: route.kind ?? "unknown",
+      upstreams: route.upstreams ?? [],
+    })),
+    { url: entry.service.url, kind: "unknown" as const, upstreams: [] as string[] },
+  ];
   const seen = new Set<string>();
   const targets: WebTarget[] = [];
   candidates.forEach((candidate) => {
-    const url = safeWebURL(candidate);
+    const url = safeWebURL(candidate.url);
     if (!url || seen.has(url)) return;
     seen.add(url);
     const parsed = new URL(url);
@@ -554,6 +563,10 @@ function serviceWebTargets(entry: ServiceEntry): WebTarget[] {
       exposure: serviceExposure(entry.service),
       url,
       label: `${parsed.host}${path}`,
+      kind: candidate.kind === "proxy" || candidate.kind === "static" || candidate.kind === "site"
+        ? candidate.kind
+        : "unknown",
+      upstreams: candidate.upstreams,
     });
   });
   return targets;
@@ -581,9 +594,43 @@ function linkCheckFor(target: WebTarget): WebLinkCheckView | undefined {
 
 function linkCheckLabel(check?: WebLinkCheckView): string {
   if (!check) return "未检查";
+  if (check.state === "reachable" && [401, 403].includes(check.httpStatus ?? 0)) return "受保护";
   if (check.state === "reachable") return "Hub 可达";
   if (check.state === "degraded") return `HTTP ${check.httpStatus ?? "5xx"}`;
   return "Hub 不可达";
+}
+
+const routeKindLabel: Record<WebTarget["kind"], string> = {
+  unknown: "类型未知",
+  proxy: "反向代理",
+  static: "静态站点",
+  site: "站点入口",
+};
+
+function routeDestination(target: WebTarget): string {
+  if (target.kind === "static") return "由 Web 服务器直接提供静态内容";
+  if (!target.upstreams.length) return "未发现上游目标";
+  return `→ ${target.upstreams.join(", ")}`;
+}
+
+function routeLink(target: WebTarget, className = "access-link"): HTMLAnchorElement {
+  const check = linkCheckFor(target);
+  const link = element("a", `${className} ${check?.state ?? "unknown"}`, target.label);
+  link.href = target.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.title = linkCheckTitle(check);
+  return link;
+}
+
+function hostWebEntryCount(agentID: string): number {
+  const group = state.groups.find((item) => item.agent.id === agentID);
+  if (!group) return 0;
+  const hosts = new Set<string>();
+  group.services.forEach((service) => {
+    serviceWebTargets({ agent: group.agent, service }).forEach((target) => hosts.add(new URL(target.url).host));
+  });
+  return hosts.size;
 }
 
 function linkCheckTitle(check?: WebLinkCheckView): string {
@@ -792,6 +839,7 @@ function hostCard(agent: AgentSummary, expanded: boolean): HTMLElement {
   const summary = element("div", "host-summary");
   summary.append(
     element("span", "", `${agent.serviceCount} 服务`),
+    element("span", "", `${hostWebEntryCount(agent.id)} 域名/入口`),
     element("span", agent.publicCount ? "critical-text" : "", `${agent.publicCount} 公网`),
     element("span", "", `${(agent.load1 ?? 0).toFixed(2)} / ${agent.cpus ?? "?"} 负载`),
   );
@@ -891,7 +939,7 @@ function renderServices(): void {
 
   const nodes: Node[] = [];
   const heading = element("div", "service-table-head");
-  ["范围", "服务", "主机", "状态", "访问入口", ""].forEach((label) => heading.append(element("span", "", label)));
+  ["范围", "服务", "主机", "状态", "域名与访问入口", "资料"].forEach((label) => heading.append(element("span", "", label)));
   nodes.push(heading);
   entries.forEach((entry) => nodes.push(serviceRow(entry)));
   replaceChildren(byID("serviceDirectory"), nodes);
@@ -924,16 +972,26 @@ function serviceRow(entry: ServiceEntry): HTMLElement {
   const targets = serviceWebTargets(entry);
   if (targets.length) {
     const links = element("div", "access-links");
-    targets.slice(0, 2).forEach((target) => {
-      const check = linkCheckFor(target);
-      const link = element("a", `access-link ${check?.state ?? "unknown"}`, target.label);
-      link.href = target.url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.title = linkCheckTitle(check);
-      links.append(link);
-    });
-    if (targets.length > 2) links.append(element("span", "more-pill", `+${targets.length - 2}`));
+    links.append(routeLink(targets[0]!));
+    if (targets.length > 1) {
+      const disclosure = element("details", "route-disclosure");
+      disclosure.append(element("summary", "route-summary", `全部 ${targets.length} 个入口`));
+      const list = element("div", "route-list");
+      targets.forEach((target) => {
+        const check = linkCheckFor(target);
+        const item = element("div", "route-item");
+        const heading = element("div", "route-item-heading");
+        heading.append(routeLink(target, "route-item-link"), element("span", "route-kind", routeKindLabel[target.kind]));
+        item.append(
+          heading,
+          element("small", "route-destination", routeDestination(target)),
+          element("small", `route-check ${check?.state ?? "unknown"}`, linkCheckLabel(check)),
+        );
+        list.append(item);
+      });
+      disclosure.append(list);
+      links.append(disclosure);
+    }
     access.append(links);
   }
   const ports = entry.service.ports ?? [];
@@ -954,7 +1012,7 @@ function serviceRow(entry: ServiceEntry): HTMLElement {
   if (!targets.length && !ports.length) access.append(element("span", "muted-copy", "无入口"));
   row.append(access);
 
-  const manage = element("button", "button button-quiet", "管理");
+  const manage = element("button", "button button-quiet", "编辑资料");
   manage.type = "button";
   manage.addEventListener("click", () => openAnnotation(entry));
   row.append(manage);
@@ -2084,7 +2142,7 @@ async function probeWebLinks(): Promise<void> {
 
 function openAnnotation(entry: ServiceEntry): void {
   editingService = { agentID: entry.agent.id, agentName: entry.agent.name, service: entry.service };
-  byID("annotationTitle").textContent = `管理 ${serviceDisplayName(entry.service)}`;
+  byID("annotationTitle").textContent = `编辑 ${serviceDisplayName(entry.service)} 资料`;
   byID("annotationContext").textContent = `${entry.agent.name} · ${entry.service.key}`;
   byID<HTMLInputElement>("annotationAlias").value = entry.service.alias ?? "";
   byID<HTMLInputElement>("annotationURL").value = entry.service.url ?? "";

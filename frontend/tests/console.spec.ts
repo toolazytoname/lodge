@@ -40,12 +40,12 @@ test.describe("Lodge Web console", () => {
     await expect(page.getByRole("heading", { name: "全局状态" })).toBeVisible();
     await expect(page.locator("#hostPreview .host-card")).toHaveCount(5);
     await expect(page.locator("#overviewMetrics .metric-value").nth(1)).toHaveText("55");
-    await expect(page.locator("#overviewMetrics .metric-detail").nth(2)).toHaveText("5/5 Hub 可达");
+    await expect(page.locator("#overviewMetrics .metric-detail").nth(2)).toHaveText("7/8 Hub 可达");
     await expect(page.locator("#riskSignals .signal-row")).toHaveCount(4);
     await expectNoHorizontalOverflow(page);
 
     await page.getByRole("button", { name: "检查入口", exact: true }).click();
-    await expect(page.locator("#notice")).toContainText("5/5 可达");
+    await expect(page.locator("#notice")).toContainText("7/8 可达");
 
     await openServices(page);
     await expect(page.locator(".service-row")).toHaveCount(55);
@@ -58,8 +58,8 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator(".service-row")).toHaveCount(1);
     await expect(page.locator("#serviceResultCount")).toHaveText("1 / 55 项");
 
-    await page.getByRole("button", { name: "管理", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "管理 certbot" });
+    await page.getByRole("button", { name: "编辑资料", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑 certbot 资料" });
     await expect(dialog).toBeVisible();
     await expect(page.locator(":focus")).toHaveAttribute("id", "annotationAlias");
     await page.getByLabel("首选 Web 入口").fill("ssh://example.test");
@@ -71,6 +71,16 @@ test.describe("Lodge Web console", () => {
     await page.getByRole("button", { name: "取消", exact: true }).click();
     await search.fill("");
     await expect(page.locator(".service-row")).toHaveCount(55);
+
+    await search.fill("quota.example.test");
+    await expect(page.locator(".service-row")).toHaveCount(1);
+    await page.getByText("全部 4 个入口", { exact: true }).click();
+    await expect(page.locator(".route-list")).toContainText("quota.example.test");
+    await expect(page.locator(".route-list")).toContainText("静态站点");
+    await expect(page.locator(".route-list")).toContainText("反向代理");
+    await expect(page.locator(".route-list")).toContainText("受保护");
+    await expect(page.locator(".route-item")).toHaveCount(4);
+    await search.fill("");
     await expectNoHorizontalOverflow(page);
     await expect(page).toHaveScreenshot("services-1280.png", { fullPage: true });
   });
@@ -91,7 +101,7 @@ test.describe("Lodge Web console", () => {
     await page.goto("/?fixture=normal#overview");
 
     await expect(page.locator("#overviewMetrics .metric-card")).toHaveCount(4);
-    await expect(page.locator("#quickLinks .quick-link")).toHaveCount(5);
+    await expect(page.locator("#quickLinks .quick-link")).toHaveCount(7);
     await expectNoHorizontalOverflow(page);
     await expect(page).toHaveScreenshot("overview-1920.png", { fullPage: true });
   });

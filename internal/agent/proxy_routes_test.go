@@ -76,7 +76,7 @@ http {
 	var defaultFound, redactedFound bool
 	for _, route := range routes {
 		if route.Route.Host == "" && route.Route.Path == "/" && len(route.Route.Upstreams) == 1 {
-			defaultFound = route.Route.Upstreams[0] == "127.0.0.1:3001"
+			defaultFound = route.Route.Kind == shared.RouteKindProxy && route.Route.Upstreams[0] == "127.0.0.1:3001"
 		}
 		if route.Route.Host == "happy.example.test" && route.Route.Path == "/dynamic" {
 			redactedFound = len(route.Route.Upstreams) == 0
@@ -84,6 +84,44 @@ http {
 	}
 	if !defaultFound || !redactedFound {
 		t.Fatalf("Nginx default or redacted route missing: %+v", routes)
+	}
+}
+
+func TestParseNginxRoutesDiscoversNamedStaticSiteBesideProtectedProxy(t *testing.T) {
+	content := []byte(`
+events {}
+http {
+  server {
+    listen 443 ssl;
+    server_name quota.example.test;
+    location / {
+      auth_basic "Protected";
+      root /var/www/quota;
+      index index.html;
+    }
+    location = /refresh {
+      auth_basic "Protected";
+      proxy_pass http://127.0.0.1:8791/refresh;
+    }
+  }
+}
+`)
+	routes, err := parseNginxRoutes(content, "systemd:nginx.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 2 {
+		t.Fatalf("expected static root and refresh proxy, got %+v", routes)
+	}
+	byPath := make(map[string]shared.ProxyRoute)
+	for _, route := range routes {
+		byPath[route.Route.Path] = route.Route
+	}
+	if root := byPath["/"]; root.Kind != shared.RouteKindStatic || root.Host != "quota.example.test" || len(root.Upstreams) != 0 {
+		t.Fatalf("static site route mismatch: %+v", root)
+	}
+	if refresh := byPath["/refresh"]; refresh.Kind != shared.RouteKindProxy || len(refresh.Upstreams) != 1 || refresh.Upstreams[0] != "127.0.0.1:8791" {
+		t.Fatalf("refresh proxy route mismatch: %+v", refresh)
 	}
 }
 

@@ -34,14 +34,15 @@ type proxyDiscovery struct {
 }
 
 type proxyDiscoveryRecord struct {
-	Type        string   `json:"type"`
-	WorkloadKey string   `json:"workloadKey,omitempty"`
-	Scheme      string   `json:"scheme,omitempty"`
-	Host        string   `json:"host,omitempty"`
-	Port        int      `json:"port,omitempty"`
-	Path        string   `json:"path,omitempty"`
-	Upstreams   []string `json:"upstreams,omitempty"`
-	Message     string   `json:"message,omitempty"`
+	Type        string           `json:"type"`
+	WorkloadKey string           `json:"workloadKey,omitempty"`
+	Kind        shared.RouteKind `json:"kind,omitempty"`
+	Scheme      string           `json:"scheme,omitempty"`
+	Host        string           `json:"host,omitempty"`
+	Port        int              `json:"port,omitempty"`
+	Path        string           `json:"path,omitempty"`
+	Upstreams   []string         `json:"upstreams,omitempty"`
+	Message     string           `json:"message,omitempty"`
 }
 
 func parseProxyDiscovery(content []byte) proxyDiscovery {
@@ -63,6 +64,7 @@ func parseProxyDiscovery(content []byte) proxyDiscovery {
 				continue
 			}
 			route, ok := normalizeProxyRoute(record.WorkloadKey, shared.ProxyRoute{
+				Kind:   record.Kind,
 				Scheme: record.Scheme, Host: record.Host, Port: record.Port,
 				Path: record.Path, Upstreams: record.Upstreams,
 			})
@@ -88,6 +90,7 @@ func writeProxyDiscovery(discovery proxyDiscovery, writer io.Writer) error {
 	for _, route := range routes {
 		record := proxyDiscoveryRecord{
 			Type: "route", WorkloadKey: route.WorkloadKey,
+			Kind:   route.Route.Kind,
 			Scheme: route.Route.Scheme, Host: route.Route.Host, Port: route.Route.Port,
 			Path: route.Route.Path, Upstreams: route.Route.Upstreams,
 		}
@@ -119,6 +122,7 @@ func mergeProxyRoutes(routes []discoveredProxyRoute) []discoveredProxyRoute {
 		key := route.WorkloadKey + "\x00" + route.Route.Scheme + "\x00" + route.Route.Host + "\x00" +
 			strconv.Itoa(route.Route.Port) + "\x00" + route.Route.Path
 		if existing, found := byKey[key]; found {
+			existing.Route.Kind = strongerRouteKind(existing.Route.Kind, route.Route.Kind)
 			existing.Route.Upstreams = uniqueSorted(append(existing.Route.Upstreams, route.Route.Upstreams...))
 			byKey[key] = existing
 		} else {
@@ -144,10 +148,17 @@ func normalizeProxyRoute(workloadKey string, route shared.ProxyRoute) (discovere
 	route.Scheme = strings.ToLower(strings.TrimSpace(route.Scheme))
 	route.Host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(route.Host), "."))
 	route.Path = strings.TrimSpace(route.Path)
+	if route.Kind == "" {
+		if len(route.Upstreams) > 0 {
+			route.Kind = shared.RouteKindProxy
+		} else {
+			route.Kind = shared.RouteKindUnknown
+		}
+	}
 	if route.Path == "" {
 		route.Path = "/"
 	}
-	if route.Scheme != "http" && route.Scheme != "https" || route.Port < 1 || route.Port > 65535 ||
+	if !validRouteKind(route.Kind) || route.Scheme != "http" && route.Scheme != "https" || route.Port < 1 || route.Port > 65535 ||
 		!validProxyHost(route.Host, true) || !validRoutePath(route.Path) {
 		return discoveredProxyRoute{}, false
 	}
@@ -162,6 +173,23 @@ func normalizeProxyRoute(workloadKey string, route shared.ProxyRoute) (discovere
 		route.Upstreams = route.Upstreams[:16]
 	}
 	return discoveredProxyRoute{WorkloadKey: workloadKey, Route: route}, true
+}
+
+func validRouteKind(kind shared.RouteKind) bool {
+	return kind == shared.RouteKindUnknown || kind == shared.RouteKindProxy || kind == shared.RouteKindStatic || kind == shared.RouteKindSite
+}
+
+func strongerRouteKind(left, right shared.RouteKind) shared.RouteKind {
+	rank := map[shared.RouteKind]int{
+		shared.RouteKindUnknown: 0,
+		shared.RouteKindSite:    1,
+		shared.RouteKindStatic:  2,
+		shared.RouteKindProxy:   3,
+	}
+	if rank[right] > rank[left] {
+		return right
+	}
+	return left
 }
 
 func validProxyWorkloadKey(value string) bool {
@@ -304,6 +332,7 @@ func parseCaddyRoutes(content []byte, workloadKey string) ([]discoveredProxyRout
 		if len(addresses) > 0 && siteRouteCount == 0 {
 			for _, address := range addresses {
 				routes = append(routes, discoveredProxyRoute{WorkloadKey: workloadKey, Route: shared.ProxyRoute{
+					Kind:   shared.RouteKindSite,
 					Scheme: address.Scheme, Host: address.Host, Port: address.Port, Path: "/",
 				}})
 			}
@@ -382,6 +411,7 @@ func parseCaddyRoutes(content []byte, workloadKey string) ([]discoveredProxyRout
 				}
 				for _, address := range addresses {
 					routes = append(routes, discoveredProxyRoute{WorkloadKey: workloadKey, Route: shared.ProxyRoute{
+						Kind:   shared.RouteKindProxy,
 						Scheme: address.Scheme, Host: address.Host, Port: address.Port,
 						Path: currentPath, Upstreams: upstreams,
 					}})
@@ -527,12 +557,26 @@ func parseNginxRoutes(content []byte, workloadKey string) ([]discoveredProxyRout
 			listeners = []caddyAddress{{Scheme: "http", Port: 80}}
 		}
 		proxyPaths := collectNginxProxyPass(server.Children, "/")
+		staticPaths := collectNginxStaticPaths(server.Children, "/")
 		for _, listener := range listeners {
 			for _, host := range hosts {
 				for path, upstreams := range proxyPaths {
 					routes = append(routes, discoveredProxyRoute{WorkloadKey: workloadKey, Route: shared.ProxyRoute{
+						Kind:   shared.RouteKindProxy,
 						Scheme: listener.Scheme, Host: host, Port: listener.Port, Path: path,
 						Upstreams: uniqueSorted(upstreams),
+					}})
+				}
+				if host == "" {
+					continue
+				}
+				for path := range staticPaths {
+					if _, proxied := proxyPaths[path]; proxied {
+						continue
+					}
+					routes = append(routes, discoveredProxyRoute{WorkloadKey: workloadKey, Route: shared.ProxyRoute{
+						Kind:   shared.RouteKindStatic,
+						Scheme: listener.Scheme, Host: host, Port: listener.Port, Path: path,
 					}})
 				}
 			}
@@ -705,6 +749,61 @@ func collectNginxProxyPass(nodes []configNode, inheritedPath string) map[string]
 		}
 	}
 	return result
+}
+
+func collectNginxStaticPaths(nodes []configNode, inheritedPath string) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, node := range nodes {
+		path := inheritedPath
+		if node.Name == "location" {
+			for _, argument := range node.Args {
+				if candidate := normalizeMatcherPath(argument); candidate != "" {
+					path = candidate
+					break
+				}
+			}
+			if hasNginxServingDirective(node.Children) && !hasNginxDirective(node.Children, "proxy_pass") {
+				result[path] = struct{}{}
+			}
+		}
+		for childPath := range collectNginxStaticPaths(node.Children, path) {
+			result[childPath] = struct{}{}
+		}
+	}
+	if inheritedPath == "/" && hasDirectNginxServingDirective(nodes) {
+		result["/"] = struct{}{}
+	}
+	return result
+}
+
+func hasDirectNginxServingDirective(nodes []configNode) bool {
+	for _, node := range nodes {
+		if node.Name == "root" || node.Name == "alias" || node.Name == "try_files" || node.Name == "index" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasNginxServingDirective(nodes []configNode) bool {
+	if hasDirectNginxServingDirective(nodes) {
+		return true
+	}
+	for _, node := range nodes {
+		if hasNginxServingDirective(node.Children) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasNginxDirective(nodes []configNode, name string) bool {
+	for _, node := range nodes {
+		if node.Name == name || hasNginxDirective(node.Children, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func proxyParseWarning(proxy, source string) string {
