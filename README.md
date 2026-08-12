@@ -85,6 +85,7 @@ quality/            可量化质量基线与目标
 - [Agent 安全纳管](docs/agent-onboarding.md)
 - [SSH 安全监测](docs/ssh-security-monitoring.md)
 - [声明式部署与回滚](docs/declarative-deployments.md)
+- [窄权限托管升级器](docs/managed-updaters.md)
 - [质量门禁](docs/quality-gates.md)
 - [Web 控制台与浏览器验收](docs/web-console.md)
 - [开发与验收](docs/development.md)

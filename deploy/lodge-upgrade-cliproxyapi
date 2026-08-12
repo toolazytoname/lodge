@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# Upgrade the one approved CLIProxyAPI systemd service to the latest stable
+# upstream release. This helper accepts no caller-controlled upgrade input.
+
+set -Eeuo pipefail
+
+readonly PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH
+unset ALL_PROXY HTTPS_PROXY HTTP_PROXY NO_PROXY all_proxy https_proxy http_proxy no_proxy
+
+readonly REPOSITORY="router-for-me/CLIProxyAPI"
+readonly API_URL="https://api.github.com/repos/${REPOSITORY}/releases/latest"
+readonly DOWNLOAD_PREFIX="https://github.com/${REPOSITORY}/releases/download/"
+readonly SERVICE="cliproxyapi.service"
+readonly BINARY="/root/cliproxyapi/cli-proxy-api"
+readonly HEALTH_URL="http://127.0.0.1:8317/"
+readonly STATE_DIR="/var/lib/lodge-updaters/cliproxyapi"
+readonly BACKUP_DIR="${STATE_DIR}/backups"
+readonly LOCK_FILE="/run/lodge-upgrade-cliproxyapi.lock"
+readonly DOWNLOAD_LIMIT=$((128 * 1024 * 1024))
+
+fail() {
+  printf 'UPGRADE FAILED: %s\n' "$1" >&2
+  exit "${2:-1}"
+}
+
+require_runtime() {
+  local command_name
+  for command_name in curl python3 sha256sum tar timeout install systemctl flock stat mktemp grep awk seq sleep sed date mv rm chmod uname; do
+    command -v "${command_name}" >/dev/null 2>&1 || fail "required runtime is unavailable: ${command_name}"
+  done
+  [[ ${EUID} -eq 0 ]] || fail "root execution is required"
+  [[ "$(uname -m)" == "x86_64" ]] || fail "approved updater requires Linux amd64"
+  [[ -f "${BINARY}" && ! -L "${BINARY}" ]] || fail "managed binary is missing or is a symlink"
+  [[ "$(stat -c '%u' "${BINARY}")" == "0" ]] || fail "managed binary is not root-owned"
+  local numeric_mode
+  numeric_mode=$((8#$(stat -c '%a' "${BINARY}")))
+  (( (numeric_mode & 8#022) == 0 )) || fail "managed binary is group/world writable"
+  systemctl cat "${SERVICE}" >/dev/null 2>&1 || fail "approved systemd service is unavailable"
+}
+
+binary_version() {
+  local output
+  output="$(timeout 5 "$1" --version 2>&1 || true)"
+  printf '%s\n' "${output}" | sed -n '1p'
+}
+
+wait_for_health() {
+  local attempts="${1:-60}"
+  local unused
+  for unused in $(seq 1 "${attempts}"); do
+    if systemctl is-active --quiet "${SERVICE}" && \
+       curl --noproxy '*' --fail --silent --max-time 3 "${HEALTH_URL}" 2>/dev/null | \
+         grep -Fq '"message":"CLI Proxy API Server"'; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+download() {
+  local url="$1"
+  local destination="$2"
+  curl --noproxy '*' --proto '=https' --tlsv1.2 --fail --silent --show-error \
+    --location --max-redirs 5 --retry 3 --retry-all-errors --connect-timeout 15 \
+    --max-time 300 --output "${destination}" "${url}"
+  [[ -f "${destination}" ]] || fail "download did not create a regular file"
+  local size
+  size="$(stat -c '%s' "${destination}")"
+  (( size > 0 && size <= DOWNLOAD_LIMIT )) || fail "download exceeds the bounded size"
+}
+
+require_runtime
+
+if [[ ${1:-} == "--self-check" && $# -eq 1 ]]; then
+  printf 'SELF CHECK PASSED: fixed target=%s service=%s health=loopback\n' "${REPOSITORY}" "${SERVICE}"
+  exit 0
+fi
+[[ $# -eq 0 ]] || fail "arguments are not accepted"
+
+exec 9>"${LOCK_FILE}"
+flock -n 9 || fail "another CLIProxyAPI upgrade is already running"
+
+install -d -o root -g root -m 0700 "${STATE_DIR}" "${BACKUP_DIR}"
+work_dir="$(mktemp -d "${STATE_DIR}/.upgrade.XXXXXX")"
+cleanup() {
+  rm -rf -- "${work_dir}"
+}
+trap cleanup EXIT
+
+metadata="${work_dir}/release.json"
+archive="${work_dir}/release.tar.gz"
+checksums="${work_dir}/checksums.txt"
+candidate="${work_dir}/cli-proxy-api"
+download "${API_URL}" "${metadata}"
+
+mapfile -t release_fields < <(python3 - "${metadata}" <<'PY'
+import json
+import re
+import sys
+
+with open(sys.argv[1], "rb") as stream:
+    release = json.load(stream)
+if release.get("draft") or release.get("prerelease"):
+    raise SystemExit("latest release is not stable")
+tag = release.get("tag_name", "")
+match = re.fullmatch(r"v?([0-9]+(?:\.[0-9]+){2})", tag)
+if not match:
+    raise SystemExit("release tag is invalid")
+version = match.group(1)
+asset_name = f"CLIProxyAPI_{version}_linux_amd64.tar.gz"
+assets = {item.get("name"): item for item in release.get("assets", [])}
+asset = assets.get(asset_name)
+checksum = assets.get("checksums.txt")
+if not asset or not checksum:
+    raise SystemExit("required release assets are missing")
+values = (
+    version,
+    asset_name,
+    asset.get("browser_download_url", ""),
+    asset.get("digest", ""),
+    checksum.get("browser_download_url", ""),
+    checksum.get("digest", ""),
+)
+if any("\n" in value or "\r" in value for value in values):
+    raise SystemExit("release metadata contains control characters")
+print("\n".join(values))
+PY
+)
+[[ ${#release_fields[@]} -eq 6 ]] || fail "release metadata is incomplete"
+version="${release_fields[0]}"
+asset_name="${release_fields[1]}"
+asset_url="${release_fields[2]}"
+archive_digest="${release_fields[3]}"
+checksum_url="${release_fields[4]}"
+checksum_digest="${release_fields[5]}"
+
+[[ "${asset_url}" == "${DOWNLOAD_PREFIX}"* && "${checksum_url}" == "${DOWNLOAD_PREFIX}"* ]] \
+  || fail "release asset URL is outside the approved repository"
+[[ "${archive_digest}" =~ ^sha256:[a-f0-9]{64}$ && "${checksum_digest}" =~ ^sha256:[a-f0-9]{64}$ ]] \
+  || fail "GitHub release digest is missing or invalid"
+
+download "${checksum_url}" "${checksums}"
+actual_checksums_digest="$(sha256sum "${checksums}" | awk '{print $1}')"
+[[ "sha256:${actual_checksums_digest}" == "${checksum_digest}" ]] || fail "checksums asset digest mismatch"
+
+download "${asset_url}" "${archive}"
+actual_archive_digest="$(sha256sum "${archive}" | awk '{print $1}')"
+[[ "sha256:${actual_archive_digest}" == "${archive_digest}" ]] || fail "release archive digest mismatch"
+listed_archive_digest="$(awk -v name="${asset_name}" '$2 == name {print $1}' "${checksums}")"
+[[ "${listed_archive_digest}" == "${actual_archive_digest}" ]] || fail "official checksums.txt does not match the archive"
+
+[[ "$(tar -tzf "${archive}" | grep -Fxc 'cli-proxy-api')" == "1" ]] || fail "archive must contain one approved binary entry"
+tar -xOzf "${archive}" cli-proxy-api >"${candidate}" || fail "approved binary cannot be extracted"
+[[ "$(stat -c '%s' "${candidate}")" -le "${DOWNLOAD_LIMIT}" ]] || fail "extracted binary exceeds the bounded size"
+chmod 0755 "${candidate}"
+candidate_version="$(binary_version "${candidate}")"
+[[ "${candidate_version}" == "CLIProxyAPI Version: ${version},"* ]] || fail "candidate version does not match the release"
+candidate_digest="$(sha256sum "${candidate}" | awk '{print $1}')"
+
+old_version="$(binary_version "${BINARY}")"
+old_digest="$(sha256sum "${BINARY}" | awk '{print $1}')"
+if [[ "${candidate_digest}" == "${old_digest}" ]]; then
+  wait_for_health 10 || fail "installed latest release is not healthy"
+  printf 'ALREADY CURRENT\nversion=%s\nservice=active\n' "${candidate_version}"
+  exit 0
+fi
+
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup="${BACKUP_DIR}/cli-proxy-api.${stamp}.${old_digest}"
+failed_candidate="${BACKUP_DIR}/cli-proxy-api.failed-${version}.${stamp}.${candidate_digest}"
+install -o root -g root -m 0755 "${BINARY}" "${backup}"
+install -o root -g root -m 0755 "${candidate}" "${BINARY}.next"
+switched=0
+
+rollback() {
+  systemctl stop "${SERVICE}" >/dev/null 2>&1 || true
+  if [[ ${switched} -eq 1 && -f "${BINARY}" && ! -L "${BINARY}" ]]; then
+    mv -f -- "${BINARY}" "${failed_candidate}"
+  fi
+  install -o root -g root -m 0755 "${backup}" "${BINARY}"
+  systemctl start "${SERVICE}" >/dev/null 2>&1 || true
+  if wait_for_health 60; then
+    printf 'UPGRADE ROLLED BACK\nold=%s\ncandidate=%s\n' "${old_version}" "${candidate_version}" >&2
+    exit 1
+  fi
+  printf 'ROLLBACK FAILED: use provider console and backup %s\n' "${backup}" >&2
+  exit 2
+}
+
+systemctl stop "${SERVICE}" >/dev/null 2>&1 || rollback
+mv -f -- "${BINARY}.next" "${BINARY}"
+switched=1
+systemctl start "${SERVICE}" >/dev/null 2>&1 || rollback
+wait_for_health 60 || rollback
+
+installed_version="$(binary_version "${BINARY}")"
+installed_digest="$(sha256sum "${BINARY}" | awk '{print $1}')"
+[[ "${installed_version}" == "${candidate_version}" && "${installed_digest}" == "${candidate_digest}" ]] || rollback
+
+printf 'UPGRADE SUCCEEDED\nold=%s\nnew=%s\nbackup=%s\nservice=active\n' \
+  "${old_version}" "${installed_version}" "${backup}"

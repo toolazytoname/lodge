@@ -1,5 +1,12 @@
 # Wiki Log
 
+## [2026-08-12] design | CLIProxyAPI 窄升级通道
+
+- 一次真实升级暴露出受限管理员需要反复进入 provider Root Shell，且手写脚本曾混淆归档与解压二进制摘要、过早判定回滚失败。新版通道把这些经验编译为固定策略与测试。
+- 新增 root-owned、无调用参数的 CLIProxyAPI updater：固定官方仓库、目标二进制、systemd 服务和 loopback 健康地址；GitHub API digest 与经自身 digest 校验的 `checksums.txt` 必须同时匹配。
+- `lodge-admin` 只获得这一条带 sudoers 空参数标记的精确命令。未来日常升级可由 Codex 经 Tailnet SSH独立完成；首次授予新权限仍必须经过已有 root/recovery 路径。
+- 自动跟随 upstream stable latest 是显式供应链取舍，不等同于逐版本 root-pinned immutable release。Web 中的类型化操作与持久审计仍待后续接入。
+
 ## [2026-08-11] implementation | 域名与路由资产第一阶段
 
 - 路由模型增加 `proxy`、`static`、`site`、`unknown` 分类；schema 8 对已有含上游记录保守迁移为 `proxy`，无上游历史记录保持 `unknown`。

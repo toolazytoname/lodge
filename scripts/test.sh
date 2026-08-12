@@ -31,6 +31,7 @@ bash scripts/test-install-hub.sh
 bash scripts/test-install-agent.sh
 bash scripts/test-bootstrap-lodge-canary.sh
 bash scripts/test-grant-tencent-claude-app-acl.sh
+bash scripts/test-cliproxyapi-updater.sh
 
 step "generated TypeScript Web contract and build"
 npm run check:web

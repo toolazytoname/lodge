@@ -271,3 +271,17 @@ refresh proxy and a degraded retired-domain candidate using only reserved
 `.example.test` names. Destructive route retirement remains intentionally open:
 it requires a root-owned allowlist, configuration validation, atomic backup,
 reload verification, and restore evidence rather than a generic remote editor.
+
+## M10 — Narrow managed maintenance
+
+- [x] Replace provider-console CLIProxyAPI upgrades with a reviewed no-input updater
+- [x] Verify GitHub API digest and digest-verified upstream checksums independently
+- [x] Preserve a root-only backup and wait for candidate or rollback health
+- [x] Install only an exact no-argument `lodge-admin` sudo capability
+- [x] Reject caller versions, URLs, paths, services, shell fragments, and extra arguments
+- [ ] Bootstrap the updater once on banwagong and prove exact/extra-argument sudo behavior
+- [ ] Project the same typed transaction into Agent/Hub durable Web operations
+
+The direct Tailnet command restores autonomous routine maintenance while the
+Web projection remains open. Lodge does not treat a browser shell or broad
+administrator sudo as a product API.
