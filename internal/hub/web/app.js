@@ -1,24 +1,5 @@
-const exposureLabel = {
-    public: "公网",
-    tailnet: "Tailnet",
-    local: "本机",
-    other: "待确认",
-    none: "无监听",
-};
-const exposureOrder = {
-    public: 0,
-    other: 1,
-    tailnet: 2,
-    local: 3,
-    none: 4,
-};
-const pageMeta = {
-    overview: { eyebrow: "FLEET OVERVIEW", title: "全局状态" },
-    hosts: { eyebrow: "HOST INVENTORY", title: "主机目录" },
-    services: { eyebrow: "SERVICE CATALOG", title: "服务目录" },
-    security: { eyebrow: "SECURITY POSTURE", title: "安全态势" },
-    operations: { eyebrow: "CONTROLLED ACTIONS", title: "运维中心" },
-};
+import { byID, element, replaceChildren } from "./dom.js";
+import { actionKindLabel, actionRiskLabel, deploymentKindLabel, exposureLabel, exposureOrder, formatLastSeen, isFailed, isPageID, needsAttention, operationKindLabel, operationStateLabel, pageMeta, safeWebURL, serviceDisplayName, serviceExposure, serviceRuntime, shortImageDigest, } from "./format.js";
 const state = {
     agents: [],
     groups: [],
@@ -52,38 +33,6 @@ const actionsByAgent = new Map();
 const deploymentsByAgent = new Map();
 const trackedDeploymentOperations = new Set();
 let activeDeploymentOperationID = null;
-function byID(id) {
-    const node = document.getElementById(id);
-    if (!node)
-        throw new Error(`missing required element #${id}`);
-    return node;
-}
-function element(tag, className = "", text) {
-    const node = document.createElement(tag);
-    if (className)
-        node.className = className;
-    if (text !== undefined)
-        node.textContent = String(text);
-    return node;
-}
-function replaceChildren(node, children) {
-    node.replaceChildren(...children);
-}
-function isPageID(value) {
-    return value in pageMeta;
-}
-function safeWebURL(raw) {
-    if (!raw)
-        return null;
-    try {
-        const parsed = new URL(raw);
-        const webScheme = parsed.protocol === "http:" || parsed.protocol === "https:";
-        return webScheme && !parsed.username && !parsed.password ? parsed.href : null;
-    }
-    catch {
-        return null;
-    }
-}
 class APIRequestError extends Error {
     status;
     payload;
@@ -95,41 +44,6 @@ class APIRequestError extends Error {
 }
 function errorMessage(error) {
     return error instanceof Error ? error.message : "unknown error";
-}
-function serviceExposure(service) {
-    return (service.ports ?? []).length ? service.maxExposure : "none";
-}
-function serviceDisplayName(service) {
-    return service.alias?.trim() || service.name;
-}
-function serviceRuntime(service) {
-    if (service.composeProject) {
-        return `${service.composeProject}/${service.composeService || service.name}`;
-    }
-    return service.kind;
-}
-function isFailed(service) {
-    const status = service.status.toLowerCase();
-    const health = (service.health ?? "").toLowerCase();
-    return status.includes("failed") || status.includes("dead") || health === "unhealthy";
-}
-function needsAttention(service) {
-    return isFailed(service) || Boolean(service.unidentified);
-}
-function formatLastSeen(raw) {
-    if (!raw)
-        return "尚未同步";
-    const date = new Date(raw);
-    if (Number.isNaN(date.getTime()))
-        return raw;
-    return new Intl.DateTimeFormat("zh-CN", {
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-    }).format(date);
 }
 async function api(path, options = {}) {
     const method = (options.method ?? "GET").toUpperCase();
@@ -1372,54 +1286,6 @@ async function loadSelectedCapabilities(force) {
         loadSelectedDeployments(force),
     ]);
 }
-function actionKindLabel(kind) {
-    const labels = {
-        logs: "读取日志",
-        start: "启动",
-        restart: "重启",
-        stop: "停止",
-    };
-    return labels[kind];
-}
-function actionRiskLabel(risk) {
-    const labels = {
-        read: "只读",
-        change: "状态变更",
-        disruptive: "中断风险",
-    };
-    return labels[risk];
-}
-function deploymentKindLabel(kind) {
-    return kind === "rollback" ? "回滚" : "部署";
-}
-function shortImageDigest(image) {
-    const marker = "@sha256:";
-    const offset = image.lastIndexOf(marker);
-    if (offset < 0)
-        return "摘要不可用";
-    return `sha256:${image.slice(offset + marker.length, offset + marker.length + 12)}…`;
-}
-function operationStateLabel(stateValue) {
-    const labels = {
-        requested: "已请求",
-        running: "执行中",
-        succeeded: "成功",
-        failed: "失败",
-        rolled_back: "已回滚",
-    };
-    return labels[stateValue];
-}
-function operationKindLabel(kind) {
-    const labels = {
-        logs: "读取日志",
-        start: "启动",
-        restart: "重启",
-        stop: "停止",
-        deploy: "部署",
-        rollback: "回滚",
-    };
-    return labels[kind];
-}
 function operationErrorLabel(errorKind) {
     if (!errorKind)
         return "";
@@ -2087,4 +1953,3 @@ document.addEventListener("visibilitychange", () => {
         void refresh();
 });
 void boot();
-export {};

@@ -769,7 +769,7 @@ func TestEventAPIRequiresAuthenticationCSRFAndPreservesLifecycle(t *testing.T) {
 
 func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
 	s := newTestServer(t, NewMemStore(), "")
-	for _, path := range []string{"/", "/app.css", "/app.js", "/api/session"} {
+	for _, path := range []string{"/", "/app.css", "/app.js", "/dom.js", "/format.js", "/api/session"} {
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != http.StatusOK {
@@ -802,14 +802,16 @@ func TestHubSecurityHeadersAndStaticAssets(t *testing.T) {
 			t.Errorf("Web 产品壳缺少 %s", marker)
 		}
 	}
-	w = httptest.NewRecorder()
-	s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/app.js", nil))
-	js := w.Body.String()
-	if strings.Contains(js, ".innerHTML") || strings.Contains(js, "insertAdjacentHTML") {
-		t.Errorf("前端不得用 HTML 字符串渲染不可信数据")
-	}
-	if strings.Contains(js, "window.prompt") {
-		t.Errorf("服务配置不得回退到阻塞式 prompt")
+	for _, path := range []string{"/app.js", "/dom.js", "/format.js"} {
+		w = httptest.NewRecorder()
+		s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		js := w.Body.String()
+		if strings.Contains(js, ".innerHTML") || strings.Contains(js, "insertAdjacentHTML") {
+			t.Errorf("%s 不得用 HTML 字符串渲染不可信数据", path)
+		}
+		if strings.Contains(js, "window.prompt") {
+			t.Errorf("%s 不得回退到阻塞式 prompt", path)
+		}
 	}
 }
 

@@ -500,7 +500,7 @@ function sendJSON(response, statusCode, value) {
 
 async function sendAsset(response, pathname) {
   const relative = pathname === "/" ? "index.html" : pathname.slice(1);
-  if (!new Set(["index.html", "app.css", "app.js"]).has(relative)) {
+  if (!new Set(["index.html", "app.css", "app.js", "dom.js", "format.js"]).has(relative)) {
     response.writeHead(404).end("not found");
     return;
   }

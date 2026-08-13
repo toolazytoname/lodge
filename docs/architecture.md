@@ -16,8 +16,9 @@ Browser --HTTPS/Tailnet--> Hub --Tailscale/grant--> Agent x N
 The browser remains the product client. No native desktop client is required.
 
 The browser source lives in `frontend/src` and is compiled as strict,
-framework-free TypeScript into `internal/hub/web/app.js`; its source stylesheet
-is copied to `internal/hub/web/app.css`. Both remain embedded in the Hub binary.
+framework-free TypeScript into `internal/hub/web/*.js`; its source stylesheet
+is copied to `internal/hub/web/app.css`. The compiled ES modules remain
+embedded in the Hub binary.
 Browser request/response declarations are generated from the
 exported Go HTTP contract by `cmd/lodge-web-types`; the generated declaration
 and embedded JavaScript/CSS are checked for drift in every quality run. This keeps
