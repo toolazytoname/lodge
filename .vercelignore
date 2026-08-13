@@ -1,6 +1,6 @@
-# Don't deploy real user data to Vercel
-# The example config.json stays in the repo for local dev
-# but should NOT be served from the public deployment.
-# Users on Vercel will use the file picker to load their own config.
+# lodge.weichao.studio is a reverse proxy to the Hub. Ignore private
+# config files if they ever appear in the deploy tree.
 config.json
 config-*.json
+config.local.json
+config.real.json

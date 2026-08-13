@@ -317,7 +317,9 @@ function showDashboard(): void {
 
 function startRefresh(): void {
   if (refreshTimer !== null) window.clearInterval(refreshTimer);
-  refreshTimer = window.setInterval(() => void refresh(), 15_000);
+  refreshTimer = window.setInterval(() => {
+    if (!document.hidden) void refresh();
+  }, 15_000);
 }
 
 async function loadSession(): Promise<SessionResponse> {
@@ -2281,5 +2283,8 @@ byID<HTMLDialogElement>("actionDialog").addEventListener("close", () => {
   byID("actionResultLogs").textContent = "";
 });
 window.addEventListener("hashchange", setPageFromHash);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && authed) void refresh();
+});
 
 void boot();

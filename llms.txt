@@ -4,7 +4,7 @@
 
 ## About
 
-Lodge discovers what services run on each of your machines and what they're exposed to (local / tailnet / public). An agent runs on each managed machine under a non-root account with a sudoers allowlist for the few privileged actions it needs; a central hub polls the agents and serves a password-protected web UI with an end-to-end encrypted vault.
+Lodge discovers what services run on each of your machines and what they're exposed to (local / tailnet / public). An agent runs on each managed machine under a non-root account with a sudoers allowlist for the few privileged actions it needs; a central hub polls the agents and serves a password-protected web UI. An end-to-end encrypted vault remains on the roadmap and is not a current security promise.
 
 ## Repository
 

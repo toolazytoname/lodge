@@ -192,7 +192,10 @@ function showDashboard() {
 function startRefresh() {
     if (refreshTimer !== null)
         window.clearInterval(refreshTimer);
-    refreshTimer = window.setInterval(() => void refresh(), 15_000);
+    refreshTimer = window.setInterval(() => {
+        if (!document.hidden)
+            void refresh();
+    }, 15_000);
 }
 async function loadSession() {
     const session = await api("/api/session");
@@ -2079,5 +2082,9 @@ byID("actionDialog").addEventListener("close", () => {
     byID("actionResultLogs").textContent = "";
 });
 window.addEventListener("hashchange", setPageFromHash);
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && authed)
+        void refresh();
+});
 void boot();
 export {};

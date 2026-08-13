@@ -9,8 +9,7 @@ Every commit intended for push must pass `npm test`, which currently enforces:
 - Go formatting;
 - `go vet`;
 - build of every Go package;
-- unit and integration tests;
-- the Go race detector;
+- unit and integration tests with the race detector;
 - shell syntax for deployment scripts;
 - generated TypeScript API-contract drift, strict browser compilation, and
   embedded CSS source drift;
