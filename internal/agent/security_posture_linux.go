@@ -114,8 +114,11 @@ func parseSSHDPosture(output string) (password, root, publicKey shared.SecurityS
 			continue
 		}
 		switch fields[0] {
-		case "passwordauthentication":
-			password = parseSSHDBool(fields[1])
+		case "passwordauthentication", "kbdinteractiveauthentication":
+			next := parseSSHDBool(fields[1])
+			if password == shared.SecurityUnknown || next == shared.SecurityEnabled {
+				password = next
+			}
 		case "permitrootlogin":
 			switch strings.ToLower(fields[1]) {
 			case "yes":

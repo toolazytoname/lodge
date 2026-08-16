@@ -18,6 +18,10 @@ func TestParseSSHDPosture(t *testing.T) {
 	if password != shared.SecurityUnknown || root != shared.SecurityDisabled || publicKey != shared.SecurityDisabled {
 		t.Fatalf("unexpected conservative SSHD fallback: %q %q %q", password, root, publicKey)
 	}
+	password, _, _ = parseSSHDPosture("passwordauthentication no\nkbdinteractiveauthentication yes\npermitrootlogin no\npubkeyauthentication yes\n")
+	if password != shared.SecurityEnabled {
+		t.Fatalf("keyboard-interactive must count as password authentication: %q", password)
+	}
 }
 
 func TestParseSSHListenerPosture(t *testing.T) {
