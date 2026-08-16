@@ -57,7 +57,7 @@ async function api(path, options = {}) {
         authed = false;
         csrfToken = "";
         showLogin();
-        throw new Error("unauthorized");
+        throw new Error("登录已失效，请重新登录");
     }
     if (!response.ok) {
         let payload;
@@ -89,6 +89,8 @@ function setRefreshing(value) {
     button.classList.toggle("is-busy", value);
 }
 function showLogin() {
+    closeAnnotation();
+    closeActionDialog();
     byID("login").classList.remove("hidden");
     byID("app").classList.add("hidden");
     setNotice(null);
@@ -319,6 +321,9 @@ function renderLoadingState() {
     replaceChildren(byID("riskSignals"), [emptyState("正在读取风险信号…", "loading")]);
     replaceChildren(byID("quickLinks"), [emptyState("正在发现 Web 入口…", "loading")]);
     replaceChildren(byID("hostPreview"), [emptyState("正在连接节点…", "loading")]);
+    replaceChildren(byID("hostDirectory"), [emptyState("正在连接节点…", "loading")]);
+    byID("serviceResultCount").textContent = "…";
+    replaceChildren(byID("serviceDirectory"), [emptyState("正在读取服务…", "loading")]);
 }
 function renderAll() {
     syncAgentFilter();
@@ -468,9 +473,9 @@ function renderOverview() {
         state.servicesLoaded
             ? metricCard("Web 入口", targets.length, linkMetric.detail, linkMetric.tone)
             : metricCard("Web 入口", "N/A", "服务数据暂不可用", "critical"),
-        state.agentsLoaded || state.servicesLoaded
+        state.agentsLoaded && state.servicesLoaded
             ? metricCard("需要关注", attentionCount, attentionCount ? "离线、失败或资源压力" : "当前没有高优先级信号", attentionCount ? "warning" : "good")
-            : metricCard("需要关注", "N/A", "等待数据恢复", "critical"),
+            : metricCard("需要关注", "N/A", state.agentsLoaded || state.servicesLoaded ? "部分数据暂不可用" : "等待数据恢复", "critical"),
     ]);
     if (state.agentsLoaded || state.servicesLoaded)
         renderRiskSignals();
@@ -544,6 +549,10 @@ function renderRiskSignals() {
         if (copy)
             copy.append(element("strong", "", signal.title), element("small", "", signal.detail));
         row.addEventListener("click", () => {
+            if (signal.label === "磁盘" || signal.label === "内存") {
+                setPage("hosts");
+                return;
+            }
             if (signal.agentID)
                 byID("agentFilter").value = signal.agentID;
             byID("stateFilter").value = "attention";
@@ -644,9 +653,10 @@ function syncAgentFilter() {
     const all = element("option", "", "全部主机");
     all.value = "all";
     options.push(all);
-    state.groups.forEach((group) => {
-        const option = element("option", "", group.agent.name);
-        option.value = group.agent.id;
+    const hosts = state.agents.length ? state.agents : state.groups.map((group) => group.agent);
+    hosts.forEach((agent) => {
+        const option = element("option", "", agent.name);
+        option.value = agent.id;
         options.push(option);
     });
     replaceChildren(select, options);
@@ -703,7 +713,12 @@ function renderServices() {
         return;
     }
     const entries = filteredServices();
-    byID("serviceResultCount").textContent = `${entries.length} / ${allServiceEntries().length} 项`;
+    const total = allServiceEntries().length;
+    byID("serviceResultCount").textContent = `${entries.length} / ${total} 项`;
+    if (!total) {
+        replaceChildren(byID("serviceDirectory"), [emptyState("尚未发现服务。")]);
+        return;
+    }
     if (!entries.length) {
         replaceChildren(byID("serviceDirectory"), [emptyState("没有符合当前条件的服务。请调整搜索或筛选条件。")]);
         return;
@@ -722,7 +737,7 @@ function serviceRow(entry) {
     const identity = element("div", "service-identity");
     identity.append(element("strong", "", serviceDisplayName(entry.service)));
     const runtime = serviceRuntime(entry.service);
-    const identityMeta = [runtime, entry.service.alias ? entry.service.name : "", entry.service.hidden ? "已隐藏" : ""].filter(Boolean).join(" · ");
+    const identityMeta = [runtime, entry.agent.name, entry.service.alias ? entry.service.name : "", entry.service.hidden ? "已隐藏" : ""].filter(Boolean).join(" · ");
     identity.append(element("small", "", identityMeta));
     if (entry.service.notes)
         identity.append(element("span", "service-note", entry.service.notes));

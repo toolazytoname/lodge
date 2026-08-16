@@ -244,7 +244,7 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#hostPreview")).toContainText("尚未纳管主机");
     await openServices(page);
     await expect(page.locator("#serviceResultCount")).toHaveText("0 / 0 项");
-    await expect(page.locator("#serviceDirectory")).toContainText("没有符合当前条件的服务");
+    await expect(page.locator("#serviceDirectory")).toContainText("尚未发现服务");
 
     await page.goto("/?fixture=offline#overview");
     await expect(page.locator("#overviewMetrics .metric-value").first()).toHaveText("4/5");

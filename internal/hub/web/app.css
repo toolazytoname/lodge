@@ -2598,9 +2598,15 @@ textarea:focus-visible {
   .brand small,
   .nav-label,
   .nav-item small,
-  .connection-state,
-  .sidebar-footer > .text-button {
+  .connection-state {
     display: none;
+  }
+
+  .sidebar-footer > .text-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 8px;
   }
 
   .primary-nav {
@@ -2661,24 +2667,26 @@ textarea:focus-visible {
   }
 
   .service-row {
-    grid-template-columns: 62px minmax(170px, 1.2fr) minmax(90px, 0.55fr) minmax(180px, 1fr) 58px;
-  }
-
-  .service-host {
-    display: none;
+    grid-template-columns: 62px minmax(140px, 1.1fr) minmax(80px, 0.5fr) minmax(80px, 0.45fr) minmax(150px, 1fr) 58px;
   }
 }
 
 @media (max-width: 720px) {
   .sidebar {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 10px;
     padding: 8px 12px;
   }
 
-  .brand > span:last-child,
-  .sidebar-footer {
+  .brand > span:last-child {
     display: none;
+  }
+
+  .sidebar-footer {
+    display: block;
+    margin: 0;
+    border: 0;
+    padding: 0;
   }
 
   .brand-mark {
@@ -2794,6 +2802,10 @@ textarea:focus-visible {
   .service-identity {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .service-host {
+    display: none;
   }
 
   .service-state {

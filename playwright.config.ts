@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+const fixturePort = Number(process.env.LODGE_FIXTURE_PORT || "4173");
+const fixtureOrigin = `http://127.0.0.1:${fixturePort}`;
+
 export default defineConfig({
   testDir: "./frontend/tests",
   snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}{ext}",
@@ -18,7 +21,7 @@ export default defineConfig({
     },
   },
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: fixtureOrigin,
     colorScheme: "dark",
     locale: "zh-CN",
     timezoneId: "Asia/Shanghai",
@@ -27,7 +30,7 @@ export default defineConfig({
   },
   webServer: {
     command: "node scripts/web-fixture-server.mjs",
-    url: "http://127.0.0.1:4173/api/session",
+    url: `${fixtureOrigin}/api/session`,
     reuseExistingServer: false,
     timeout: 15_000,
   },
