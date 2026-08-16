@@ -9,8 +9,9 @@
 #   1. 创建系统账号 lodge（nologin、无 home、不进 docker/wheel/sudo 组）；
 #   2. 安装二进制到 /usr/local/bin/lodge-agent；
 #   3. 从二进制自身生成 sudoers（单一真相来源，杜绝手写漂移）；
-#   4. 校验 root-only 动作策略（缺省即禁用全部写操作）；
-#   5. 安装 systemd unit 并完成真实服务上下文验收。
+#   4. 校验 root-only 动作、部署与 operator 策略（缺省即禁用）；
+#   5. 若存在 lodge-admin，安装其精确 operator sudo；
+#   6. 安装 systemd unit 并完成真实服务上下文验收。
 #
 # 幂等：可重复运行。
 
@@ -25,6 +26,10 @@ TOKEN_FILE="$CONF_DIR/token"
 ACTION_POLICY_FILE="$CONF_DIR/actions.json"
 DEPLOYMENT_POLICY_FILE="$CONF_DIR/deployments.json"
 DEPLOYMENT_STATE_DIR="/var/lib/lodge-agent/deployments"
+OPERATOR_POLICY_FILE="$CONF_DIR/operator.json"
+OPERATOR_BACKUP_DIR="/var/lib/lodge-agent/operator-backups"
+ADMIN_SUDOERS_FILE="/etc/sudoers.d/lodge-admin-operator"
+LEGACY_ADMIN_SUDOERS_FILE="/etc/sudoers.d/lodge-admin"
 
 err()  { echo "✗ $*" >&2; exit 1; }
 info() { echo "  $*"; }
@@ -135,6 +140,66 @@ else
   info "未配置部署策略：所有部署与回滚保持禁用（fail closed）✓"
 fi
 
+# owner-service operator 与动作/部署策略同一 fail-closed 规则。备份目录仅
+# root 可进入；lodge 服务账号不得读写。OPERATOR_USERS=ecs-user 仅在文件不存在
+# 时创建，不会覆盖已审阅的策略。
+install -d -o root -g root -m 0700 "$OPERATOR_BACKUP_DIR"
+if [ -n "${OPERATOR_USERS:-}" ] && [ ! -e "$OPERATOR_POLICY_FILE" ] && [ ! -L "$OPERATOR_POLICY_FILE" ]; then
+  python3 - "$OPERATOR_POLICY_FILE" "$OPERATOR_USERS" <<'PY'
+import json
+import os
+import re
+import sys
+
+path, raw = sys.argv[1], sys.argv[2]
+owners = []
+seen = set()
+name_re = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+denied = {
+    "root", "lodge", "lodge-admin", "daemon", "bin", "sys", "sync", "games",
+    "man", "lp", "mail", "news", "uucp", "proxy", "www-data", "backup", "list",
+    "irc", "gnats", "nobody", "nfsnobody", "messagebus", "syslog", "uuidd",
+    "sshd", "ntp", "mysql", "postgres", "redis", "nginx", "caddy", "docker",
+}
+for item in raw.split(","):
+    name = item.strip()
+    if not name:
+        continue
+    if not name_re.fullmatch(name) or name in denied or name.startswith("systemd") or name.startswith("_"):
+        raise SystemExit("OPERATOR_USERS contains a denied or invalid owner: " + name)
+    if name in seen:
+        raise SystemExit("OPERATOR_USERS repeats owner: " + name)
+    seen.add(name)
+    owners.append(name)
+if not owners:
+    raise SystemExit("OPERATOR_USERS did not list any owners")
+payload = (json.dumps({"version": 1, "owners": owners}, separators=(",", ":")) + "\n").encode("ascii")
+flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+if hasattr(os, "O_NOFOLLOW"):
+    flags |= os.O_NOFOLLOW
+fd = os.open(path, flags, 0o600)
+try:
+    os.fchown(fd, 0, 0)
+    os.write(fd, payload)
+finally:
+    os.close(fd)
+PY
+  info "已根据 OPERATOR_USERS 创建 root-only operator 策略"
+fi
+if [ -e "$OPERATOR_POLICY_FILE" ] || [ -L "$OPERATOR_POLICY_FILE" ]; then
+  [ -f "$OPERATOR_POLICY_FILE" ] && [ ! -L "$OPERATOR_POLICY_FILE" ] \
+    || err "operator 策略必须是普通文件且不能是符号链接：$OPERATOR_POLICY_FILE"
+  [ "$(stat -c '%u' "$OPERATOR_POLICY_FILE")" = 0 ] \
+    || err "operator 策略必须归 root 所有：$OPERATOR_POLICY_FILE"
+  [ "$(stat -c '%a' "$OPERATOR_POLICY_FILE")" = 600 ] \
+    || err "operator 策略权限必须精确为 0600：$OPERATOR_POLICY_FILE"
+  "$INSTALL_DIR/lodge-agent" --list-operator >/dev/null \
+    || err "operator 策略格式或所属账号无效：$OPERATOR_POLICY_FILE"
+  info "root-only operator 策略已验证 ✓"
+else
+  info "未配置 operator 策略：lodge-admin owner 维护保持禁用（fail closed）✓"
+fi
+
 # ── 4. sudoers（从二进制生成，单一真相来源）──────────────
 # lodge-agent --print-sudoers 在本机 LookPath 出 docker/ss 的真实路径，
 # 渲染成与 agent 内部命令逐字对应的 sudoers。
@@ -185,6 +250,68 @@ fi
 rm -f -- "$TMP_SUDOERS" "$SUDOERS_BACKUP" "$SUDOERS_BASELINE" \
   "$SUDOERS_BASELINE_ERRORS" "$SUDOERS_AFTER" "$SUDOERS_AFTER_ERRORS"
 info "sudoers → $SUDOERS_FILE（候选合法，完整策略未增加错误）"
+
+# ── 4b. lodge-admin 精确 operator sudo（与 lodge 服务账号分离）──
+if [ -f "$LEGACY_ADMIN_SUDOERS_FILE" ] && grep -Eq 'lodge-admin[[:space:]]+ALL=\(ALL\)[[:space:]]+NOPASSWD:[[:space:]]+ALL' "$LEGACY_ADMIN_SUDOERS_FILE"; then
+  if grep -Fq 'lodge-agent --print-admin-sudoers' "$LEGACY_ADMIN_SUDOERS_FILE"; then
+    rm -f -- "$LEGACY_ADMIN_SUDOERS_FILE"
+    info "已移除过宽的 lodge-admin NOPASSWD: ALL"
+  else
+    err "发现非 Lodge 生成的 lodge-admin NOPASSWD: ALL，拒绝覆盖；请先人工处理 $LEGACY_ADMIN_SUDOERS_FILE"
+  fi
+fi
+if id lodge-admin >/dev/null 2>&1; then
+  TMP_ADMIN_SUDOERS="$(mktemp)"
+  ADMIN_SUDOERS_BACKUP="$(mktemp)"
+  ADMIN_BASELINE="$(mktemp)"
+  ADMIN_BASELINE_ERRORS="$(mktemp)"
+  ADMIN_AFTER="$(mktemp)"
+  ADMIN_AFTER_ERRORS="$(mktemp)"
+  ADMIN_SUDOERS_EXISTED=0
+  ADMIN_BASELINE_CLEAN=0
+  if visudo -c >"$ADMIN_BASELINE" 2>&1; then
+    ADMIN_BASELINE_CLEAN=1
+  fi
+  grep -v ': parsed OK$' "$ADMIN_BASELINE" >"$ADMIN_BASELINE_ERRORS" || true
+  "$INSTALL_DIR/lodge-agent" --print-admin-sudoers > "$TMP_ADMIN_SUDOERS" \
+    || { rm -f -- "$TMP_ADMIN_SUDOERS" "$ADMIN_SUDOERS_BACKUP" "$ADMIN_BASELINE" \
+      "$ADMIN_BASELINE_ERRORS" "$ADMIN_AFTER" "$ADMIN_AFTER_ERRORS"; err "生成 lodge-admin sudoers 失败"; }
+  if grep -Fq 'NOPASSWD: ALL' "$TMP_ADMIN_SUDOERS"; then
+    rm -f -- "$TMP_ADMIN_SUDOERS" "$ADMIN_SUDOERS_BACKUP" "$ADMIN_BASELINE" \
+      "$ADMIN_BASELINE_ERRORS" "$ADMIN_AFTER" "$ADMIN_AFTER_ERRORS"
+    err "生成的 lodge-admin sudoers 含有 NOPASSWD: ALL，拒绝写入"
+  fi
+  if ! visudo -cf "$TMP_ADMIN_SUDOERS" >/dev/null; then
+    rm -f -- "$TMP_ADMIN_SUDOERS" "$ADMIN_SUDOERS_BACKUP" "$ADMIN_BASELINE" \
+      "$ADMIN_BASELINE_ERRORS" "$ADMIN_AFTER" "$ADMIN_AFTER_ERRORS"
+    err "visudo 校验失败，未写入 lodge-admin sudoers"
+  fi
+  if [ -f "$ADMIN_SUDOERS_FILE" ]; then
+    cp -p -- "$ADMIN_SUDOERS_FILE" "$ADMIN_SUDOERS_BACKUP"
+    ADMIN_SUDOERS_EXISTED=1
+  fi
+  install -m 0440 -o root -g root "$TMP_ADMIN_SUDOERS" "$ADMIN_SUDOERS_FILE"
+  if ! visudo -c >"$ADMIN_AFTER" 2>&1; then
+    grep -v ': parsed OK$' "$ADMIN_AFTER" >"$ADMIN_AFTER_ERRORS" || true
+    if [ "$ADMIN_BASELINE_CLEAN" -eq 0 ] && cmp -s "$ADMIN_BASELINE_ERRORS" "$ADMIN_AFTER_ERRORS"; then
+      info "警告：主机原有 sudoers 基线不干净；Lodge 未增加新错误，请另行修复既有策略"
+    else
+      if [ "$ADMIN_SUDOERS_EXISTED" -eq 1 ]; then
+        install -m 0440 -o root -g root "$ADMIN_SUDOERS_BACKUP" "$ADMIN_SUDOERS_FILE"
+      else
+        rm -f -- "$ADMIN_SUDOERS_FILE"
+      fi
+      rm -f -- "$TMP_ADMIN_SUDOERS" "$ADMIN_SUDOERS_BACKUP" "$ADMIN_BASELINE" \
+        "$ADMIN_BASELINE_ERRORS" "$ADMIN_AFTER" "$ADMIN_AFTER_ERRORS"
+      err "完整 sudoers 策略出现新增错误，已恢复安装前 Lodge 策略"
+    fi
+  fi
+  rm -f -- "$TMP_ADMIN_SUDOERS" "$ADMIN_SUDOERS_BACKUP" "$ADMIN_BASELINE" \
+    "$ADMIN_BASELINE_ERRORS" "$ADMIN_AFTER" "$ADMIN_AFTER_ERRORS"
+  info "sudoers → $ADMIN_SUDOERS_FILE（lodge-admin 精确 operator）✓"
+else
+  info "未发现 lodge-admin：跳过 operator sudoers"
+fi
 
 # ── 5. systemd unit ───────────────────────────────────────
 install -m 0644 "$UNIT_SRC" "$UNIT_DST"
@@ -269,10 +396,28 @@ if sudo -u lodge sudo -n docker run --rm hello-world >/dev/null 2>&1 \
    || sudo -u lodge sudo -n journalctl --vacuum-time=7d >/dev/null 2>&1 \
    || sudo -u lodge sudo -n systemctl restart caddy >/dev/null 2>&1 \
    || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-action restart:systemd:caddy.service >/dev/null 2>&1 \
-   || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-deployment deploy:gateway:latest >/dev/null 2>&1; then
+   || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-deployment deploy:gateway:latest >/dev/null 2>&1 \
+   || sudo -u lodge sudo -n true >/dev/null 2>&1; then
   err "安全验证失败：lodge 命中了未批准命令、旧直连写操作或动态参数"
 else
   info "越权验证：任意命令、旧直连写操作与动态参数均被拒绝 ✓"
+fi
+if sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --list-operator >/dev/null 2>&1 \
+   || sudo -u lodge sudo -n "$INSTALL_DIR/lodge-agent" --execute-operator >/dev/null 2>&1; then
+  err "安全验证失败：lodge 服务账号命中了 lodge-admin operator helpers"
+fi
+if id lodge-admin >/dev/null 2>&1 && [ -f "$ADMIN_SUDOERS_FILE" ]; then
+  if sudo -u lodge-admin sudo -n true >/dev/null 2>&1; then
+    err "lodge-admin 不得拥有任意 sudo"
+  fi
+  if ! sudo -u lodge-admin sudo -n "$INSTALL_DIR/lodge-agent" --list-operator >/dev/null; then
+    err "lodge-admin 无法调用 --list-operator"
+  fi
+  if sudo -u lodge-admin sudo -n "$INSTALL_DIR/lodge-agent" --list-operator EXTRA >/dev/null 2>&1 \
+     || sudo -u lodge-admin sudo -n "$INSTALL_DIR/lodge-agent" --execute-operator EXTRA >/dev/null 2>&1; then
+    err "lodge-admin operator 接受了额外参数"
+  fi
+  info "lodge-admin operator sudo 已生效 ✓"
 fi
 
 echo
@@ -280,5 +425,6 @@ echo "▸ 完成。下一步："
 echo "    1. 按 docs/agent-onboarding.md 将 owner-only token 安全导入 Hub（不要打印或放进命令参数）"
 echo "    2. 如需受控动作，审阅 deploy/agent-actions.example.json 后以 root:root 0600 安装为 $ACTION_POLICY_FILE"
 echo "    3. 如需声明式部署，审阅 deploy/agent-deployments.example.json 后以 root:root 0600 安装为 $DEPLOYMENT_POLICY_FILE"
-echo "    4. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
-echo "    5. 从 Hub 验证 tailnet 路由、采集状态、动作与部署清单"
+echo "    4. 如需维护非 root 用户服务，审阅 deploy/agent-operator.example.json 或 OPERATOR_USERS=ecs-user 后见 docs/operator-maintenance.md"
+echo "    5. 配置 tailnet-only Serve：sudo deploy/tailnet-management.sh apply agent"
+echo "    6. 从 Hub 验证 tailnet 路由、采集状态、动作与部署清单"

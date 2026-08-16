@@ -17,6 +17,7 @@ func main() {
 	tokenFile := flag.String("token-file", "/etc/lodge-agent/token", "token 文件路径")
 	check := flag.Bool("check", false, "采集一次状态与服务清单并打印 JSON，用于验证（不启动服务）")
 	printSudoers := flag.Bool("print-sudoers", false, "生成本机 sudoers 内容并退出（供 install-agent.sh 写入）")
+	printAdminSudoers := flag.Bool("print-admin-sudoers", false, "生成 lodge-admin 精确 operator sudoers 并退出（供 install-agent.sh 写入）")
 	collectProcessOrigins := flag.Bool("collect-process-origins", false, "以 JSONL 输出脱敏进程来源并退出（仅供精确 sudoers 调用）")
 	collectComposeMetadata := flag.Bool("collect-compose-metadata", false, "以 JSONL 输出校验后的 Compose 身份并退出（仅供精确 sudoers 调用）")
 	collectProxyRoutes := flag.Bool("collect-proxy-routes", false, "以 JSONL 输出脱敏的 Caddy/Nginx 路由并退出（仅供精确 sudoers 调用）")
@@ -26,14 +27,16 @@ func main() {
 	executeAction := flag.Bool("execute-action", false, "从标准输入执行一个 root 策略批准的动作并退出（仅供精确 sudoers 调用）")
 	listDeployments := flag.Bool("list-deployments", false, "列出 root 策略批准的声明式部署并退出（仅供精确 sudoers 调用）")
 	executeDeployment := flag.Bool("execute-deployment", false, "从标准输入执行一个 root 策略批准的声明式部署并退出（仅供精确 sudoers 调用）")
+	listOperator := flag.Bool("list-operator", false, "列出 root 策略批准的非 root 服务所属账号并退出（仅供 lodge-admin 精确 sudoers 调用）")
+	executeOperator := flag.Bool("execute-operator", false, "从标准输入执行一个 owner-service operator 动作并退出（仅供 lodge-admin 精确 sudoers 调用）")
 	showVersion := flag.Bool("version", false, "打印版本并退出")
 	flag.Parse()
 
 	modeCount := 0
 	for _, enabled := range []bool{
-		*check, *printSudoers, *collectProcessOrigins, *collectComposeMetadata,
+		*check, *printSudoers, *printAdminSudoers, *collectProcessOrigins, *collectComposeMetadata,
 		*collectProxyRoutes, *collectSSHAuth, *collectSecurityPosture, *listActions, *executeAction,
-		*listDeployments, *executeDeployment, *showVersion,
+		*listDeployments, *executeDeployment, *listOperator, *executeOperator, *showVersion,
 	} {
 		if enabled {
 			modeCount++
@@ -55,6 +58,9 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Print(out)
+		return
+	case *printAdminSudoers:
+		fmt.Print(agent.PrintAdminSudoers())
 		return
 	case *collectProcessOrigins:
 		if err := agent.WriteProcessOrigins(os.Stdout); err != nil {
@@ -107,6 +113,18 @@ func main() {
 	case *executeDeployment:
 		if err := agent.ExecutePolicyDeployment(os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "执行声明式部署失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *listOperator:
+		if err := agent.WriteOperatorOwners(os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "读取 operator 策略失败:", err)
+			os.Exit(1)
+		}
+		return
+	case *executeOperator:
+		if err := agent.ExecuteOperator(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "执行 operator 动作失败:", err)
 			os.Exit(1)
 		}
 		return

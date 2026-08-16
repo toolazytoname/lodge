@@ -43,6 +43,9 @@ func TestGenerateSudoers(t *testing.T) {
 	if strings.Count(out, "lodge ALL=(root) NOPASSWD:") != 2 {
 		t.Errorf("读写命令应分别生成直接授权行:\n%s", out)
 	}
+	if strings.Contains(out, "lodge-admin ALL=") || strings.Contains(out, "NOPASSWD: ALL") {
+		t.Errorf("lodge 服务账号 sudoers 不得包含 lodge-admin 免密 sudo:\n%s", out)
+	}
 	if !strings.Contains(out, "# 只读采集") || !strings.Contains(out, "# 受控写操作") {
 		t.Errorf("缺少读写边界注释:\n%s", out)
 	}
@@ -53,6 +56,25 @@ func TestGenerateSudoers(t *testing.T) {
 	// 不能有尾随的续行符（\ 后直接换行再 EOF）
 	if strings.HasSuffix(strings.TrimSpace(out), "\\") {
 		t.Errorf("文件以续行符结尾:\n%s", out)
+	}
+}
+
+func TestGenerateAdminSudoers(t *testing.T) {
+	out := GenerateAdminSudoers()
+	if strings.Contains(out, "lodge ALL=") {
+		t.Fatalf("admin sudoers granted lodge service account access:\n%s", out)
+	}
+	if strings.Contains(out, "NOPASSWD: ALL") {
+		t.Fatalf("admin sudoers must not grant unrestricted sudo:\n%s", out)
+	}
+	if !strings.Contains(out, "lodge-admin ALL=(root) NOPASSWD:") {
+		t.Fatalf("admin sudoers should grant lodge-admin exact helpers:\n%s", out)
+	}
+	if !strings.Contains(out, "--list-operator") || !strings.Contains(out, "--execute-operator") {
+		t.Fatalf("admin sudoers missing operator helpers:\n%s", out)
+	}
+	if strings.Contains(out, "docker") || strings.Contains(out, "--execute-action") || strings.Contains(out, "--execute-deployment") {
+		t.Fatalf("admin sudoers leaked Agent privileged commands:\n%s", out)
 	}
 }
 

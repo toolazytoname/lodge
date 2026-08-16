@@ -40,7 +40,7 @@ The Hub pulls; Agents do not push. All machines share one tailnet. An Agent only
 
 ## Security model
 
-- **agent never runs as root** — a dedicated system account, never added to the `docker` group (that group is root-equivalent). Controlled actions use one exact `--execute-action` sudo entry, receive only a bounded action ID, and resolve it through a non-replaceable root-owned policy to fixed argv; shell text, commands, arguments, and paths are not accepted. SSH monitoring emits only canonical source IPs and counts from a bounded authentication-log tail or bounded journal window, never usernames or raw logs. Proxy discovery does not read container environments or use `docker exec`, and emits only redacted routes and credential-free upstream authorities.
+- **agent never runs as root** — a dedicated system account, never added to the `docker` group (that group is root-equivalent). Controlled actions use one exact `--execute-action` sudo entry, receive only a bounded action ID, and resolve it through a non-replaceable root-owned policy to fixed argv; shell text, commands, arguments, and paths are not accepted. Non-root service maintenance is a separate `lodge-admin` sudo class (`--list-operator` / `--execute-operator`) authorized by root-owned `operator.json` for opted-in service-owner accounts; it is not available to the `lodge` service account or Agent HTTP. SSH monitoring emits only canonical source IPs and counts from a bounded authentication-log tail or bounded journal window, never usernames or raw logs. Proxy discovery does not read container environments or use `docker exec`, and emits only redacted routes and credential-free upstream authorities.
 - **Hub login**: an Argon2id verifier instead of a stored plaintext password, an independent random session-signing key, and `Secure`, `HttpOnly`, `SameSite=Strict` cookies. State-changing requests require a CSRF token. Consecutive login failures trigger exponential-backoff lockout.
 - **Management boundary**: production management endpoints are tailnet-only. Authentication is defense in depth, not permission to expose the console publicly. The Hub re-reads live Agent authority, requires CSRF plus the exact confirmation phrase, serializes writes, verifies state, records a durable audit, never retries the remote POST, and never stores returned log lines. Deployment is limited to root-reviewed stateless single services, immutable sha256 images, and local health checks; failure triggers a verified attempt to restore the previous release. A vault remains roadmap work.
 - **Persistence boundary**: Agent URLs and tokens exist only in the owner-private `0600` config and process memory, never SQLite. The database, WAL, and backups are `0600`, and migrations are versioned and checksum-verified.
@@ -81,6 +81,7 @@ docs/               architecture, threat model, quality gates, and delivery docs
 - [Tailnet-only deployment](docs/tailnet-deployment.md)
 - [Agent onboarding](docs/agent-onboarding.md)
 - [Declarative deployments and rollback](docs/declarative-deployments.md)
+- [Owner-service operator](docs/operator-maintenance.md)
 - [Web console](docs/web-console.md)
 - [Quality gates](docs/quality-gates.md)
 - [Development and acceptance](docs/development.md)

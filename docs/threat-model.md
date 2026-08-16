@@ -149,6 +149,15 @@
   disconnect does not cancel accepted work; Hub restart marks unfinished audit
   as uncertain and never replays it. The Web receives neither the host policy
   paths nor the metadata-only Agent execution result.
+- Owner-service operator policy is a regular, non-symlink, root-owned mode
+  `0600` file listing opted-in non-root service-owner accounts. Missing or empty
+  policy disables the class. Exact `lodge-admin` sudo helpers `--list-operator`
+  and `--execute-operator` accept no extra argv; stdin JSON may only read, list,
+  or replace existing files under that user's home after rejecting symlink
+  escape and credential paths, or restart a systemd unit whose `User=` matches.
+  The network-facing `lodge` account cannot invoke these helpers. This is an
+  operator-plane expansion of Tailnet `lodge-admin`, not a Hub or Agent HTTP
+  command channel. See [ADR 0013](adr/0013-owner-service-operator.md).
 
 ### Secrets
 

@@ -129,6 +129,15 @@ follow [`docs/declarative-deployments.md`](declarative-deployments.md).
 Never make the directory writable by `lodge`: file ownership alone does not
 prevent a writable-directory rename replacement.
 
+Owner-service maintenance is a `lodge-admin` class, not an Agent HTTP API. If
+`lodge-admin` exists, the installer writes `/etc/sudoers.d/lodge-admin-operator`
+from `--print-admin-sudoers`. `/etc/lodge-agent/operator.json` lists opted-in
+non-root service-owner accounts such as `ecs-user`. A missing file disables the
+class. `OPERATOR_USERS=ecs-user ./install-agent.sh` can create that file on first
+install; later services under the same owner need no new sudoers rule. See
+[`docs/operator-maintenance.md`](operator-maintenance.md) and
+[ADR 0013](adr/0013-owner-service-operator.md).
+
 ## Atomic Hub enrollment
 
 Copy `/etc/lodge-agent/token` through a trusted channel into a uniquely named,

@@ -29,7 +29,19 @@ required_patterns=(
   'systemctl restart caddy'
   '--execute-action restart:systemd:caddy.service'
   '--execute-deployment deploy:gateway:latest'
+  '--print-admin-sudoers'
+  '--list-operator'
+  '--execute-operator'
+  'lodge-admin operator sudo 已生效'
+  'lodge-admin 不得拥有任意 sudo'
+  'sudo -u lodge sudo -n true'
+  'docs/operator-maintenance.md'
   'docs/agent-onboarding.md'
+  'OPERATOR_USERS'
+  'operator.json'
+  'install -d -o root -g root -m 0700 "$OPERATOR_BACKUP_DIR"'
+  "stat -c '%u' \"\$OPERATOR_POLICY_FILE\""
+  "stat -c '%a' \"\$OPERATOR_POLICY_FILE\""
 )
 for pattern in "${required_patterns[@]}"; do
   grep -F -- "$pattern" "$script" >/dev/null || {
@@ -73,6 +85,27 @@ for stack in policy["stacks"]:
     for release in stack["releases"]:
         image, digest = release["image"].rsplit("@sha256:", 1)
         assert image and len(digest) == 64 and set(digest) <= set("0123456789abcdef")
+PY
+
+if grep -Fq 'lodge-admin ALL=(ALL) NOPASSWD: ALL' "$script"; then
+  printf 'install-agent must not grant lodge-admin unrestricted sudo\n' >&2
+  exit 1
+fi
+if grep -Fq 'lodge-admin 免密 sudo 已生效' "$script"; then
+  printf 'install-agent still treats lodge-admin as a full root shell\n' >&2
+  exit 1
+fi
+
+python3 - <<'PY'
+import json
+
+with open("deploy/agent-operator.example.json", encoding="utf-8") as stream:
+    policy = json.load(stream)
+assert policy["version"] == 1
+assert policy["owners"] == ["ecs-user"]
+assert "root" not in policy["owners"]
+assert "lodge" not in policy["owners"]
+assert "lodge-admin" not in policy["owners"]
 PY
 
 for forbidden_directive in \

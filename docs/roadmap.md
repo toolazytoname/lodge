@@ -285,3 +285,14 @@ reload verification, and restore evidence rather than a generic remote editor.
 The direct Tailnet command restores autonomous routine maintenance while the
 Web projection remains open. Lodge does not treat a browser shell or broad
 administrator sudo as a product API.
+
+## M11 — Owner-service operator
+
+- [x] Replace per-incident root console scripts with a class of opted-in non-root service owners
+- [x] Keep the helpers off the `lodge` service account and Agent HTTP API
+- [x] Confine reads/writes to owner home, deny credential paths, and require unit `User=` match
+- [ ] Install operator policy on Ali (`ecs-user`) and close the unused mihomo `:8388` inbound
+
+The first host still needs one Agent upgrade plus `operator.json`. After that,
+another user-owned service on the same account does not need a new sudoers rule
+or a unique console script. Tailnet SSH as `ecs-user` remains disabled.

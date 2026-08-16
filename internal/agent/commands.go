@@ -8,7 +8,7 @@ import (
 )
 
 // AgentVersion 是 lodge-agent 的语义版本。hub 据此判断兼容性。
-const AgentVersion = "0.9.0"
+const AgentVersion = "0.10.0"
 
 var processOriginsCommand = []string{"/usr/local/bin/lodge-agent", "--collect-process-origins"}
 var composeMetadataCommand = []string{"/usr/local/bin/lodge-agent", "--collect-compose-metadata"}
@@ -170,6 +170,25 @@ func writeSudoersSpec(b *strings.Builder, description string, commands [][]strin
 			b.WriteByte('\n')
 		}
 	}
+}
+
+// GenerateAdminSudoers 给运维账号 lodge-admin 两条精确 helper。
+// 不得写入 lodge 的 AllPrivileged，也不得授予 NOPASSWD: ALL。
+func GenerateAdminSudoers() string {
+	var b strings.Builder
+	b.WriteString("# /etc/sudoers.d/lodge-admin-operator\n")
+	b.WriteString("# 由 `lodge-agent --print-admin-sudoers` 生成，请勿手改。\n")
+	b.WriteString("# lodge 服务账号不得使用此文件。\n")
+	b.WriteString("\n# 非 root 用户服务维护\n")
+	b.WriteString("lodge-admin ALL=(root) NOPASSWD: \\\n")
+	b.WriteString("    " + formatSudoersLine(listOperatorCommand) + ", \\\n")
+	b.WriteString("    " + formatSudoersLine(executeOperatorCommand) + "\n")
+	return b.String()
+}
+
+// PrintAdminSudoers 生成 lodge-admin 的免密 sudoers。
+func PrintAdminSudoers() string {
+	return GenerateAdminSudoers()
 }
 
 // PrintSudoers 解析当前机器上的命令路径并生成 sudoers 内容。

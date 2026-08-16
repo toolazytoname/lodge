@@ -12,3 +12,4 @@ Lodge exposes typed, policy-approved operations instead of terminal access or ar
 - New operations require an explicit contract, policy, tests, and UI representation.
 - Generic troubleshooting remains an SSH responsibility.
 - Dynamic workload targets require a narrow privileged helper rather than sudo wildcards.
+- Opted-in non-root service-owner maintenance is a `lodge-admin` helper class, not a shell and not Tailnet SSH as the owner account. See [ADR 0013](0013-owner-service-operator.md).
