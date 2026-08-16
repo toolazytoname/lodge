@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,8 +12,15 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/toolazytoname/lodge/internal/shared"
+)
+
+const (
+	maximumAgentObservationBody = 1 << 20
+	maximumAgentLastError       = 4096
+	maximumAgentVersion         = 128
 )
 
 // Scraper 周期性并发拉取各 agent，把结果写回 Store。
@@ -24,10 +32,18 @@ type Scraper struct {
 }
 
 func NewScraper(store Store, interval time.Duration) *Scraper {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
 	return &Scraper{
 		store:    store,
 		interval: interval,
-		client:   &http.Client{Timeout: 10 * time.Second},
+		client: &http.Client{
+			Transport: transport,
+			Timeout:   10 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}
 }
 
@@ -108,9 +124,18 @@ func (s *Scraper) scrapeOne(ctx context.Context, a AgentConfig) error {
 	services := sv.Services
 	if se2 != nil {
 		services = nil // 端口维度缺失，但 status 有效
+	} else if len(sv.Warnings) > 0 {
+		if stPtr == nil {
+			st = shared.Status{Warnings: append([]string{}, sv.Warnings...)}
+			stPtr = &st
+		} else {
+			st.Warnings = append(st.Warnings, sv.Warnings...)
+		}
 	}
 	if err := s.store.Update(ctx, a.ID, true, "", ping, stPtr, services, observedAt); err != nil {
-		return err
+		offlineErr := boundedAgentText("observation rejected", maximumAgentLastError)
+		persistErr := s.store.Update(ctx, a.ID, false, offlineErr, ping, nil, nil, observedAt)
+		return errors.Join(fmt.Errorf("agent %s observation rejected: %w", a.ID, err), persistErr)
 	}
 	if se1 != nil || se2 != nil {
 		return fmt.Errorf("agent %s partial observation: status: %v; services: %v", a.ID, se1, se2)
@@ -168,5 +193,22 @@ func (s *Scraper) getJSONOnce(ctx context.Context, a AgentConfig, path string, o
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return &agentHTTPStatusError{Path: path, StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(body))}
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	content, err := io.ReadAll(io.LimitReader(resp.Body, maximumAgentObservationBody+1))
+	if err != nil || len(content) > maximumAgentObservationBody {
+		return errors.New("agent response exceeds limit")
+	}
+	return json.NewDecoder(bytes.NewReader(content)).Decode(out)
+}
+
+func boundedAgentText(value string, limit int) string {
+	if !utf8.ValidString(value) {
+		return ""
+	}
+	if limit <= 0 || len(value) <= limit {
+		return value
+	}
+	for limit > 0 && !utf8.ValidString(value[:limit]) {
+		limit--
+	}
+	return value[:limit]
 }

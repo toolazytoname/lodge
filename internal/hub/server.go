@@ -344,10 +344,10 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 			sum.CPUs = sn.Status.Load.CPUs
 			sum.Load1 = sn.Status.Load.One
 			if sn.Status.Memory.TotalBytes > 0 {
-				sum.MemUsedPct = int(sn.Status.Memory.UsedBytes * 100 / sn.Status.Memory.TotalBytes)
+				sum.MemUsedPct = domain.UsagePercent(sn.Status.Memory.UsedBytes, sn.Status.Memory.TotalBytes)
 			}
 			if d := rootDisk(sn.Status.Disks); d != nil && d.TotalBytes > 0 {
-				sum.DiskUsedPct = int(d.UsedBytes * 100 / d.TotalBytes)
+				sum.DiskUsedPct = domain.UsagePercent(d.UsedBytes, d.TotalBytes)
 			}
 			if sn.Status.Security != nil {
 				posture := *sn.Status.Security

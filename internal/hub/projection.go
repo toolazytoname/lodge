@@ -19,9 +19,9 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 		HostID:       domain.HostID(agent.ID),
 		ObservedAt:   observedAt.UTC(),
 		Online:       online,
-		LastError:    lastError,
-		Hostname:     ping.Hostname,
-		AgentVersion: ping.AgentVer,
+		LastError:    boundedAgentText(lastError, maximumAgentLastError),
+		Hostname:     boundedAgentText(ping.Hostname, 255),
+		AgentVersion: boundedAgentText(ping.AgentVer, maximumAgentVersion),
 	}
 	if services != nil {
 		observation.Workloads = make([]domain.Workload, 0, len(services))
@@ -30,7 +30,7 @@ func projectObservation(agent AgentConfig, online bool, lastError string, ping s
 	}
 	if status != nil {
 		if status.Hostname != "" {
-			observation.Hostname = status.Hostname
+			observation.Hostname = boundedAgentText(status.Hostname, 255)
 		}
 		observation.Warnings = append(observation.Warnings, status.Warnings...)
 		observation.Resources = projectResources(status)

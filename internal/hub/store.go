@@ -115,7 +115,7 @@ func (s *MemStore) Update(ctx context.Context, id string, online bool, lastError
 func summarizeRuntimeUpdate(id string, online bool, lastError string, ping shared.Ping, status *shared.Status, services []shared.Service, observedAt time.Time) (domain.ObservationSummary, error) {
 	summary := domain.ObservationSummary{
 		HostID: domain.HostID(id), ObservedAt: observedAt.UTC(), Online: online,
-		LastError: lastError, AgentVersion: ping.AgentVer, WorkloadCount: len(services),
+		LastError: boundedAgentText(lastError, maximumAgentLastError), AgentVersion: boundedAgentText(ping.AgentVer, maximumAgentVersion), WorkloadCount: len(services),
 	}
 	for _, service := range services {
 		if strings.EqualFold(strings.TrimSpace(service.Status), "failed") ||
