@@ -532,6 +532,42 @@ func TestSQLiteEventPaginationSurvivesMutationsBetweenPages(t *testing.T) {
 	t.Fatal("new event during paging was not visible on a fresh snapshot")
 }
 
+func TestSQLitePreservesEmptyWorkloadCollectionDistinctFromMissing(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	empty := sampleObservation(now)
+	empty.Workloads = []domain.Workload{}
+	empty.Endpoints = []domain.Endpoint{}
+	empty.Routes = []domain.ProxyRoute{}
+	if _, err := store.RecordObservation(ctx, empty); err != nil {
+		t.Fatal(err)
+	}
+	missing := sampleObservation(now.Add(time.Minute))
+	missing.Workloads = nil
+	missing.Endpoints = nil
+	missing.Routes = nil
+	if _, err := store.RecordObservation(ctx, missing); err != nil {
+		t.Fatal(err)
+	}
+	history, err := store.ObservationHistory(ctx, "host-a", 10)
+	if err != nil || len(history) != 2 {
+		t.Fatalf("history mismatch: n=%d err=%v", len(history), err)
+	}
+	if history[0].Workloads != nil {
+		t.Fatalf("missing collection loaded as collected: %#v", history[0].Workloads)
+	}
+	if history[1].Workloads == nil {
+		t.Fatal("successful empty collection loaded as missing telemetry")
+	}
+	if len(history[1].Workloads) != 0 || history[1].Endpoints == nil || history[1].Routes == nil {
+		t.Fatalf("empty collection lost its empty slices: workloads=%#v endpoints=%#v routes=%#v", history[1].Workloads, history[1].Endpoints, history[1].Routes)
+	}
+}
+
 func TestSQLiteListenerBaselineDistinguishesUninitializedFromEmpty(t *testing.T) {
 	store, _ := openTestSQLite(t)
 	ctx := context.Background()

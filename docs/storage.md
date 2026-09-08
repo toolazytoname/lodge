@@ -67,6 +67,10 @@ An established host with zero wildcard keys is distinct from a host that has
 never had a complete collection. Upgrade backfill copies the last complete
 historical observation when one exists; otherwise the Hub waits for a complete
 collection before treating ports as new.
+Schema v13 records whether an observation collected a workload set, including
+a successful empty list. Loading restores an empty slice instead of nil, so
+upgrade backfill can treat a complete zero-service observation as an empty
+baseline instead of skipping it for an older non-empty one.
 
 ## Database invariants
 

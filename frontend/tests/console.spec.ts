@@ -352,6 +352,68 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#notice")).toContainText("风险会保持进行中");
   });
 
+  test("interrupted load-more recovers and can finish the list", async ({ page }) => {
+    const scenarios: Array<{ name: string; interrupt: (tab: Page) => Promise<void> }> = [
+      {
+        name: "refresh",
+        interrupt: async (tab) => {
+          await tab.locator("#refreshBtn").click();
+          await expect(tab.locator("#refreshBtn")).not.toBeDisabled();
+        },
+      },
+      {
+        name: "filter",
+        interrupt: async (tab) => {
+          await tab.locator("#eventStateFilter").selectOption("active");
+          await expect(tab.locator("#eventStateFilter")).toHaveValue("active");
+          await expect(tab.locator("#eventList .event-row")).toHaveCount(50);
+        },
+      },
+      {
+        name: "ack",
+        interrupt: async (tab) => {
+          await tab.getByRole("button", { name: "确认事件：服务失败：bulk-0" }).click();
+          await expect(tab.locator("#notice")).toContainText("风险会保持进行中");
+        },
+      },
+    ];
+    for (const scenario of scenarios) {
+      const reset = await page.request.post("/__fixture/reset");
+      expect(reset.ok()).toBeTruthy();
+      const tab = await page.context().newPage();
+      await tab.setViewportSize({ width: 1280, height: 900 });
+      await tab.clock.setFixedTime(new Date("2026-08-08T00:00:00+08:00"));
+      await tab.goto("/?fixture=many-events#security");
+      await expect(tab.locator("#eventList .event-row")).toHaveCount(50);
+      let releaseAppend: () => void = () => {};
+      let markAppend: () => void = () => {};
+      const held = new Promise<void>((resolve) => { releaseAppend = resolve; });
+      const seen = new Promise<void>((resolve) => { markAppend = resolve; });
+      await tab.route("**/api/events?**", async (route) => {
+        const url = new URL(route.request().url());
+        const response = await route.fetch();
+        if (url.searchParams.get("after")) {
+          markAppend();
+          await held;
+        }
+        await route.fulfill({ response });
+      });
+      await tab.getByRole("button", { name: "加载更多", exact: true }).click();
+      await seen;
+      await scenario.interrupt(tab);
+      await expect(tab.getByRole("button", { name: "加载更多", exact: true })).toBeEnabled();
+      releaseAppend();
+      await tab.waitForTimeout(200);
+      await expect(tab.getByRole("button", { name: "加载更多", exact: true })).toBeEnabled();
+      await tab.getByRole("button", { name: "加载更多", exact: true }).click();
+      await expect(tab.locator("#eventList .event-row")).toHaveCount(100);
+      await tab.getByRole("button", { name: "加载更多", exact: true }).click();
+      await expect(tab.locator("#eventList .event-row")).toHaveCount(125);
+      await expect(tab.getByRole("button", { name: "加载更多", exact: true })).toHaveCount(0);
+      await tab.close();
+    }
+  });
+
   test("switching event filters does not append the previous page", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/?fixture=many-events#security");

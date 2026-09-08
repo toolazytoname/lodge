@@ -295,4 +295,20 @@ CREATE TABLE listener_baseline_hosts (
 ) STRICT;
 `,
 	},
+	{
+		version: 13,
+		name:    "observation_workloads_collected",
+		sql: `
+ALTER TABLE observations ADD COLUMN workloads_collected INTEGER NOT NULL DEFAULT 0
+    CHECK (workloads_collected IN (0, 1));
+UPDATE observations SET workloads_collected = 1
+WHERE EXISTS (SELECT 1 FROM workloads w WHERE w.observation_id = observations.id)
+   OR (
+        online = 1
+        AND instr(coalesce(warnings_json, ''), '服务发现采集失败') = 0
+        AND instr(coalesce(warnings_json, ''), 'docker ps 失败') = 0
+        AND instr(coalesce(warnings_json, ''), 'ss 采集失败') = 0
+    );
+`,
+	},
 }

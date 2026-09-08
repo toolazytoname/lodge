@@ -379,12 +379,23 @@ async function logout(): Promise<void> {
   }
 }
 
+function bumpEventsRequestSeq(): number {
+  eventsRequestSeq += 1;
+  return eventsRequestSeq;
+}
+
+function takeOverEventListLoading(): number {
+  const seq = bumpEventsRequestSeq();
+  eventsLoadingMore = false;
+  eventsLoadingFirstPage = false;
+  return seq;
+}
+
 async function refresh(): Promise<void> {
   if (!authed || refreshing) return;
   const generation = sessionGeneration;
   const eventFilter = currentEventFilter();
-  const eventsSeq = eventsRequestSeq + 1;
-  eventsRequestSeq = eventsSeq;
+  const eventsSeq = takeOverEventListLoading();
   setRefreshing(true);
   const results = await Promise.allSettled([
     api<AgentSummary[]>("/api/agents"),
@@ -1343,8 +1354,7 @@ async function loadEvents(options: { append?: boolean; keepLoaded?: boolean } = 
     const snapshot = state.events.snapshot ?? "";
     const after = state.events.events[state.events.events.length - 1]?.id ?? "";
     if (!snapshot || !after || !state.events.hasMore) return;
-    const seq = eventsRequestSeq + 1;
-    eventsRequestSeq = seq;
+    const seq = bumpEventsRequestSeq();
     eventsLoadingMore = true;
     try {
       const page = await api<EventsResponse>(eventsRequestPath(filter, { limit: eventsPageSize, snapshot, after }));
@@ -1370,14 +1380,13 @@ async function loadEvents(options: { append?: boolean; keepLoaded?: boolean } = 
 
   const keepLoaded = options.keepLoaded === true && eventFilterEquals(eventsDataFilter, filter);
   const target = keepLoaded ? Math.max(eventsPageSize, state.events.events.length || eventsPageSize) : eventsPageSize;
+  const seq = takeOverEventListLoading();
   eventsLoadingFirstPage = true;
   if (!keepLoaded && !eventFilterEquals(eventsDataFilter, filter)) {
     state.events = emptyEventsResponse();
     state.eventsLoaded = false;
     eventsDataFilter = filter;
   }
-  const seq = eventsRequestSeq + 1;
-  eventsRequestSeq = seq;
   renderSecurity();
   try {
     const events = await fetchEventPages(filter, target, generation, seq);

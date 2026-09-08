@@ -355,6 +355,7 @@ func TestSQLiteStoreV9UpgradeMustNotInventListener(t *testing.T) {
 	for _, query := range []string{
 		"DROP TABLE IF EXISTS listener_baseline_hosts",
 		"DROP TABLE IF EXISTS listener_baselines",
+		"ALTER TABLE observations DROP COLUMN workloads_collected",
 		"ALTER TABLE operations DROP COLUMN deployment_id",
 		"ALTER TABLE operations DROP COLUMN target_release_id",
 		"ALTER TABLE operations DROP COLUMN before_release_id",
@@ -432,6 +433,74 @@ func TestSQLiteStoreFirstPartialCollectionIsNotProofOfNewListener(t *testing.T) 
 	}
 }
 
+func TestSQLiteStoreV11UpgradePreservesTrulyEmptyBaseline(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	agents := []AgentConfig{{ID: "host-a", Name: "Host A"}}
+	store, err := OpenSQLiteStore(ctx, path, agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	status := &shared.Status{
+		Load: shared.Load{CPUs: 2, One: 0.2}, Memory: shared.Memory{TotalBytes: 100, UsedBytes: 40},
+		Disks: []shared.Disk{{Mount: "/", TotalBytes: 100, UsedBytes: 20}},
+	}
+	services := []shared.Service{{
+		Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "running",
+		Ports: []shared.Port{{Proto: "tcp", Bind: "0.0.0.0", Port: 443, Exposure: shared.ExposurePublic}},
+	}}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{}, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	keys, established, err := store.database.ListenerBaseline(ctx, "host-a")
+	if err != nil || !established || len(keys) != 0 {
+		t.Fatalf("bad seed empty baseline: %+v established=%v err=%v", keys, established, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{
+		"DROP TABLE IF EXISTS listener_baseline_hosts",
+		"ALTER TABLE observations DROP COLUMN workloads_collected",
+		"DELETE FROM schema_migrations WHERE version >= 12",
+		"PRAGMA user_version=11",
+	} {
+		if _, err := db.Exec(query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenSQLiteStore(ctx, path, agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	keys, established, err = store.database.ListenerBaseline(ctx, "host-a")
+	if err != nil || !established || len(keys) != 0 {
+		t.Fatalf("upgrade restored a non-empty baseline: %+v established=%v err=%v", keys, established, err)
+	}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 1 || active[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:443" {
+		t.Fatalf("new 443 after complete empty collection was missed by migrated baseline: %+v", active)
+	}
+}
+
 func TestSQLiteStoreEmptyBaselineStillAlertsNewPort(t *testing.T) {
 	store, _ := openTestSQLiteStore(t, []AgentConfig{{ID: "host-a", Name: "Host A"}})
 	ctx := context.Background()
@@ -458,6 +527,53 @@ func TestSQLiteStoreEmptyBaselineStillAlertsNewPort(t *testing.T) {
 	active, err = store.database.ActiveEvents(ctx, "host-a")
 	if err != nil || len(active) != 1 || active[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:443" {
 		t.Fatalf("port added after an established empty baseline was not alerted: %+v err=%v", active, err)
+	}
+}
+
+func TestSQLiteStoreTrulyEmptyServicesBaselineAlertsReturningPort(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	store, err := OpenSQLiteStore(ctx, path, []AgentConfig{{ID: "host-a", Name: "Host A"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	status := &shared.Status{
+		Load: shared.Load{CPUs: 2, One: 0.2}, Memory: shared.Memory{TotalBytes: 100, UsedBytes: 40, AvailableBytes: 60},
+		Disks: []shared.Disk{{Mount: "/", TotalBytes: 100, UsedBytes: 20, FreeBytes: 80}},
+	}
+	services := []shared.Service{{
+		Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "running",
+		Ports: []shared.Port{{Proto: "tcp", Bind: "0.0.0.0", Port: 443, Exposure: shared.ExposurePublic}},
+	}}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{}, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	keys, established, err := store.database.ListenerBaseline(ctx, "host-a")
+	if err != nil || !established || len(keys) != 0 {
+		t.Fatalf("complete empty services should establish an empty baseline: %+v established=%v err=%v", keys, established, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenSQLiteStore(ctx, path, []AgentConfig{{ID: "host-a", Name: "Host A"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	latest, found, err := reopened.database.LatestObservation(ctx, "host-a")
+	if err != nil || !found || latest.Workloads == nil {
+		t.Fatalf("empty services collection was loaded as missing: found=%v workloads=%#v err=%v", found, latest.Workloads, err)
+	}
+	if err := reopened.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err := reopened.database.ActiveEvents(ctx, "host-a")
+	if err != nil || len(active) != 1 || active[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:443" {
+		t.Fatalf("returning 443 after a true empty services baseline was not alerted: %+v err=%v", active, err)
 	}
 }
 

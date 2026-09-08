@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 12
+	currentSchemaVersion = 13
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -515,10 +515,11 @@ func recordObservationTx(ctx context.Context, tx *sql.Tx, observation domain.Obs
 		sshAuthJSON = string(encoded)
 	}
 	result, err := tx.ExecContext(ctx, `
-INSERT INTO observations(host_id, observed_at, online, last_error, hostname, agent_version, resources_json, ssh_auth_json, warnings_json)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+INSERT INTO observations(host_id, observed_at, online, last_error, hostname, agent_version, resources_json, ssh_auth_json, warnings_json, workloads_collected)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(observation.HostID), formatTime(observation.ObservedAt), boolInt(observation.Online), observation.LastError,
 		observation.Hostname, observation.AgentVersion, resourcesJSON, sshAuthJSON, string(warningsJSON),
+		boolInt(observation.Workloads != nil),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert observation: %w", err)
@@ -1506,12 +1507,12 @@ type queryer interface {
 func (s *SQLite) loadObservation(ctx context.Context, query queryer, id int64) (domain.Observation, error) {
 	var observation domain.Observation
 	var observedAt, resourcesJSON, sshAuthJSON, warningsJSON sql.NullString
-	var online int
+	var online, workloadsCollected int
 	err := query.QueryRowContext(ctx, `
-SELECT host_id, observed_at, online, last_error, hostname, agent_version, resources_json, ssh_auth_json, warnings_json
+SELECT host_id, observed_at, online, last_error, hostname, agent_version, resources_json, ssh_auth_json, warnings_json, workloads_collected
 FROM observations WHERE id = ?`, id).Scan(
 		&observation.HostID, &observedAt, &online, &observation.LastError, &observation.Hostname,
-		&observation.AgentVersion, &resourcesJSON, &sshAuthJSON, &warningsJSON,
+		&observation.AgentVersion, &resourcesJSON, &sshAuthJSON, &warningsJSON, &workloadsCollected,
 	)
 	if err != nil {
 		return domain.Observation{}, err
@@ -1634,6 +1635,17 @@ FROM proxy_routes WHERE observation_id = ? ORDER BY workload_key, route_key`, id
 	}
 	if err := routeRows.Close(); err != nil {
 		return domain.Observation{}, err
+	}
+	if workloadsCollected == 1 {
+		if observation.Workloads == nil {
+			observation.Workloads = []domain.Workload{}
+		}
+		if observation.Endpoints == nil {
+			observation.Endpoints = []domain.Endpoint{}
+		}
+		if observation.Routes == nil {
+			observation.Routes = []domain.ProxyRoute{}
+		}
 	}
 	if err := observation.Validate(); err != nil {
 		return domain.Observation{}, fmt.Errorf("stored observation %d is invalid: %w", id, err)
