@@ -7,6 +7,22 @@ import (
 	"github.com/toolazytoname/lodge/internal/domain"
 )
 
+type listenerEval struct {
+	complete map[string]struct{}
+}
+
+func newListenerEval() *listenerEval {
+	return &listenerEval{complete: map[string]struct{}{}}
+}
+
+func (eval *listenerEval) eval(previous *domain.Observation, current domain.Observation, active []domain.Event) []domain.EventSignal {
+	signals := evaluateEventSignals(previous, current, active, eval.complete)
+	if current.Online && !listenerTelemetryMissing(current) {
+		eval.complete = listenerWildcardKeys(current)
+	}
+	return signals
+}
+
 func eventRuleObservation(at time.Time) domain.Observation {
 	return domain.Observation{
 		HostID: "host-a", ObservedAt: at, Online: true,
@@ -28,9 +44,10 @@ func eventRuleObservation(at time.Time) domain.Observation {
 }
 
 func TestEventRulesBaselineAndTrackNewWildcardListener(t *testing.T) {
+	eval := newListenerEval()
 	now := time.Now().UTC()
 	first := eventRuleObservation(now)
-	if signals := evaluateEventSignals(nil, first, nil); len(signals) != 0 {
+	if signals := eval.eval(nil, first, nil); len(signals) != 0 {
 		t.Fatalf("first observation should establish a listener baseline: %+v", signals)
 	}
 
@@ -40,7 +57,7 @@ func TestEventRulesBaselineAndTrackNewWildcardListener(t *testing.T) {
 		Protocol: "tcp", Bind: "0.0.0.0", Port: 8443,
 		Binding: domain.BindingWildcard, Reachability: domain.ReachabilityUnknown,
 	})
-	signals := evaluateEventSignals(&first, second, nil)
+	signals := eval.eval(&first, second, nil)
 	if len(signals) != 1 || signals[0].Kind != "listener.added" || signals[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:8443" {
 		t.Fatalf("new wildcard listener was not isolated: %+v", signals)
 	}
@@ -51,7 +68,7 @@ func TestEventRulesBaselineAndTrackNewWildcardListener(t *testing.T) {
 		Detail: signals[0].Detail, FirstObservedAt: second.ObservedAt, LastObservedAt: second.ObservedAt,
 	}
 	offline := domain.Observation{HostID: "host-a", ObservedAt: now.Add(2 * time.Minute), Online: false, LastError: "timeout"}
-	signals = evaluateEventSignals(&second, offline, []domain.Event{active})
+	signals = eval.eval(&second, offline, []domain.Event{active})
 	if len(signals) != 2 || signals[0].DedupeKey != "host-a:host:offline" || signals[1].DedupeKey != active.DedupeKey {
 		t.Fatalf("offline observation should carry listener state and add host event: %+v", signals)
 	}
@@ -63,20 +80,21 @@ func TestEventRulesBaselineAndTrackNewWildcardListener(t *testing.T) {
 	}
 	recovered := second
 	recovered.ObservedAt = now.Add(3 * time.Minute)
-	signals = evaluateEventSignals(&offline, recovered, []domain.Event{active, offlineEvent})
+	signals = eval.eval(&offline, recovered, []domain.Event{active, offlineEvent})
 	if len(signals) != 1 || signals[0].DedupeKey != active.DedupeKey {
 		t.Fatalf("recovery should retain existing listener risk without reopening baseline listeners: %+v", signals)
 	}
 }
 
 func TestEventRulesUseHysteresisAndFailedWorkloads(t *testing.T) {
+	eval := newListenerEval()
 	now := time.Now().UTC()
 	observation := eventRuleObservation(now)
 	observation.Resources.Memory.UsedBytes = 86
 	observation.Resources.Disks[0].UsedBytes = 92
 	observation.Resources.Load1 = 6.4
 	observation.Workloads[0].State = "failed"
-	signals := evaluateEventSignals(nil, observation, nil)
+	signals := eval.eval(nil, observation, nil)
 	if len(signals) != 4 {
 		t.Fatalf("threshold and workload rules emitted %d signals: %+v", len(signals), signals)
 	}
@@ -94,7 +112,7 @@ func TestEventRulesUseHysteresisAndFailedWorkloads(t *testing.T) {
 	between.Resources.Memory.UsedBytes = 82
 	between.Resources.Disks[0].UsedBytes = 87
 	between.Resources.Load1 = 4.4
-	signals = evaluateEventSignals(&observation, between, active)
+	signals = eval.eval(&observation, between, active)
 	if len(signals) != 3 {
 		t.Fatalf("resource events should remain active inside hysteresis band: %+v", signals)
 	}
@@ -103,12 +121,13 @@ func TestEventRulesUseHysteresisAndFailedWorkloads(t *testing.T) {
 	clear.Resources.Memory.UsedBytes = 79
 	clear.Resources.Disks[0].UsedBytes = 84
 	clear.Resources.Load1 = 3.6
-	if signals := evaluateEventSignals(&between, clear, active); len(signals) != 0 {
+	if signals := eval.eval(&between, clear, active); len(signals) != 0 {
 		t.Fatalf("conditions below clear thresholds should recover: %+v", signals)
 	}
 }
 
 func TestEventRulesDoNotRecoverFromZeroedOrWarnedResourceCollection(t *testing.T) {
+	eval := newListenerEval()
 	now := time.Now().UTC()
 	healthy := eventRuleObservation(now)
 	active := []domain.Event{
@@ -117,12 +136,14 @@ func TestEventRulesDoNotRecoverFromZeroedOrWarnedResourceCollection(t *testing.T
 		{ID: "evt_load", HostID: "host-a", Kind: "resource.load", Severity: domain.SeverityWarning, State: domain.EventActive, DedupeKey: "host-a:resource:load", Title: "load", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
 	}
 
+	eval.complete = listenerWildcardKeys(healthy)
+
 	zeroed := eventRuleObservation(now)
 	zeroed.Resources.Memory = domain.MemoryResources{}
 	zeroed.Resources.Disks = nil
 	zeroed.Resources.Load1 = 0
 	zeroed.Warnings = []string{"读取 /proc/loadavg 失败: permission denied"}
-	signals := evaluateEventSignals(&healthy, zeroed, active)
+	signals := eval.eval(&healthy, zeroed, active)
 	if len(signals) != 3 {
 		t.Fatalf("zeroed resource collection recovered alerts: %+v", signals)
 	}
@@ -132,13 +153,14 @@ func TestEventRulesDoNotRecoverFromZeroedOrWarnedResourceCollection(t *testing.T
 	warned.Resources.Disks[0].UsedBytes = 10
 	warned.Resources.Load1 = 0.1
 	warned.Warnings = []string{"读取 /proc/meminfo 失败: io error", "采集磁盘失败: statfs failed", "读取 /proc/loadavg 失败: io error"}
-	signals = evaluateEventSignals(&healthy, warned, active)
+	signals = eval.eval(&healthy, warned, active)
 	if len(signals) != 3 {
 		t.Fatalf("warned resource collection recovered alerts: %+v", signals)
 	}
 }
 
 func TestEventRulesDoNotRecoverFromPartialServiceDiscovery(t *testing.T) {
+	eval := newListenerEval()
 	now := time.Now().UTC()
 	previous := eventRuleObservation(now)
 	previous.Workloads = append(previous.Workloads, domain.Workload{
@@ -158,7 +180,7 @@ func TestEventRulesDoNotRecoverFromPartialServiceDiscovery(t *testing.T) {
 	}}
 	partial.Endpoints = nil
 	partial.Warnings = []string{"docker ps 失败: permission denied", "ss 采集失败（端口维度将缺失）: sudoers"}
-	signals := evaluateEventSignals(&previous, partial, active)
+	signals := eval.eval(&previous, partial, active)
 	if len(signals) != 2 {
 		t.Fatalf("partial discovery should keep docker and listener risk: %+v", signals)
 	}
@@ -168,6 +190,7 @@ func TestEventRulesDoNotRecoverFromPartialServiceDiscovery(t *testing.T) {
 }
 
 func TestEventRulesDoNotInferRecoveryFromMissingTelemetry(t *testing.T) {
+	eval := newListenerEval()
 	now := time.Now().UTC()
 	current := eventRuleObservation(now)
 	current.Resources = nil
@@ -178,13 +201,14 @@ func TestEventRulesDoNotInferRecoveryFromMissingTelemetry(t *testing.T) {
 		{ID: "evt_workload", HostID: "host-a", Kind: "workload.failed", Severity: domain.SeverityCritical, State: domain.EventActive, DedupeKey: "host-a:workload:docker:web:failed", Title: "workload", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
 		{ID: "evt_listener", HostID: "host-a", Kind: "listener.added", Severity: domain.SeverityWarning, State: domain.EventActive, DedupeKey: "host-a:listener:tcp://0.0.0.0:8443", Title: "listener", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
 	}
-	signals := evaluateEventSignals(nil, current, active)
+	signals := eval.eval(nil, current, active)
 	if len(signals) != len(active) {
 		t.Fatalf("partial collection incorrectly recovered active conditions: %+v", signals)
 	}
 }
 
 func TestEventRulesDetectSSHFailureSpikeWithSourcesAndHysteresis(t *testing.T) {
+	eval := newListenerEval()
 	now := time.Now().UTC().Truncate(time.Second)
 	observation := eventRuleObservation(now)
 	observation.SSH = &domain.SSHAuthObservation{
@@ -195,7 +219,7 @@ func TestEventRulesDetectSSHFailureSpikeWithSourcesAndHysteresis(t *testing.T) {
 			{Address: "198.51.100.8", Count: 5},
 		},
 	}
-	signals := evaluateEventSignals(nil, observation, nil)
+	signals := eval.eval(nil, observation, nil)
 	if len(signals) != 1 || signals[0].Kind != "ssh.bruteforce" || signals[0].Severity != domain.SeverityWarning {
 		t.Fatalf("SSH spike did not open one warning: %+v", signals)
 	}
@@ -216,12 +240,12 @@ func TestEventRulesDetectSSHFailureSpikeWithSourcesAndHysteresis(t *testing.T) {
 		WindowStart: now.Add(-9 * time.Minute), WindowEnd: now.Add(time.Minute), FailedTotal: 12,
 		Sources: []domain.SSHAuthSource{{Address: "203.0.113.9", Count: 3}, {Address: "198.51.100.8", Count: 9}},
 	}
-	if signals := evaluateEventSignals(&observation, between, []domain.Event{active}); len(signals) != 1 || signals[0].Kind != "ssh.bruteforce" {
+	if signals := eval.eval(&observation, between, []domain.Event{active}); len(signals) != 1 || signals[0].Kind != "ssh.bruteforce" {
 		t.Fatalf("SSH event did not remain active inside hysteresis band: %+v", signals)
 	}
 
 	missing := eventRuleObservation(now.Add(2 * time.Minute))
-	if signals := evaluateEventSignals(&between, missing, []domain.Event{active}); len(signals) != 1 || signals[0].Detail != active.Detail {
+	if signals := eval.eval(&between, missing, []domain.Event{active}); len(signals) != 1 || signals[0].Detail != active.Detail {
 		t.Fatalf("missing SSH telemetry incorrectly recovered or rewrote the event: %+v", signals)
 	}
 
@@ -230,7 +254,7 @@ func TestEventRulesDetectSSHFailureSpikeWithSourcesAndHysteresis(t *testing.T) {
 		WindowStart: now.Add(-7 * time.Minute), WindowEnd: now.Add(3 * time.Minute), FailedTotal: 2,
 		Sources: []domain.SSHAuthSource{{Address: "203.0.113.9", Count: 2}},
 	}
-	if signals := evaluateEventSignals(&missing, clear, []domain.Event{active}); len(signals) != 0 {
+	if signals := eval.eval(&missing, clear, []domain.Event{active}); len(signals) != 0 {
 		t.Fatalf("quiet SSH window did not recover the event: %+v", signals)
 	}
 
@@ -240,7 +264,56 @@ func TestEventRulesDetectSSHFailureSpikeWithSourcesAndHysteresis(t *testing.T) {
 		WindowStart: now.Add(-6 * time.Minute), WindowEnd: now.Add(4 * time.Minute), FailedTotal: 100,
 		Sources: []domain.SSHAuthSource{{Address: "203.0.113.9", Count: 60}, {Address: "198.51.100.8", Count: 40}},
 	}
-	if signals := evaluateEventSignals(&clear, critical, nil); len(signals) != 1 || signals[0].Severity != domain.SeverityCritical {
+	if signals := eval.eval(&clear, critical, nil); len(signals) != 1 || signals[0].Severity != domain.SeverityCritical {
 		t.Fatalf("critical SSH spike was not escalated: %+v", signals)
 	}
+}
+
+func TestEventRulesKeepCompleteListenerBaselineAcrossPartialCollection(t *testing.T) {
+	eval := newListenerEval()
+	now := time.Now().UTC()
+	baseline := eventRuleObservation(now)
+	if signals := eval.eval(nil, baseline, nil); len(signals) != 0 {
+		t.Fatalf("first complete collection should be a listener baseline: %+v", signals)
+	}
+
+	partial := eventRuleObservation(now.Add(time.Minute))
+	partial.Endpoints = nil
+	partial.Warnings = []string{"ss 采集失败（端口维度将缺失）: denied"}
+	if signals := eval.eval(&baseline, partial, nil); len(signals) != 0 {
+		t.Fatalf("failed port scrape should not invent listeners: %+v", signals)
+	}
+
+	recovered := eventRuleObservation(now.Add(2 * time.Minute))
+	if signals := eval.eval(&partial, recovered, nil); len(signals) != 0 {
+		t.Fatalf("unchanged listener falsely reported as new after failed scrape: %+v", signals)
+	}
+}
+
+func TestEventRulesAlertNewDockerListenerDuringSSFailure(t *testing.T) {
+	eval := newListenerEval()
+	now := time.Now().UTC()
+	baseline := eventRuleObservation(now)
+	if signals := eval.eval(nil, baseline, nil); len(signals) != 0 {
+		t.Fatalf("first complete collection should be a listener baseline: %+v", signals)
+	}
+
+	partial := eventRuleObservation(now.Add(time.Minute))
+	partial.Warnings = []string{"ss 采集失败（端口维度将缺失）: denied"}
+	partial.Endpoints = append(partial.Endpoints, domain.Endpoint{
+		HostID: "host-a", WorkloadKey: "docker:web", Key: "tcp://0.0.0.0:8443",
+		Protocol: "tcp", Bind: "0.0.0.0", Port: 8443,
+		Binding: domain.BindingWildcard, Reachability: domain.ReachabilityUnknown,
+	})
+	first := eval.eval(&baseline, partial, nil)
+	recovered := partial
+	recovered.ObservedAt = now.Add(2 * time.Minute)
+	recovered.Warnings = nil
+	second := eval.eval(&partial, recovered, nil)
+	for _, signal := range append(append([]domain.EventSignal{}, first...), second...) {
+		if signal.DedupeKey == "host-a:listener:tcp://0.0.0.0:8443" {
+			return
+		}
+	}
+	t.Fatalf("new Docker listener never alerted, even after recovery: partial=%+v recovered=%+v", first, second)
 }

@@ -170,7 +170,7 @@ func (s *Server) executeAction(w http.ResponseWriter, r *http.Request) {
 	if running.StartedAt != nil && finishedAt.Before(*running.StartedAt) {
 		finishedAt = *running.StartedAt
 	}
-	finished, found, finishErr := s.store.FinishOperation(operationContext, running.ID, finishedState, finishedAt, summary, errorKind)
+	finished, found, finishErr := s.store.FinishOperation(operationContext, running.ID, finishedState, finishedAt, summary, errorKind, "", "")
 	if finishErr != nil || !found {
 		log.Printf("lodge hub finish operation audit: found=%v err=%v", found, finishErr)
 		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "operation_persistence_failed"})
@@ -269,6 +269,8 @@ func operationView(operation domain.Operation) OperationView {
 		Kind: operation.Kind, State: operation.State, RequestedBy: operation.RequestedBy,
 		RequestedAt:   operation.RequestedAt.UTC().Format(time.RFC3339Nano),
 		ResultSummary: operation.ResultSummary, ErrorKind: operation.Error, TargetImage: operation.TargetImage,
+		DeploymentID: operation.DeploymentID, TargetReleaseID: operation.TargetReleaseID,
+		BeforeReleaseID: operation.BeforeReleaseID, AfterReleaseID: operation.AfterReleaseID,
 	}
 	if operation.StartedAt != nil {
 		view.StartedAt = operation.StartedAt.UTC().Format(time.RFC3339Nano)

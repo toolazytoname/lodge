@@ -30,7 +30,7 @@ type Store interface {
 	ReplaceWebLinkChecks(context.Context, []domain.WebLinkCheck) error
 	CreateOperation(context.Context, domain.Operation) error
 	StartOperation(context.Context, string, time.Time) (domain.Operation, bool, error)
-	FinishOperation(context.Context, string, domain.OperationState, time.Time, string, string) (domain.Operation, bool, error)
+	FinishOperation(context.Context, string, domain.OperationState, time.Time, string, string, string, string) (domain.Operation, bool, error)
 	Operations(context.Context, domain.HostID, int) ([]domain.Operation, error)
 }
 
@@ -41,6 +41,7 @@ type EventQuery struct {
 	HostID domain.HostID
 	State  string
 	Limit  int
+	Offset int
 }
 
 type EventCounts struct {
@@ -48,6 +49,7 @@ type EventCounts struct {
 	Active   int
 	Critical int
 	Resolved int
+	Matched  int
 }
 
 // MemStore is the non-durable runtime projection used by tests and wrapped by
@@ -220,6 +222,9 @@ func (s *MemStore) Events(ctx context.Context, query EventQuery) ([]domain.Event
 	if query.Limit < 1 || query.Limit > 500 {
 		return nil, EventCounts{}, errors.New("event limit must be between 1 and 500")
 	}
+	if query.Offset < 0 {
+		return nil, EventCounts{}, errors.New("event offset must not be negative")
+	}
 	if !validEventListState(query.State) {
 		return nil, EventCounts{}, errors.New("event state filter is invalid")
 	}
@@ -304,7 +309,7 @@ func (s *MemStore) StartOperation(ctx context.Context, id string, startedAt time
 	return operation, true, nil
 }
 
-func (s *MemStore) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind string) (domain.Operation, bool, error) {
+func (s *MemStore) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind, afterReleaseID, confirmedBeforeReleaseID string) (domain.Operation, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Operation{}, false, err
 	}
@@ -320,6 +325,10 @@ func (s *MemStore) FinishOperation(ctx context.Context, id string, state domain.
 	finishedAt = finishedAt.UTC()
 	operation.State, operation.FinishedAt = state, &finishedAt
 	operation.ResultSummary, operation.Error = summary, errorKind
+	operation.AfterReleaseID = afterReleaseID
+	if confirmedBeforeReleaseID != "" {
+		operation.BeforeReleaseID = confirmedBeforeReleaseID
+	}
 	if err := operation.Validate(); err != nil {
 		return domain.Operation{}, true, err
 	}

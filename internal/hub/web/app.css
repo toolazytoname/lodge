@@ -1699,6 +1699,11 @@ textarea:focus-visible {
   border-top: 0;
 }
 
+.event-more {
+  justify-self: start;
+  margin-top: 8px;
+}
+
 .event-row.active.critical {
   box-shadow: inset 2px 0 0 var(--critical);
   padding-left: 11px;

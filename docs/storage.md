@@ -54,6 +54,14 @@ Schema v9 adds `target_image` to operations. New deploy and rollback rows store
 the immutable repository digest selected from live root policy. Historical
 rows keep an empty string. Mutable tags, credentials, and Compose content are
 rejected.
+Schema v10 stores the last complete wildcard-listener baseline per host.
+Partial observations cannot replace it, so a failed port scrape cannot make an
+existing listener look new, while a newly discovered wildcard can still open
+an event.
+Schema v11 adds the accepted deployment identity (`deployment_id`,
+`target_release_id`, `before_release_id`) and the Agent-confirmed
+`after_release_id`. Empty release IDs mean unknown; the target image is never
+treated as the actually running image.
 
 ## Database invariants
 

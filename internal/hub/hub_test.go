@@ -764,6 +764,7 @@ func TestEventAPIRequiresAuthenticationCSRFAndPreservesLifecycle(t *testing.T) {
 		"/api/events?agent=missing":          http.StatusNotFound,
 		"/api/events?agent=host-a&limit=501": http.StatusBadRequest,
 		"/api/events?state=open":             http.StatusBadRequest,
+		"/api/events?offset=-1":              http.StatusBadRequest,
 	} {
 		request = httptest.NewRequest(http.MethodGet, target, nil)
 		request.AddCookie(cookie)

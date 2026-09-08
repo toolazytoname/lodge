@@ -247,6 +247,90 @@ func TestSQLiteStoreDoesNotRecoverAlertsFromPartialCollectors(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreListenerBaselineSurvivesPartialCollectionAndRestart(t *testing.T) {
+	agents := []AgentConfig{{ID: "host-a", Name: "Host A"}}
+	path := filepath.Join(t.TempDir(), "data", "lodge.db")
+	store, err := OpenSQLiteStore(context.Background(), path, agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	status := &shared.Status{
+		Load: shared.Load{CPUs: 2, One: 0.2}, Memory: shared.Memory{TotalBytes: 100, UsedBytes: 40, AvailableBytes: 60},
+		Disks: []shared.Disk{{Mount: "/", TotalBytes: 100, UsedBytes: 20, FreeBytes: 80}},
+	}
+	web := shared.Service{
+		Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "running",
+		Ports: []shared.Port{{Proto: "tcp", Bind: "0.0.0.0", Port: 443, Exposure: shared.ExposurePublic}},
+	}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{web}, now); err != nil {
+		t.Fatal(err)
+	}
+	status.Warnings = []string{"ss 采集失败（端口维度将缺失）: denied"}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{{
+		Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "running",
+	}}, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	status.Warnings = nil
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{web}, now.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.database.ActiveEvents(ctx, "host-a")
+	if err != nil || len(active) != 0 {
+		t.Fatalf("existing 443 listener was reported as new after a failed scrape: %+v err=%v", active, err)
+	}
+
+	web.Ports = append(web.Ports, shared.Port{Proto: "tcp", Bind: "0.0.0.0", Port: 8443, Exposure: shared.ExposurePublic})
+	status.Warnings = []string{"ss 采集失败（端口维度将缺失）: denied"}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{web}, now.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err = store.database.ActiveEvents(ctx, "host-a")
+	if err != nil || len(active) != 1 || active[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:8443" {
+		t.Fatalf("new Docker listener during ss failure was not opened: %+v err=%v", active, err)
+	}
+
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenSQLiteStore(ctx, path, agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	status.Warnings = nil
+	if err := reopened.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{web}, now.Add(4*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err = reopened.database.ActiveEvents(ctx, "host-a")
+	if err != nil || len(active) != 1 || active[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:8443" {
+		t.Fatalf("listener baseline did not survive Hub restart: %+v err=%v", active, err)
+	}
+
+	status.Warnings = []string{"ss 采集失败（端口维度将缺失）: denied"}
+	if err := reopened.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{{
+		Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "running",
+	}}, now.Add(5*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	status.Warnings = nil
+	web.Ports = web.Ports[:1]
+	if err := reopened.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{web}, now.Add(6*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err = reopened.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range active {
+		if event.DedupeKey == "host-a:listener:tcp://0.0.0.0:443" {
+			t.Fatalf("443 was false-reported as new after restart: %+v", active)
+		}
+	}
+}
+
 func TestSQLiteStoreQueuesRuleTransitionsForConfiguredNotifications(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lodge.db")
 	store, err := OpenSQLiteStore(context.Background(), path,

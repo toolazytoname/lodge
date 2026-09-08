@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -108,8 +109,22 @@ func (s *SQLiteStore) Update(ctx context.Context, id string, online bool, lastEr
 		s.eventMu.Unlock()
 		return fmt.Errorf("load agent %s active events: %w", id, err)
 	}
-	signals := evaluateEventSignals(previous, observation, active)
-	_, _, err = s.database.RecordObservationWithNotifications(ctx, observation, signals, s.notificationPolicies)
+	completeListeners, err := s.database.ListenerBaseline(ctx, observation.HostID)
+	if err != nil {
+		s.eventMu.Unlock()
+		return fmt.Errorf("load agent %s listener baseline: %w", id, err)
+	}
+	signals := evaluateEventSignals(previous, observation, active, completeListeners)
+	if observation.Online && !listenerTelemetryMissing(observation) {
+		keys := make([]string, 0, len(observation.Endpoints))
+		for key := range listenerWildcardKeys(observation) {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		_, _, err = s.database.RecordObservationWithListenerBaseline(ctx, observation, signals, s.notificationPolicies, keys)
+	} else {
+		_, _, err = s.database.RecordObservationWithNotifications(ctx, observation, signals, s.notificationPolicies)
+	}
 	s.eventMu.Unlock()
 	if err != nil {
 		return fmt.Errorf("persist agent %s observation: %w", id, err)
@@ -162,15 +177,16 @@ func (s *SQLiteStore) ObservationSummaryHistory(ctx context.Context, hostID doma
 }
 
 func (s *SQLiteStore) Events(ctx context.Context, query EventQuery) ([]domain.Event, EventCounts, error) {
-	events, err := s.database.ListEvents(ctx, storage.EventFilter{HostID: query.HostID, State: query.State, Limit: query.Limit})
+	filter := storage.EventFilter{HostID: query.HostID, State: query.State, Limit: query.Limit, Offset: query.Offset}
+	events, err := s.database.ListEvents(ctx, filter)
 	if err != nil {
 		return nil, EventCounts{}, err
 	}
-	counts, err := s.database.EventCounts(ctx, query.HostID)
+	counts, err := s.database.EventCountsFiltered(ctx, filter)
 	if err != nil {
 		return nil, EventCounts{}, err
 	}
-	return events, EventCounts{Ongoing: counts.Ongoing, Active: counts.Active, Critical: counts.Critical, Resolved: counts.Resolved}, nil
+	return events, EventCounts{Ongoing: counts.Ongoing, Active: counts.Active, Critical: counts.Critical, Resolved: counts.Resolved, Matched: counts.Matched}, nil
 }
 
 func (s *SQLiteStore) AcknowledgeEvent(ctx context.Context, id string, acknowledgedAt time.Time) (domain.Event, bool, error) {
@@ -195,8 +211,8 @@ func (s *SQLiteStore) StartOperation(ctx context.Context, id string, startedAt t
 	return operation, found, err
 }
 
-func (s *SQLiteStore) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind string) (domain.Operation, bool, error) {
-	operation, found, err := s.database.FinishOperation(ctx, id, state, finishedAt, summary, errorKind)
+func (s *SQLiteStore) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind, afterReleaseID, confirmedBeforeReleaseID string) (domain.Operation, bool, error) {
+	operation, found, err := s.database.FinishOperation(ctx, id, state, finishedAt, summary, errorKind, afterReleaseID, confirmedBeforeReleaseID)
 	if errors.Is(err, storage.ErrOperationState) {
 		return domain.Operation{}, found, ErrOperationState
 	}

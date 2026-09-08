@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -133,11 +134,11 @@ func TestSQLiteOperationAuditLifecycleAndRecovery(t *testing.T) {
 		t.Fatalf("start operation failed: found=%v operation=%+v err=%v", found, running, err)
 	}
 	finishedAt := startedAt.Add(2 * time.Second)
-	finished, found, err := store.FinishOperation(ctx, operation.ID, domain.OperationSucceeded, finishedAt, "Caddy：running → running", "")
+	finished, found, err := store.FinishOperation(ctx, operation.ID, domain.OperationSucceeded, finishedAt, "Caddy：running → running", "", "", "")
 	if err != nil || !found || finished.State != domain.OperationSucceeded || finished.FinishedAt == nil {
 		t.Fatalf("finish operation failed: found=%v operation=%+v err=%v", found, finished, err)
 	}
-	if _, _, err := store.FinishOperation(ctx, operation.ID, domain.OperationFailed, finishedAt, "", "command_failed"); !errors.Is(err, ErrOperationState) {
+	if _, _, err := store.FinishOperation(ctx, operation.ID, domain.OperationFailed, finishedAt, "", "command_failed", "", ""); !errors.Is(err, ErrOperationState) {
 		t.Fatalf("terminal operation advanced twice: %v", err)
 	}
 
@@ -177,12 +178,13 @@ func TestSQLiteOperationAuditLifecycleAndRecovery(t *testing.T) {
 	deploy := requested
 	deploy.ID, deploy.Kind, deploy.WorkloadKey = "op_deploy_digest", domain.OperationDeploy, "gateway"
 	deploy.TargetImage = "registry.example.test/lodge/gateway@sha256:" + strings.Repeat("a", 64)
+	deploy.DeploymentID, deploy.TargetReleaseID, deploy.BeforeReleaseID = "deploy:gateway:v2", "v2", "v1"
 	deploy.RequestedAt = requestedAt.Add(7 * time.Second)
 	if err := store.CreateOperation(ctx, deploy); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := store.Operations(ctx, "host-a", 20)
-	if err != nil || len(loaded) != 4 || loaded[0].TargetImage != deploy.TargetImage {
+	if err != nil || len(loaded) != 4 || loaded[0].TargetImage != deploy.TargetImage || loaded[0].DeploymentID != deploy.DeploymentID || loaded[0].TargetReleaseID != "v2" || loaded[0].BeforeReleaseID != "v1" {
 		t.Fatalf("deployment target image was not stored: %+v err=%v", loaded, err)
 	}
 	if missing, found, err := store.StartOperation(ctx, "op_missing", time.Now()); err != nil || found || missing.ID != "" {
@@ -352,8 +354,56 @@ func TestSQLiteEventQueriesAreBounded(t *testing.T) {
 	if _, err := store.ListEvents(context.Background(), EventFilter{State: "open", Limit: 10}); err == nil {
 		t.Fatal("invalid event state filter was accepted")
 	}
+	if _, err := store.ListEvents(context.Background(), EventFilter{Limit: 10, Offset: -1}); err == nil {
+		t.Fatal("negative event offset was accepted")
+	}
 	if _, found, err := store.AcknowledgeEvent(context.Background(), "missing", time.Now().UTC()); err != nil || found {
 		t.Fatalf("missing event acknowledgement mismatch: found=%v err=%v", found, err)
+	}
+}
+
+func TestSQLiteEventPaginationIsStableAndComplete(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	signals := make([]domain.EventSignal, 125)
+	for index := 0; index < len(signals); index++ {
+		id := strconv.Itoa(index)
+		signals[index] = domain.EventSignal{
+			HostID: "host-a", Kind: "workload.failed", Severity: domain.SeverityCritical,
+			DedupeKey: "host-a:workload:docker:svc-" + id + ":failed", Title: "服务失败：svc-" + id,
+		}
+	}
+	if _, _, err := store.RecordObservationWithEvents(ctx, sampleObservation(now), signals); err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[string]int, 125)
+	for offset := 0; offset < 125; offset += 50 {
+		page, err := store.ListEvents(ctx, EventFilter{HostID: "host-a", State: "ongoing", Limit: 50, Offset: offset})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if offset+len(page) > 125 || (offset < 100 && len(page) != 50) || (offset == 100 && len(page) != 25) {
+			t.Fatalf("page at offset %d had %d rows", offset, len(page))
+		}
+		for _, event := range page {
+			seen[event.ID]++
+		}
+	}
+	if len(seen) != 125 {
+		t.Fatalf("pagination unique events = %d, want 125", len(seen))
+	}
+	for id, count := range seen {
+		if count != 1 {
+			t.Fatalf("event %s appeared %d times", id, count)
+		}
+	}
+	counts, err := store.EventCountsFiltered(ctx, EventFilter{HostID: "host-a", State: "ongoing"})
+	if err != nil || counts.Matched != 125 || counts.Ongoing != 125 || counts.Active != 125 {
+		t.Fatalf("matched counts mismatch: %+v err=%v", counts, err)
 	}
 }
 

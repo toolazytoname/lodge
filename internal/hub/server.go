@@ -98,12 +98,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	if !queryKeysAllowed(r, "agent", "state", "limit") {
+	if !queryKeysAllowed(r, "agent", "state", "limit", "offset") {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid_query"})
 		return
 	}
 	agentID := r.URL.Query().Get("agent")
-	if len(r.URL.Query()["agent"]) > 1 || len(r.URL.Query()["state"]) > 1 || len(r.URL.Query()["limit"]) > 1 || len(agentID) > maxAgentIDBytes {
+	if len(r.URL.Query()["agent"]) > 1 || len(r.URL.Query()["state"]) > 1 || len(r.URL.Query()["limit"]) > 1 || len(r.URL.Query()["offset"]) > 1 || len(agentID) > maxAgentIDBytes {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid agent"})
 		return
 	}
@@ -120,7 +120,11 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	events, counts, err := s.store.Events(r.Context(), EventQuery{HostID: domain.HostID(agentID), State: state, Limit: limit})
+	offset, ok := boundedQueryOffset(w, r)
+	if !ok {
+		return
+	}
+	events, counts, err := s.store.Events(r.Context(), EventQuery{HostID: domain.HostID(agentID), State: state, Limit: limit, Offset: offset})
 	if err != nil {
 		log.Printf("lodge hub read events: %v", err)
 		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "event persistence failed"})
@@ -129,6 +133,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	response := EventsResponse{
 		AgentID: agentID, State: state, Events: make([]EventView, 0, len(events)),
 		OngoingCount: counts.Ongoing, ActiveCount: counts.Active, CriticalCount: counts.Critical, ResolvedCount: counts.Resolved,
+		MatchedCount: counts.Matched, Offset: offset, Limit: limit,
 	}
 	for _, event := range events {
 		response.Events = append(response.Events, eventView(event))
@@ -198,6 +203,19 @@ func boundedQueryLimit(w http.ResponseWriter, r *http.Request, defaultLimit, max
 		limit = parsed
 	}
 	return limit, true
+}
+
+func boundedQueryOffset(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := r.URL.Query().Get("offset")
+	if raw == "" {
+		return 0, true
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < 0 {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "event offset must not be negative"})
+		return 0, false
+	}
+	return parsed, true
 }
 
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {

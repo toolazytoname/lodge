@@ -31,11 +31,13 @@ Offline observations carry existing workload, listener, and resource signals
 because absent telemetry is not recovery. Online partial observations carry
 only the categories whose collector data is missing, including Hub-persisted
 Agent warnings: a discarded service-discovery warning or a zeroed memory/disk
-sample must not resolve an open incident. The first online listener set, and
-the first set after an offline interval, establish a baseline; only a new
-wildcard listener seen between two complete online service collections opens
-an event. Existing listener events remain active until that listener is
-observed absent.
+sample must not resolve an open incident. Wildcard-listener novelty is compared
+against the last complete listener baseline, which is stored independently of
+the latest observation. Partial collections cannot shrink that baseline, but a
+wildcard that is actually present and absent from the baseline still opens an
+event. The first online listener set, and the first set after an offline
+interval, establish a baseline; existing listener events remain active until
+that listener is observed absent in a complete collection.
 
 Resource rules use hysteresis: memory opens at 85% and clears below 80%, root
 disk opens at 90% and clears below 85%, and one-minute load per CPU opens at

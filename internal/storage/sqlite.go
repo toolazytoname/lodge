@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 9
+	currentSchemaVersion = 11
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -419,16 +419,21 @@ func (s *SQLite) RecordObservation(ctx context.Context, observation domain.Obser
 // rule truth in one transaction. A failed event write can therefore never
 // leave an observation without its corresponding lifecycle transition.
 func (s *SQLite) RecordObservationWithEvents(ctx context.Context, observation domain.Observation, signals []domain.EventSignal) (int64, []domain.EventTransition, error) {
-	return s.recordObservationWithEvents(ctx, observation, signals, nil)
+	return s.recordObservationWithEvents(ctx, observation, signals, nil, nil)
 }
 
 // RecordObservationWithNotifications adds durable outbox rows in the same
 // transaction as the observation and event transitions.
 func (s *SQLite) RecordObservationWithNotifications(ctx context.Context, observation domain.Observation, signals []domain.EventSignal, policies []NotificationChannelPolicy) (int64, []domain.EventTransition, error) {
-	return s.recordObservationWithEvents(ctx, observation, signals, policies)
+	return s.recordObservationWithEvents(ctx, observation, signals, policies, nil)
 }
 
-func (s *SQLite) recordObservationWithEvents(ctx context.Context, observation domain.Observation, signals []domain.EventSignal, policies []NotificationChannelPolicy) (int64, []domain.EventTransition, error) {
+func (s *SQLite) RecordObservationWithListenerBaseline(ctx context.Context, observation domain.Observation, signals []domain.EventSignal, policies []NotificationChannelPolicy, listenerBaseline []string) (int64, []domain.EventTransition, error) {
+	keys := append([]string(nil), listenerBaseline...)
+	return s.recordObservationWithEvents(ctx, observation, signals, policies, &keys)
+}
+
+func (s *SQLite) recordObservationWithEvents(ctx context.Context, observation domain.Observation, signals []domain.EventSignal, policies []NotificationChannelPolicy, listenerBaseline *[]string) (int64, []domain.EventTransition, error) {
 	if err := observation.Validate(); err != nil {
 		return 0, nil, err
 	}
@@ -463,6 +468,11 @@ func (s *SQLite) recordObservationWithEvents(ctx context.Context, observation do
 	}
 	if err := enqueueEventNotificationsTx(ctx, tx, transitions, policies, observation.ObservedAt); err != nil {
 		return 0, nil, err
+	}
+	if listenerBaseline != nil {
+		if err := replaceListenerBaselineTx(ctx, tx, observation.HostID, *listenerBaseline); err != nil {
+			return 0, nil, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, nil, err
@@ -652,6 +662,7 @@ type EventFilter struct {
 	HostID domain.HostID
 	State  string
 	Limit  int
+	Offset int
 }
 
 type EventCounts struct {
@@ -659,6 +670,7 @@ type EventCounts struct {
 	Active   int
 	Critical int
 	Resolved int
+	Matched  int
 }
 
 func eventStatePredicate(state string) (string, error) {
@@ -698,21 +710,28 @@ func (s *SQLite) ListEvents(ctx context.Context, filter EventFilter) ([]domain.E
 	if filter.Limit < 1 || filter.Limit > 500 {
 		return nil, errors.New("event limit must be between 1 and 500")
 	}
+	if filter.Offset < 0 {
+		return nil, errors.New("event offset must not be negative")
+	}
 	where, args, err := eventWhere(filter.HostID, filter.State)
 	if err != nil {
 		return nil, err
 	}
 	order := `ORDER BY CASE state WHEN 'active' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
-last_observed_at DESC, id DESC LIMIT ?`
+last_observed_at DESC, id DESC LIMIT ? OFFSET ?`
 	suffix := order
 	if where != "" {
 		suffix = where + "\n" + order
 	}
-	return loadEvents(ctx, s.db, suffix, append(args, filter.Limit)...)
+	return loadEvents(ctx, s.db, suffix, append(args, filter.Limit, filter.Offset)...)
 }
 
 func (s *SQLite) EventCounts(ctx context.Context, hostID domain.HostID) (EventCounts, error) {
-	where, args, err := eventWhere(hostID, "")
+	return s.EventCountsFiltered(ctx, EventFilter{HostID: hostID})
+}
+
+func (s *SQLite) EventCountsFiltered(ctx context.Context, filter EventFilter) (EventCounts, error) {
+	where, args, err := eventWhere(filter.HostID, "")
 	if err != nil {
 		return EventCounts{}, err
 	}
@@ -729,7 +748,53 @@ FROM events`
 	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&counts.Ongoing, &counts.Active, &counts.Critical, &counts.Resolved); err != nil {
 		return EventCounts{}, err
 	}
+	matchedWhere, matchedArgs, err := eventWhere(filter.HostID, filter.State)
+	if err != nil {
+		return EventCounts{}, err
+	}
+	matchedQuery := "SELECT count(*) FROM events"
+	if matchedWhere != "" {
+		matchedQuery += "\n" + matchedWhere
+	}
+	if err := s.db.QueryRowContext(ctx, matchedQuery, matchedArgs...).Scan(&counts.Matched); err != nil {
+		return EventCounts{}, err
+	}
 	return counts, nil
+}
+
+func (s *SQLite) ListenerBaseline(ctx context.Context, hostID domain.HostID) (map[string]struct{}, error) {
+	if strings.TrimSpace(string(hostID)) == "" {
+		return nil, errors.New("listener baseline host id must not be empty")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT dedupe_key FROM listener_baselines WHERE host_id = ? ORDER BY dedupe_key`, string(hostID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	baseline := make(map[string]struct{})
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		baseline[key] = struct{}{}
+	}
+	return baseline, rows.Err()
+}
+
+func replaceListenerBaselineTx(ctx context.Context, tx *sql.Tx, hostID domain.HostID, keys []string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM listener_baselines WHERE host_id = ?`, string(hostID)); err != nil {
+		return fmt.Errorf("replace listener baseline: %w", err)
+	}
+	for _, key := range keys {
+		if strings.TrimSpace(key) == "" || len(key) > 640 {
+			return fmt.Errorf("listener baseline key is invalid")
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO listener_baselines(host_id, dedupe_key) VALUES (?, ?)`, string(hostID), key); err != nil {
+			return fmt.Errorf("insert listener baseline %s: %w", key, err)
+		}
+	}
+	return nil
 }
 
 var ErrEventResolved = errors.New("event already resolved")
@@ -872,9 +937,10 @@ func (s *SQLite) CreateOperation(ctx context.Context, operation domain.Operation
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO operations(id, host_id, workload_key, kind, state, requested_by, requested_at, target_image)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, operation.ID, operation.HostID, operation.WorkloadKey,
-		operation.Kind, operation.State, operation.RequestedBy, formatTime(operation.RequestedAt), operation.TargetImage)
+INSERT INTO operations(id, host_id, workload_key, kind, state, requested_by, requested_at, target_image, deployment_id, target_release_id, before_release_id, after_release_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, operation.ID, operation.HostID, operation.WorkloadKey,
+		operation.Kind, operation.State, operation.RequestedBy, formatTime(operation.RequestedAt), operation.TargetImage,
+		operation.DeploymentID, operation.TargetReleaseID, operation.BeforeReleaseID, operation.AfterReleaseID)
 	if err != nil {
 		return fmt.Errorf("create operation %s: %w", operation.ID, err)
 	}
@@ -917,7 +983,7 @@ UPDATE operations SET state = ?, started_at = ? WHERE id = ? AND state = ?`,
 	return operation, true, nil
 }
 
-func (s *SQLite) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind string) (domain.Operation, bool, error) {
+func (s *SQLite) FinishOperation(ctx context.Context, id string, state domain.OperationState, finishedAt time.Time, summary, errorKind, afterReleaseID, confirmedBeforeReleaseID string) (domain.Operation, bool, error) {
 	if strings.TrimSpace(id) == "" || len(id) > 128 || finishedAt.IsZero() {
 		return domain.Operation{}, false, errors.New("operation finish is invalid")
 	}
@@ -939,12 +1005,16 @@ func (s *SQLite) FinishOperation(ctx context.Context, id string, state domain.Op
 	finishedAt = finishedAt.UTC()
 	operation.State, operation.FinishedAt = state, &finishedAt
 	operation.ResultSummary, operation.Error = summary, errorKind
+	operation.AfterReleaseID = afterReleaseID
+	if confirmedBeforeReleaseID != "" {
+		operation.BeforeReleaseID = confirmedBeforeReleaseID
+	}
 	if err := operation.Validate(); err != nil {
 		return domain.Operation{}, true, err
 	}
 	result, err := tx.ExecContext(ctx, `
-UPDATE operations SET state = ?, finished_at = ?, result_summary = ?, error = ?
-WHERE id = ? AND state = ?`, state, formatTime(finishedAt), summary, errorKind, id, domain.OperationRunning)
+UPDATE operations SET state = ?, finished_at = ?, result_summary = ?, error = ?, after_release_id = ?, before_release_id = ?
+WHERE id = ? AND state = ?`, state, formatTime(finishedAt), summary, errorKind, operation.AfterReleaseID, operation.BeforeReleaseID, id, domain.OperationRunning)
 	if err != nil {
 		return domain.Operation{}, true, err
 	}
@@ -1008,7 +1078,8 @@ func (s *SQLite) Operations(ctx context.Context, hostID domain.HostID, limit int
 }
 
 const operationColumns = `id, host_id, workload_key, kind, state, requested_by,
-requested_at, started_at, finished_at, result_summary, error, target_image`
+requested_at, started_at, finished_at, result_summary, error, target_image,
+deployment_id, target_release_id, before_release_id, after_release_id`
 
 func loadOperation(ctx context.Context, queryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
@@ -1027,7 +1098,8 @@ func scanOperation(scanner rowScanner) (domain.Operation, error) {
 	var startedAt, finishedAt sql.NullString
 	if err := scanner.Scan(&operation.ID, &operation.HostID, &operation.WorkloadKey, &operation.Kind,
 		&operation.State, &operation.RequestedBy, &requestedAt, &startedAt, &finishedAt,
-		&operation.ResultSummary, &operation.Error, &operation.TargetImage); err != nil {
+		&operation.ResultSummary, &operation.Error, &operation.TargetImage,
+		&operation.DeploymentID, &operation.TargetReleaseID, &operation.BeforeReleaseID, &operation.AfterReleaseID); err != nil {
 		return domain.Operation{}, err
 	}
 	var err error

@@ -264,4 +264,25 @@ UPDATE proxy_routes SET route_kind = 'proxy' WHERE upstreams_json != '[]';
 ALTER TABLE operations ADD COLUMN target_image TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		version: 10,
+		name:    "complete_listener_baseline",
+		sql: `
+CREATE TABLE listener_baselines (
+    host_id TEXT NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+    dedupe_key TEXT NOT NULL,
+    PRIMARY KEY (host_id, dedupe_key)
+) STRICT;
+`,
+	},
+	{
+		version: 11,
+		name:    "operation_deployment_snapshot",
+		sql: `
+ALTER TABLE operations ADD COLUMN deployment_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE operations ADD COLUMN target_release_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE operations ADD COLUMN before_release_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE operations ADD COLUMN after_release_id TEXT NOT NULL DEFAULT '';
+`,
+	},
 }

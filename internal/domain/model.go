@@ -320,18 +320,22 @@ const (
 )
 
 type Operation struct {
-	ID            string         `json:"id"`
-	HostID        HostID         `json:"hostId"`
-	WorkloadKey   string         `json:"workloadKey,omitempty"`
-	Kind          OperationKind  `json:"kind"`
-	State         OperationState `json:"state"`
-	RequestedBy   string         `json:"requestedBy"`
-	RequestedAt   time.Time      `json:"requestedAt"`
-	StartedAt     *time.Time     `json:"startedAt,omitempty"`
-	FinishedAt    *time.Time     `json:"finishedAt,omitempty"`
-	ResultSummary string         `json:"resultSummary,omitempty"`
-	Error         string         `json:"error,omitempty"`
-	TargetImage   string         `json:"targetImage,omitempty"`
+	ID              string         `json:"id"`
+	HostID          HostID         `json:"hostId"`
+	WorkloadKey     string         `json:"workloadKey,omitempty"`
+	Kind            OperationKind  `json:"kind"`
+	State           OperationState `json:"state"`
+	RequestedBy     string         `json:"requestedBy"`
+	RequestedAt     time.Time      `json:"requestedAt"`
+	StartedAt       *time.Time     `json:"startedAt,omitempty"`
+	FinishedAt      *time.Time     `json:"finishedAt,omitempty"`
+	ResultSummary   string         `json:"resultSummary,omitempty"`
+	Error           string         `json:"error,omitempty"`
+	TargetImage     string         `json:"targetImage,omitempty"`
+	DeploymentID    string         `json:"deploymentId,omitempty"`
+	TargetReleaseID string         `json:"targetReleaseId,omitempty"`
+	BeforeReleaseID string         `json:"beforeReleaseId,omitempty"`
+	AfterReleaseID  string         `json:"afterReleaseId,omitempty"`
 }
 
 // Validate keeps the durable audit row monotonic and secret-free. Error is a
@@ -348,8 +352,8 @@ func (operation Operation) Validate() error {
 		if err := validateIdentifier("operation workload key", operation.WorkloadKey, 512); err != nil {
 			return err
 		}
-		if operation.TargetImage != "" {
-			return errors.New("non-deployment operation must not record a target image")
+		if operation.TargetImage != "" || operation.DeploymentID != "" || operation.TargetReleaseID != "" || operation.BeforeReleaseID != "" || operation.AfterReleaseID != "" {
+			return errors.New("non-deployment operation must not record a release snapshot")
 		}
 	case OperationDeploy, OperationRollback:
 		if operation.WorkloadKey != "" {
@@ -359,6 +363,18 @@ func (operation Operation) Validate() error {
 		}
 		if operation.TargetImage != "" && !validImmutableImageReference(operation.TargetImage) {
 			return errors.New("operation target image is invalid")
+		}
+		if err := validateOptionalReleaseSnapshot(operation.DeploymentID, 256); err != nil {
+			return fmt.Errorf("operation deployment id: %w", err)
+		}
+		if err := validateOptionalReleaseSnapshot(operation.TargetReleaseID, 64); err != nil {
+			return fmt.Errorf("operation target release: %w", err)
+		}
+		if err := validateOptionalReleaseSnapshot(operation.BeforeReleaseID, 64); err != nil {
+			return fmt.Errorf("operation before release: %w", err)
+		}
+		if err := validateOptionalReleaseSnapshot(operation.AfterReleaseID, 64); err != nil {
+			return fmt.Errorf("operation after release: %w", err)
 		}
 	default:
 		return fmt.Errorf("invalid operation kind %q", operation.Kind)
@@ -385,11 +401,11 @@ func (operation Operation) Validate() error {
 	}
 	switch operation.State {
 	case OperationRequested:
-		if operation.StartedAt != nil || operation.FinishedAt != nil || operation.ResultSummary != "" || operation.Error != "" {
+		if operation.StartedAt != nil || operation.FinishedAt != nil || operation.ResultSummary != "" || operation.Error != "" || operation.AfterReleaseID != "" {
 			return errors.New("requested operation contains execution state")
 		}
 	case OperationRunning:
-		if operation.StartedAt == nil || operation.FinishedAt != nil || operation.ResultSummary != "" || operation.Error != "" {
+		if operation.StartedAt == nil || operation.FinishedAt != nil || operation.ResultSummary != "" || operation.Error != "" || operation.AfterReleaseID != "" {
 			return errors.New("running operation timestamps or result are inconsistent")
 		}
 	case OperationSucceeded:
@@ -406,6 +422,16 @@ func (operation Operation) Validate() error {
 		}
 	default:
 		return fmt.Errorf("invalid operation state %q", operation.State)
+	}
+	return nil
+}
+
+func validateOptionalReleaseSnapshot(value string, maxBytes int) error {
+	if value == "" {
+		return nil
+	}
+	if len(value) > maxBytes || containsControl(value) || strings.ContainsAny(value, " \t") {
+		return errors.New("is invalid")
 	}
 	return nil
 }

@@ -133,6 +133,9 @@ export interface EventsResponse {
   activeCount: number;
   criticalCount: number;
   resolvedCount: number;
+  matchedCount: number;
+  offset: number;
+  limit: number;
 }
 
 export type Exposure = "local" | "tailnet" | "public" | "other";
@@ -176,6 +179,10 @@ export interface OperationView {
   resultSummary?: string;
   errorKind?: string;
   targetImage?: string;
+  deploymentId?: string;
+  targetReleaseId?: string;
+  beforeReleaseId?: string;
+  afterReleaseId?: string;
 }
 
 export interface OperationsResponse {

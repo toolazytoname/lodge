@@ -101,6 +101,9 @@ type EventsResponse struct {
 	ActiveCount   int         `json:"activeCount"`
 	CriticalCount int         `json:"criticalCount"`
 	ResolvedCount int         `json:"resolvedCount"`
+	MatchedCount  int         `json:"matchedCount"`
+	Offset        int         `json:"offset"`
+	Limit         int         `json:"limit"`
 }
 
 // WebLinkCheckView is bounded probe evidence from the Hub's network view.
@@ -144,18 +147,22 @@ type ActionExecutionInput struct {
 }
 
 type OperationView struct {
-	ID            string                `json:"id"`
-	AgentID       string                `json:"agentId"`
-	TargetKey     string                `json:"targetKey,omitempty"`
-	Kind          domain.OperationKind  `json:"kind"`
-	State         domain.OperationState `json:"state"`
-	RequestedBy   string                `json:"requestedBy"`
-	RequestedAt   string                `json:"requestedAt"`
-	StartedAt     string                `json:"startedAt,omitempty"`
-	FinishedAt    string                `json:"finishedAt,omitempty"`
-	ResultSummary string                `json:"resultSummary,omitempty"`
-	ErrorKind     string                `json:"errorKind,omitempty"`
-	TargetImage   string                `json:"targetImage,omitempty"`
+	ID              string                `json:"id"`
+	AgentID         string                `json:"agentId"`
+	TargetKey       string                `json:"targetKey,omitempty"`
+	Kind            domain.OperationKind  `json:"kind"`
+	State           domain.OperationState `json:"state"`
+	RequestedBy     string                `json:"requestedBy"`
+	RequestedAt     string                `json:"requestedAt"`
+	StartedAt       string                `json:"startedAt,omitempty"`
+	FinishedAt      string                `json:"finishedAt,omitempty"`
+	ResultSummary   string                `json:"resultSummary,omitempty"`
+	ErrorKind       string                `json:"errorKind,omitempty"`
+	TargetImage     string                `json:"targetImage,omitempty"`
+	DeploymentID    string                `json:"deploymentId,omitempty"`
+	TargetReleaseID string                `json:"targetReleaseId,omitempty"`
+	BeforeReleaseID string                `json:"beforeReleaseId,omitempty"`
+	AfterReleaseID  string                `json:"afterReleaseId,omitempty"`
 }
 
 type OperationsResponse struct {

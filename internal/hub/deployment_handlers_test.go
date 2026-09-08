@@ -79,7 +79,7 @@ func TestDeclarativeDeploymentAPIIsAcceptedAndAuditsAutomaticRollback(t *testing
 		t.Fatalf("deployment acceptance mismatch: HTTP %d %s", response.Code, response.Body.String())
 	}
 	operation := waitForDeploymentOperation(t, store, domain.OperationRolledBack)
-	if operation.Kind != domain.OperationDeploy || operation.WorkloadKey != "gateway" || operation.Error != "health_verification_failed" || operation.ResultSummary == "" || operation.RequestedBy != "tailnet-operator" || operation.TargetImage != definition.Image {
+	if operation.Kind != domain.OperationDeploy || operation.WorkloadKey != "gateway" || operation.Error != "health_verification_failed" || operation.ResultSummary == "" || operation.RequestedBy != "tailnet-operator" || operation.TargetImage != definition.Image || operation.DeploymentID != definition.ID || operation.TargetReleaseID != definition.ReleaseID || operation.BeforeReleaseID != definition.CurrentReleaseID || operation.AfterReleaseID != definition.CurrentReleaseID {
 		t.Fatalf("rolled-back audit mismatch: %+v", operation)
 	}
 	if client.executions.Load() != 1 {

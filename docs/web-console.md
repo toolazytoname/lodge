@@ -61,8 +61,10 @@ it changes operator annotations and is not a route mutation control.
 `GET /api/events` returns at most 500 event views. The validated `agent` query
 scopes the list and summary counts to one host; `state` applies
 `ongoing|active|acknowledged|resolved|all` before the limit so filters are not
-restricted to the newest 100 mixed rows. The response also includes host-scoped
-ongoing, active, critical, and resolved counts. Views include incident type,
+restricted to the newest mixed rows. `offset` pages through the same stable
+order. The response includes host-scoped ongoing, active, critical, and
+resolved counts plus the matched total for the current filter. The console
+loads pages with “加载更多” instead of truncating the list. Views include incident type,
 severity, lifecycle state, operator-facing detail, and audit timestamps; the
 internal deduplication key is not exposed. `POST /api/events/ack?id=...`
 requires an authenticated session and CSRF token. It is idempotent for an

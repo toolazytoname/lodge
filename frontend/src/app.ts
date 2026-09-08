@@ -127,7 +127,7 @@ interface PendingDeployment {
 const state: FleetState = {
   agents: [],
   groups: [],
-  events: { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0 },
+  events: { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, offset: 0, limit: 50 },
   linkChecks: {
     checks: [],
     summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 },
@@ -144,6 +144,9 @@ const state: FleetState = {
 
 let authed = false;
 let csrfToken = "";
+let sessionGeneration = 0;
+let eventsRequestSeq = 0;
+const eventsPageSize = 50;
 let activePage: PageID = "overview";
 let refreshTimer: number | null = null;
 let refreshing = false;
@@ -168,11 +171,18 @@ class APIRequestError extends Error {
   }
 }
 
+class StaleRequestError extends Error {
+  constructor() {
+    super("stale request");
+  }
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "unknown error";
 }
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const generation = sessionGeneration;
   const method = (options.method ?? "GET").toUpperCase();
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
@@ -180,10 +190,9 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set("X-CSRF-Token", csrfToken);
   }
   const response = await fetch(path, { ...options, method, headers });
+  if (sessionGeneration !== generation) throw new StaleRequestError();
   if (response.status === 401) {
-    authed = false;
-    csrfToken = "";
-    showLogin();
+    expireSession();
     throw new Error("unauthorized");
   }
   if (!response.ok) {
@@ -193,9 +202,12 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch {
       payload = null;
     }
+    if (sessionGeneration !== generation) throw new StaleRequestError();
     throw new APIRequestError(response.status, payload);
   }
-  return (await response.json()) as T;
+  const payload = (await response.json()) as T;
+  if (sessionGeneration !== generation) throw new StaleRequestError();
+  return payload;
 }
 
 function setNotice(message: string | null): void {
@@ -226,12 +238,56 @@ function showLogin(): void {
   refreshTimer = null;
 }
 
+function expireSession(): void {
+  authed = false;
+  csrfToken = "";
+  sessionGeneration += 1;
+  eventsRequestSeq += 1;
+  resetSessionCaches();
+  showLogin();
+}
+
+function resetSessionCaches(): void {
+  state.agents = [];
+  state.groups = [];
+  state.events = { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, offset: 0, limit: eventsPageSize };
+  state.linkChecks = { checks: [], summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 } };
+  state.operations = { operations: [] };
+  state.agentsLoaded = false;
+  state.servicesLoaded = false;
+  state.eventsLoaded = false;
+  state.eventsError = "";
+  state.linkChecksLoaded = false;
+  state.operationsLoaded = false;
+  state.operationsError = "";
+  historyByAgent.clear();
+  actionsByAgent.clear();
+  deploymentsByAgent.clear();
+  trackedDeploymentOperations.clear();
+  selectedHistoryAgent = "";
+  selectedActionAgent = "";
+  clearActionResultDOM();
+  replaceChildren(byID("hostPreview"), []);
+  replaceChildren(byID("eventList"), []);
+  replaceChildren(byID("operationAudit"), []);
+}
+
+function clearActionResultDOM(): void {
+  byID("actionResultLogs").textContent = "";
+  byID("actionResultSummary").textContent = "";
+  byID("actionError").textContent = "";
+  byID("actionError").classList.add("hidden");
+  byID("actionResult").classList.add("hidden");
+  byID("actionLogNotice").classList.add("hidden");
+}
+
 function dismissTransientOverlays(): void {
   actionExecuting = false;
   pendingAction = null;
   pendingDeployment = null;
   activeDeploymentOperationID = null;
   editingService = null;
+  clearActionResultDOM();
   const actionDialog = byID<HTMLDialogElement>("actionDialog");
   if (actionDialog.open) actionDialog.close();
   const annotationDialog = byID<HTMLDialogElement>("annotationDialog");
@@ -287,6 +343,8 @@ async function login(): Promise<void> {
     });
     const session = await loadSession();
     if (!session.authed) throw new Error("unauthorized");
+    sessionGeneration += 1;
+    eventsRequestSeq += 1;
     byID<HTMLInputElement>("pw").value = "";
     showDashboard();
     await refresh();
@@ -303,23 +361,25 @@ async function logout(): Promise<void> {
   try {
     await api<{ authed: boolean }>("/api/logout", { method: "POST" });
   } finally {
-    authed = false;
-    csrfToken = "";
-    showLogin();
+    expireSession();
   }
 }
 
 async function refresh(): Promise<void> {
   if (!authed || refreshing) return;
+  const generation = sessionGeneration;
+  const eventFilter = currentEventFilter();
+  const eventsSeq = eventsRequestSeq + 1;
+  eventsRequestSeq = eventsSeq;
   setRefreshing(true);
   const results = await Promise.allSettled([
     api<AgentSummary[]>("/api/agents"),
     api<AgentServices[]>("/api/services"),
     api<WebLinkChecksResponse>("/api/link-checks"),
-    api<EventsResponse>(eventsRequestPath()),
+    api<EventsResponse>(eventsRequestPath(eventFilter, 0, Math.max(eventsPageSize, state.events.events.length || eventsPageSize))),
     api<OperationsResponse>("/api/operations?limit=100"),
   ]);
-  if (!authed) {
+  if (!authed || sessionGeneration !== generation) {
     setRefreshing(false);
     return;
   }
@@ -348,13 +408,15 @@ async function refresh(): Promise<void> {
   } else {
     failures.push(`入口检查：${errorMessage(linkChecksResult.reason)}`);
   }
-  if (eventsResult.status === "fulfilled") {
-    state.events = eventsResult.value;
-    state.eventsLoaded = true;
-    state.eventsError = "";
-  } else {
-    state.eventsError = errorMessage(eventsResult.reason);
-    failures.push(`事件：${state.eventsError}`);
+  if (eventsSeq === eventsRequestSeq && eventFilterMatches(eventFilter)) {
+    if (eventsResult.status === "fulfilled") {
+      state.events = eventsResult.value;
+      state.eventsLoaded = true;
+      state.eventsError = "";
+    } else if (!(eventsResult.reason instanceof StaleRequestError)) {
+      state.eventsError = errorMessage(eventsResult.reason);
+      failures.push(`事件：${state.eventsError}`);
+    }
   }
   if (operationsResult.status === "fulfilled") {
     state.operations = operationsResult.value;
@@ -1186,26 +1248,52 @@ function eventDuration(event: EventView): string {
   return `持续 ${Math.round(hours / 2.4) / 10} 天`;
 }
 
-function eventsRequestPath(): string {
+function currentEventFilter(): { agent: string; state: string } {
+  return {
+    agent: byID<HTMLSelectElement>("eventAgentFilter").value || "all",
+    state: byID<HTMLSelectElement>("eventStateFilter").value || "ongoing",
+  };
+}
+
+function eventFilterMatches(filter: { agent: string; state: string }): boolean {
+  const current = currentEventFilter();
+  return current.agent === filter.agent && current.state === filter.state;
+}
+
+function eventsRequestPath(filter: { agent: string; state: string }, offset: number, limit: number): string {
   const params = new URLSearchParams();
-  const agent = byID<HTMLSelectElement>("eventAgentFilter").value || "all";
-  const lifecycle = byID<HTMLSelectElement>("eventStateFilter").value || "ongoing";
-  if (agent !== "all") params.set("agent", agent);
-  if (lifecycle) params.set("state", lifecycle);
-  params.set("limit", "100");
+  if (filter.agent !== "all") params.set("agent", filter.agent);
+  if (filter.state) params.set("state", filter.state);
+  params.set("limit", String(limit));
+  if (offset > 0) params.set("offset", String(offset));
   return `/api/events?${params}`;
 }
 
-async function loadEvents(): Promise<void> {
+async function loadEvents(options: { append?: boolean } = {}): Promise<void> {
   if (!authed) return;
+  const filter = currentEventFilter();
+  const append = options.append === true;
+  const offset = append ? state.events.events.length : 0;
+  const generation = sessionGeneration;
+  const seq = eventsRequestSeq + 1;
+  eventsRequestSeq = seq;
   try {
-    const events = await api<EventsResponse>(eventsRequestPath());
-    if (!authed) return;
-    state.events = events;
+    const events = await api<EventsResponse>(eventsRequestPath(filter, offset, eventsPageSize));
+    if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter)) return;
+    if (append) {
+      const seen = new Set(state.events.events.map((event) => event.id));
+      state.events = {
+        ...events,
+        events: [...state.events.events, ...events.events.filter((event) => !seen.has(event.id))],
+      };
+    } else {
+      state.events = events;
+    }
     state.eventsLoaded = true;
     state.eventsError = "";
   } catch (loadError) {
-    if (!authed) return;
+    if (loadError instanceof StaleRequestError) return;
+    if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter)) return;
     state.eventsError = errorMessage(loadError);
   }
   renderSecurity();
@@ -1266,18 +1354,26 @@ function renderEvents(): void {
     element("span", "event-stat calm", `${resolved} 已恢复`),
   ];
   if (state.eventsError) stats.push(element("span", "event-summary-error", `最近更新失败：${state.eventsError}`));
+  const matched = state.events.matchedCount;
+  const loaded = state.events.events.length;
+  stats.push(element("span", "event-stat calm", `已加载 ${loaded} / ${matched}`));
   replaceChildren(summary, stats);
 
   const events = filteredEvents();
   if (!events.length) {
-    const message = state.events.events.length
+    const message = matched
       ? "当前筛选条件下没有事件。"
       : "还没有事件记录。规则会在风险出现时自动建立事件。";
-    replaceChildren(list, [emptyState(message, state.events.events.length ? "" : "success")]);
+    replaceChildren(list, [emptyState(message, matched ? "" : "success")]);
     return;
   }
-  const rows: Node[] = events.slice(0, 20).map(eventRow);
-  if (events.length > rows.length) rows.push(element("p", "more-note", `另有 ${events.length - rows.length} 条事件，请缩小筛选范围`));
+  const rows: Node[] = events.map(eventRow);
+  if (loaded < matched) {
+    const more = element("button", "button button-secondary event-more", "加载更多");
+    more.type = "button";
+    more.addEventListener("click", () => void loadEvents({ append: true }));
+    rows.push(more);
+  }
   replaceChildren(list, rows);
 }
 
@@ -1286,10 +1382,12 @@ async function acknowledgeEvent(id: string, button: HTMLButtonElement): Promise<
   button.textContent = "确认中";
   try {
     const updated = await api<EventView>(`/api/events/ack?id=${encodeURIComponent(id)}`, { method: "POST" });
+    if (!authed) return;
     state.eventsError = "";
     setNotice(`已确认事件“${updated.title}”。风险会保持进行中，直到新观测证明恢复。`);
     await loadEvents();
   } catch (acknowledgementError) {
+    if (acknowledgementError instanceof StaleRequestError) return;
     button.disabled = false;
     button.textContent = "重试确认";
     setNotice(`事件确认失败：${errorMessage(acknowledgementError)}`);
@@ -1567,6 +1665,12 @@ function renderOperationAudit(): void {
       element("span", "", operationDuration(operation) || "未完成"),
       element("span", "operation-requester", operation.requestedBy.startsWith("session:") ? `会话 ${operation.requestedBy.slice(8)}` : operation.requestedBy),
     );
+    if (operation.deploymentId || operation.targetReleaseId || operation.beforeReleaseId || operation.afterReleaseId || operation.targetImage) {
+      metadata.append(element("span", "", `定义 ${operation.deploymentId || "未知"}`));
+      metadata.append(element("span", "", `目标 ${operation.targetReleaseId || "未知"}`));
+      metadata.append(element("span", "", `执行前 ${operation.beforeReleaseId || "未知"}`));
+      metadata.append(element("span", "", `执行后 ${operation.afterReleaseId || "未知"}`));
+    }
     if (operation.targetImage) {
       metadata.append(element("code", "deployment-digest", shortImageDigest(operation.targetImage)));
     }
@@ -1888,19 +1992,21 @@ function operationIsTerminal(operation: OperationView): boolean {
 async function trackDeploymentOperation(operationID: string, agentID: string, agentName: string, stackLabel: string): Promise<void> {
   if (trackedDeploymentOperations.has(operationID)) return;
   trackedDeploymentOperations.add(operationID);
+  const generation = sessionGeneration;
   try {
-    for (let attempt = 0; attempt < 800 && authed; attempt += 1) {
+    for (let attempt = 0; attempt < 800 && authed && sessionGeneration === generation; attempt += 1) {
       if (attempt > 0) {
         await new Promise<void>((resolve) => window.setTimeout(resolve, 1_500));
       }
       try {
         const operations = await api<OperationsResponse>(`/api/operations?agent=${encodeURIComponent(agentID)}&limit=100`);
-        if (selectedActionAgent !== agentID) continue;
+        if (sessionGeneration !== generation || selectedActionAgent !== agentID) continue;
         state.operations = operations;
         state.operationsLoaded = true;
         state.operationsError = "";
         renderOperations();
       } catch (pollError) {
+        if (pollError instanceof StaleRequestError || sessionGeneration !== generation || !authed) return;
         state.operationsError = errorMessage(pollError);
         renderOperations();
         continue;
@@ -1972,6 +2078,7 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
+      if (!authed) return;
       showActionExecutionResult(response);
       setNotice(response.operation.state === "succeeded"
         ? `${action.agentName} · ${action.definition.targetLabel}：动作已完成并写入审计。`
@@ -1987,12 +2094,13 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
+      if (!authed) return;
       showDeploymentAccepted(response);
       setNotice(`${deployment.agentName} · ${deployment.definition.stackLabel}：发布已受理，正在后台执行。`);
       void trackDeploymentOperation(response.operation.id, deployment.agentID, deployment.agentName, deployment.definition.stackLabel);
     }
   } catch (actionError) {
-    if (!authed) return;
+    if (actionError instanceof StaleRequestError || !authed) return;
     const audited = action ? executionResponseFromError(actionError) : null;
     if (audited) {
       showActionExecutionResult(audited);

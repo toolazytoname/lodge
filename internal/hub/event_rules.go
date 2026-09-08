@@ -30,7 +30,7 @@ const (
 // The first online observation is a listener baseline. Existing non-host
 // events are carried while a host is offline because missing telemetry is not
 // proof that a workload, listener, or resource condition recovered.
-func evaluateEventSignals(previous *domain.Observation, current domain.Observation, active []domain.Event) []domain.EventSignal {
+func evaluateEventSignals(previous *domain.Observation, current domain.Observation, active []domain.Event, completeListeners map[string]struct{}) []domain.EventSignal {
 	hostPrefix := string(current.HostID) + ":"
 	activeByKey := make(map[string]domain.Event, len(active))
 	for _, event := range active {
@@ -188,41 +188,72 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 		}
 	}
 
+	currentWildcard := listenerWildcardEndpoints(current)
+	establishingListeners := current.Online && !listenerTelemetryMissing(current) && (previous == nil || !previous.Online)
 	if listenerTelemetryMissing(current) {
+		emitted := make(map[string]struct{})
 		for key, event := range activeByKey {
 			if strings.HasPrefix(key, hostPrefix+"listener:") {
 				carry(event)
-			}
-		}
-	} else {
-		currentWildcard := make(map[string]domain.Endpoint)
-		for _, endpoint := range current.Endpoints {
-			if endpoint.Binding == domain.BindingWildcard {
-				currentWildcard[hostPrefix+"listener:"+endpoint.Key] = endpoint
-			}
-		}
-		previousWildcard := make(map[string]struct{})
-		if previous != nil && previous.Online {
-			for _, endpoint := range previous.Endpoints {
-				if endpoint.Binding == domain.BindingWildcard {
-					previousWildcard[hostPrefix+"listener:"+endpoint.Key] = struct{}{}
-				}
+				emitted[key] = struct{}{}
 			}
 		}
 		for key, endpoint := range currentWildcard {
-			_, existed := previousWildcard[key]
-			_, alreadyActive := activeByKey[key]
-			if !alreadyActive && (previous == nil || !previous.Online || existed) {
+			if _, known := completeListeners[key]; known {
 				continue
 			}
-			emit(domain.EventSignal{
-				HostID: current.HostID, Kind: "listener.added", Severity: domain.SeverityWarning,
-				DedupeKey: key, Title: fmt.Sprintf("新增公网绑定：%d/%s", endpoint.Port, endpoint.Protocol),
-				Detail: fmt.Sprintf("%s · %s", endpoint.WorkloadKey, endpoint.Bind),
-			})
+			if _, exists := emitted[key]; exists {
+				continue
+			}
+			emit(listenerAddedSignal(current.HostID, key, endpoint))
+		}
+	} else if establishingListeners {
+		for key, endpoint := range currentWildcard {
+			if event := activeByKey[key]; event.ID != "" {
+				emit(listenerAddedSignal(current.HostID, key, endpoint))
+			}
+		}
+	} else {
+		for key, endpoint := range currentWildcard {
+			_, known := completeListeners[key]
+			_, alreadyActive := activeByKey[key]
+			if !alreadyActive && known {
+				continue
+			}
+			emit(listenerAddedSignal(current.HostID, key, endpoint))
 		}
 	}
 	return sortedEventSignals(signals)
+}
+
+func listenerWildcardEndpoints(observation domain.Observation) map[string]domain.Endpoint {
+	wildcards := make(map[string]domain.Endpoint)
+	if !observation.Online {
+		return wildcards
+	}
+	prefix := string(observation.HostID) + ":listener:"
+	for _, endpoint := range observation.Endpoints {
+		if endpoint.Binding == domain.BindingWildcard {
+			wildcards[prefix+endpoint.Key] = endpoint
+		}
+	}
+	return wildcards
+}
+
+func listenerWildcardKeys(observation domain.Observation) map[string]struct{} {
+	keys := make(map[string]struct{}, len(observation.Endpoints))
+	for key := range listenerWildcardEndpoints(observation) {
+		keys[key] = struct{}{}
+	}
+	return keys
+}
+
+func listenerAddedSignal(hostID domain.HostID, key string, endpoint domain.Endpoint) domain.EventSignal {
+	return domain.EventSignal{
+		HostID: hostID, Kind: "listener.added", Severity: domain.SeverityWarning,
+		DedupeKey: key, Title: fmt.Sprintf("新增公网绑定：%d/%s", endpoint.Port, endpoint.Protocol),
+		Detail: fmt.Sprintf("%s · %s", endpoint.WorkloadKey, endpoint.Bind),
+	}
 }
 
 func memoryTelemetryMissing(observation domain.Observation) bool {

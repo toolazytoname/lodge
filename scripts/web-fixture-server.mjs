@@ -224,6 +224,10 @@ function seededOperations() {
       resultSummary: "Version 2 未通过健康验证，已自动恢复 Version 1",
       errorKind: "health_verification_failed",
       targetImage: "registry.example.test/lodge/gateway@sha256:" + "2".repeat(64),
+      deploymentId: "deploy:gateway:v2",
+      targetReleaseId: "v2",
+      beforeReleaseId: "v1",
+      afterReleaseId: "v1",
     },
     {
       id: "op_fixture_west_restart",
@@ -373,6 +377,7 @@ function settleFixtureDeployments() {
           state: "succeeded",
           finishedAt: "2026-08-08T00:01:18Z",
           resultSummary: "Gateway 已部署 Version 2，健康验证通过",
+          afterReleaseId: "v2",
         }
       : operation);
     fixtureDeploymentPending.delete(operationID);
@@ -390,8 +395,10 @@ async function readJSONBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function buildEvents(mode, agentID = "", state = "ongoing") {
-  if (mode === "empty") return { events: [] };
+function buildEvents(mode, agentID = "", state = "ongoing", limit = 50, offset = 0) {
+  if (mode === "empty") {
+    return emptyEvents(state, limit, offset);
+  }
   const events = [
     {
       id: "evt_fixture_east_certbot",
@@ -479,21 +486,53 @@ function buildEvents(mode, agentID = "", state = "ongoing") {
   const projected = events.map((event) => acknowledgedFixtureEvents.has(event.id) && event.state === "active"
     ? { ...event, state: "acknowledged", acknowledgedAt: "2026-08-08T00:00:01Z" }
     : event);
-  const scoped = agentID ? projected.filter((event) => event.agentId === agentID) : projected;
+  const bulk = mode === "many-events"
+    ? Array.from({ length: 125 }, (_, index) => ({
+        id: `evt_many_${String(index).padStart(3, "0")}`,
+        agentId: "harbor",
+        kind: "workload.failed",
+        severity: "critical",
+        state: "active",
+        title: `服务失败：bulk-${index}`,
+        detail: "fixture bulk incident",
+        firstObservedAt: "2026-08-07T23:00:00Z",
+        lastObservedAt: "2026-08-08T00:00:00Z",
+      }))
+    : projected;
+  const scoped = agentID ? bulk.filter((event) => event.agentId === agentID) : bulk;
   const ongoing = scoped.filter((event) => event.state !== "resolved");
   const filtered = scoped.filter((event) => {
     if (!state || state === "all") return true;
     if (state === "ongoing") return event.state !== "resolved";
     return event.state === state;
   });
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 50;
+  const safeOffset = Number.isFinite(offset) && offset > 0 ? offset : 0;
   return {
     agentId: agentID || undefined,
     state,
-    events: filtered,
+    events: filtered.slice(safeOffset, safeOffset + safeLimit),
     ongoingCount: ongoing.length,
     activeCount: scoped.filter((event) => event.state === "active").length,
     criticalCount: ongoing.filter((event) => event.severity === "critical").length,
     resolvedCount: scoped.filter((event) => event.state === "resolved").length,
+    matchedCount: filtered.length,
+    offset: safeOffset,
+    limit: safeLimit,
+  };
+}
+
+function emptyEvents(state, limit, offset) {
+  return {
+    state,
+    events: [],
+    ongoingCount: 0,
+    activeCount: 0,
+    criticalCount: 0,
+    resolvedCount: 0,
+    matchedCount: 0,
+    offset,
+    limit,
   };
 }
 
@@ -546,6 +585,14 @@ const server = createServer(async (request, response) => {
       sendJSON(response, 200, { authed: true, csrfToken: "fixture-csrf" });
       return;
     }
+    if (requestURL.pathname === "/api/login") {
+      sendJSON(response, 200, { authed: true });
+      return;
+    }
+    if (requestURL.pathname === "/api/logout") {
+      sendJSON(response, 200, { authed: false });
+      return;
+    }
     if (requestURL.pathname === "/__fixture/reset") {
       if (request.method !== "POST") {
         sendJSON(response, 405, { error: "fixture method not allowed" });
@@ -595,7 +642,13 @@ const server = createServer(async (request, response) => {
       } else if (mode === "error" || mode === "events-error") {
         sendJSON(response, 503, { error: "fixture events unavailable" });
       } else {
-        sendJSON(response, 200, buildEvents(mode, requestURL.searchParams.get("agent") || "", requestURL.searchParams.get("state") || "ongoing"));
+        sendJSON(response, 200, buildEvents(
+          mode,
+          requestURL.searchParams.get("agent") || "",
+          requestURL.searchParams.get("state") || "ongoing",
+          Number(requestURL.searchParams.get("limit") || 50),
+          Number(requestURL.searchParams.get("offset") || 0),
+        ));
       }
       return;
     }
@@ -723,6 +776,10 @@ const server = createServer(async (request, response) => {
         requestedAt: "2026-08-08T00:00:00Z",
         startedAt: "2026-08-08T00:00:01Z",
         targetImage: deployment.image,
+        deploymentId: deployment.id,
+        targetReleaseId: deployment.releaseId,
+        beforeReleaseId: deployment.currentReleaseId || "",
+        afterReleaseId: "",
       };
       fixtureOperations.unshift(operation);
       fixtureDeploymentPending.set(operation.id, 0);

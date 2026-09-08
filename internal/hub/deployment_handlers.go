@@ -129,6 +129,7 @@ func (s *Server) executeDeployment(w http.ResponseWriter, r *http.Request) {
 		ID: operationID, HostID: domain.HostID(agent.ID), WorkloadKey: definition.StackKey,
 		Kind: deploymentOperationKind(definition.Kind), State: domain.OperationRequested,
 		RequestedBy: s.operationRequester(r), RequestedAt: requestedAt, TargetImage: definition.Image,
+		DeploymentID: definition.ID, TargetReleaseID: definition.ReleaseID, BeforeReleaseID: definition.CurrentReleaseID,
 	}
 	auditContext, cancelAudit := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancelAudit()
@@ -168,18 +169,22 @@ func (s *Server) finishDeploymentOperation(agent AgentConfig, definition shared.
 		}
 	}
 	state, summary, errorKind := domain.OperationSucceeded, result.Summary, ""
+	afterReleaseID, confirmedBefore := "", result.PreviousReleaseID
 	if executeErr != nil {
 		state, summary, errorKind = domain.OperationFailed, "", actionClientErrorCategory(executeErr)
 	} else if !result.OK && result.RollbackPerformed {
 		state, summary, errorKind = domain.OperationRolledBack, result.Summary, result.ErrorKind
+		afterReleaseID = result.PreviousReleaseID
 	} else if !result.OK {
 		state, summary, errorKind = domain.OperationFailed, result.Summary, result.ErrorKind
+	} else {
+		afterReleaseID = result.ReleaseID
 	}
 	finishedAt := s.now().UTC()
 	if running.StartedAt != nil && finishedAt.Before(*running.StartedAt) {
 		finishedAt = *running.StartedAt
 	}
-	_, found, finishErr := s.store.FinishOperation(operationContext, running.ID, state, finishedAt, summary, errorKind)
+	_, found, finishErr := s.store.FinishOperation(operationContext, running.ID, state, finishedAt, summary, errorKind, afterReleaseID, confirmedBefore)
 	if finishErr != nil || !found {
 		log.Printf("lodge hub finish deployment audit: id=%s found=%v err=%v", running.ID, found, finishErr)
 		return

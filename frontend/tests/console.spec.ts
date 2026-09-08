@@ -122,6 +122,7 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#eventList .event-row")).toHaveCount(4);
     await expect(page.locator("#eventSummary")).toContainText("4 进行中");
     await expect(page.locator("#eventSummary")).toContainText("3 待确认");
+    await expect(page.locator("#eventSummary")).toContainText("已加载 4 / 4");
     await expect(page.locator("#eventList")).toContainText("203.0.113.44 × 61");
     await expect(page.locator("#eventList")).toContainText("SSH 爆破");
 
@@ -303,5 +304,88 @@ test.describe("Lodge Web console", () => {
     await dialog.getByRole("button", { name: "确认执行", exact: true }).click();
     await expect(page.getByRole("heading", { name: "欢迎回来" })).toBeVisible();
     await expect(dialog).not.toBeVisible();
+  });
+
+  test("event filters ignore stale overlapping responses", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/?fixture=normal#security");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(4);
+    let releaseOld: () => void = () => {};
+    let markOld: () => void = () => {};
+    const held = new Promise<void>((resolve) => { releaseOld = resolve; });
+    const seen = new Promise<void>((resolve) => { markOld = resolve; });
+    await page.route("**/api/events?**", async (route) => {
+      const url = new URL(route.request().url());
+      const response = await route.fetch();
+      if (url.searchParams.get("state") === "resolved") {
+        markOld();
+        await held;
+      }
+      await route.fulfill({ response });
+    });
+    await page.locator("#eventStateFilter").selectOption("resolved");
+    await seen;
+    await page.locator("#eventStateFilter").selectOption("ongoing");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(4);
+    releaseOld();
+    await page.waitForTimeout(200);
+    await expect(page.locator("#eventStateFilter")).toHaveValue("ongoing");
+    await expect(page.locator("#eventList .event-row.resolved")).toHaveCount(0);
+    await expect(page.locator("#eventList .event-row")).toHaveCount(4);
+  });
+
+  test("event list can page through more than twenty matching incidents", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/?fixture=many-events#security");
+    await expect(page.locator("#eventSummary")).toContainText("125 进行中");
+    await expect(page.locator("#eventSummary")).toContainText("已加载 50 / 125");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(50);
+    await page.getByRole("button", { name: "加载更多", exact: true }).click();
+    await expect(page.locator("#eventList .event-row")).toHaveCount(100);
+    await page.getByRole("button", { name: "加载更多", exact: true }).click();
+    await expect(page.locator("#eventList .event-row")).toHaveCount(125);
+    await expect(page.locator("#eventSummary")).toContainText("已加载 125 / 125");
+    await expect(page.getByRole("button", { name: "加载更多", exact: true })).toHaveCount(0);
+    const titles = await page.locator("#eventList .event-row strong").allTextContents();
+    expect(new Set(titles).size).toBe(125);
+    await page.getByRole("button", { name: "确认事件：服务失败：bulk-0" }).click();
+    await expect(page.locator("#notice")).toContainText("风险会保持进行中");
+  });
+
+  test("late action results cannot restore logs after logout or relogin", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/?fixture=normal#operations");
+    let releaseAction: () => void = () => {};
+    let markAction: () => void = () => {};
+    const held = new Promise<void>((resolve) => { releaseAction = resolve; });
+    const seen = new Promise<void>((resolve) => { markAction = resolve; });
+    await page.route("**/api/actions/execute", async (route) => {
+      const response = await route.fetch();
+      markAction();
+      await held;
+      await route.fulfill({ response });
+    });
+    await page.getByRole("button", { name: "读取日志 Gateway", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "读取日志 Gateway" });
+    await dialog.getByLabel("确认短语").fill("确认读取日志 Gateway");
+    await dialog.getByRole("button", { name: "确认执行", exact: true }).click();
+    await seen;
+    await page.route("**/api/events?**", (route) => route.fulfill({
+      status: 401, contentType: "application/json", body: JSON.stringify({ error: "unauthorized" }),
+    }));
+    await page.evaluate(() => (document.querySelector("#refreshBtn") as HTMLButtonElement).click());
+    await expect(page.getByRole("heading", { name: "欢迎回来" })).toBeVisible();
+    await expect(dialog).not.toBeVisible();
+    await expect(page.locator("#actionResultLogs")).toHaveText("");
+    await expect(page.locator("#hostPreview .host-card")).toHaveCount(0);
+    await page.unroute("**/api/events?**");
+    await page.getByLabel("访问密码").fill("fixture");
+    await page.getByRole("button", { name: "进入控制台" }).click();
+    await expect(page.locator("#login")).toHaveClass(/hidden/);
+    await expect(page.getByRole("heading", { name: "运维中心" })).toBeVisible();
+    releaseAction();
+    await page.waitForTimeout(200);
+    await expect(page.locator("#actionResultLogs")).toHaveText("");
+    await expect(page.getByRole("dialog", { name: "读取日志 Gateway" })).not.toBeVisible();
   });
 });
