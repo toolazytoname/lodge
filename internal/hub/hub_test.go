@@ -745,9 +745,25 @@ func TestEventAPIRequiresAuthenticationCSRFAndPreservesLifecycle(t *testing.T) {
 		t.Fatalf("resolved acknowledgement returned HTTP %d, want 409", w.Code)
 	}
 
+	request = httptest.NewRequest(http.MethodGet, "/api/events?agent=host-a&state=resolved&limit=10", nil)
+	request.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, request)
+	if w.Code != http.StatusOK {
+		t.Fatalf("resolved event filter returned HTTP %d: %s", w.Code, w.Body.String())
+	}
+	var resolved EventsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resolved); err != nil {
+		t.Fatal(err)
+	}
+	if resolved.State != "resolved" || resolved.OngoingCount != 0 || resolved.ResolvedCount != 1 || len(resolved.Events) != 1 || resolved.Events[0].State != domain.EventResolved {
+		t.Fatalf("resolved event filter mismatch: %+v", resolved)
+	}
+
 	for target, expected := range map[string]int{
 		"/api/events?agent=missing":          http.StatusNotFound,
 		"/api/events?agent=host-a&limit=501": http.StatusBadRequest,
+		"/api/events?state=open":             http.StatusBadRequest,
 	} {
 		request = httptest.NewRequest(http.MethodGet, target, nil)
 		request.AddCookie(cookie)

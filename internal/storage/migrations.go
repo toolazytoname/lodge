@@ -257,4 +257,11 @@ ALTER TABLE proxy_routes ADD COLUMN route_kind TEXT NOT NULL DEFAULT 'unknown'
 UPDATE proxy_routes SET route_kind = 'proxy' WHERE upstreams_json != '[]';
 `,
 	},
+	{
+		version: 9,
+		name:    "operation_target_image",
+		sql: `
+ALTER TABLE operations ADD COLUMN target_image TEXT NOT NULL DEFAULT '';
+`,
+	},
 }

@@ -21,6 +21,9 @@ const (
 	sshClearSource     = 3
 	sshCriticalTotal   = 100
 	sshCriticalSource  = 50
+
+	warningStatusCollectionFailed = "主机状态采集失败"
+	warningServiceDiscoveryFailed = "服务发现采集失败"
 )
 
 // evaluateEventSignals turns the latest observation into current rule truth.
@@ -36,13 +39,19 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 		}
 	}
 	var signals []domain.EventSignal
+	emit := func(signal domain.EventSignal) {
+		signals = append(signals, signal)
+	}
+	carry := func(event domain.Event) {
+		emit(signalFromEvent(event))
+	}
 	if !current.Online {
 		for _, event := range activeByKey {
 			if event.Kind != "host.offline" {
-				signals = append(signals, signalFromEvent(event))
+				carry(event)
 			}
 		}
-		signals = append(signals, domain.EventSignal{
+		emit(domain.EventSignal{
 			HostID: current.HostID, Kind: "host.offline", Severity: domain.SeverityCritical,
 			DedupeKey: hostPrefix + "host:offline", Title: "主机离线",
 			Detail: boundedEventDetail(current.LastError, "Hub 无法取得 Agent 实时状态"),
@@ -53,49 +62,65 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 	if current.Resources == nil {
 		for key, event := range activeByKey {
 			if strings.HasPrefix(key, hostPrefix+"resource:") {
-				signals = append(signals, signalFromEvent(event))
+				carry(event)
 			}
 		}
 	} else {
-		memory := domain.UsagePercent(current.Resources.Memory.UsedBytes, current.Resources.Memory.TotalBytes)
 		memoryKey := hostPrefix + "resource:memory"
-		if memory >= memoryOpenPercent || (activeByKey[memoryKey].ID != "" && memory >= memoryClearPercent) {
-			severity := domain.SeverityWarning
-			if memory >= 95 {
-				severity = domain.SeverityCritical
+		if memoryTelemetryMissing(current) {
+			if event := activeByKey[memoryKey]; event.ID != "" {
+				carry(event)
 			}
-			signals = append(signals, domain.EventSignal{
-				HostID: current.HostID, Kind: "resource.memory", Severity: severity,
-				DedupeKey: memoryKey, Title: "内存压力", Detail: fmt.Sprintf("内存使用率 %d%%", memory),
-			})
-		}
-		for _, disk := range current.Resources.Disks {
-			if disk.Mount != "/" {
-				continue
-			}
-			used := domain.UsagePercent(disk.UsedBytes, disk.TotalBytes)
-			diskKey := hostPrefix + "resource:disk:/"
-			if used >= diskOpenPercent || (activeByKey[diskKey].ID != "" && used >= diskClearPercent) {
+		} else {
+			memory := domain.UsagePercent(current.Resources.Memory.UsedBytes, current.Resources.Memory.TotalBytes)
+			if memory >= memoryOpenPercent || (activeByKey[memoryKey].ID != "" && memory >= memoryClearPercent) {
 				severity := domain.SeverityWarning
-				if used >= 95 {
+				if memory >= 95 {
 					severity = domain.SeverityCritical
 				}
-				signals = append(signals, domain.EventSignal{
-					HostID: current.HostID, Kind: "resource.disk", Severity: severity,
-					DedupeKey: diskKey, Title: "根磁盘空间不足", Detail: fmt.Sprintf("根文件系统使用率 %d%%", used),
+				emit(domain.EventSignal{
+					HostID: current.HostID, Kind: "resource.memory", Severity: severity,
+					DedupeKey: memoryKey, Title: "内存压力", Detail: fmt.Sprintf("内存使用率 %d%%", memory),
 				})
 			}
-			break
 		}
-		if current.Resources.CPUs > 0 {
+		diskKey := hostPrefix + "resource:disk:/"
+		if diskTelemetryMissing(current) {
+			if event := activeByKey[diskKey]; event.ID != "" {
+				carry(event)
+			}
+		} else {
+			for _, disk := range current.Resources.Disks {
+				if disk.Mount != "/" {
+					continue
+				}
+				used := domain.UsagePercent(disk.UsedBytes, disk.TotalBytes)
+				if used >= diskOpenPercent || (activeByKey[diskKey].ID != "" && used >= diskClearPercent) {
+					severity := domain.SeverityWarning
+					if used >= 95 {
+						severity = domain.SeverityCritical
+					}
+					emit(domain.EventSignal{
+						HostID: current.HostID, Kind: "resource.disk", Severity: severity,
+						DedupeKey: diskKey, Title: "根磁盘空间不足", Detail: fmt.Sprintf("根文件系统使用率 %d%%", used),
+					})
+				}
+				break
+			}
+		}
+		loadKey := hostPrefix + "resource:load"
+		if loadTelemetryMissing(current) {
+			if event := activeByKey[loadKey]; event.ID != "" {
+				carry(event)
+			}
+		} else if current.Resources.CPUs > 0 {
 			ratio := current.Resources.Load1 / float64(current.Resources.CPUs)
-			loadKey := hostPrefix + "resource:load"
 			if ratio >= loadOpenRatio || (activeByKey[loadKey].ID != "" && ratio >= loadClearRatio) {
 				severity := domain.SeverityWarning
 				if ratio >= 2 {
 					severity = domain.SeverityCritical
 				}
-				signals = append(signals, domain.EventSignal{
+				emit(domain.EventSignal{
 					HostID: current.HostID, Kind: "resource.load", Severity: severity,
 					DedupeKey: loadKey, Title: "系统负载持续偏高",
 					Detail: fmt.Sprintf("1 分钟负载 %.2f / %d CPU", current.Resources.Load1, current.Resources.CPUs),
@@ -131,25 +156,45 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 		}
 	}
 
+	seenWorkload := make(map[string]struct{})
 	if current.Workloads == nil {
 		for key, event := range activeByKey {
-			if strings.HasPrefix(key, hostPrefix+"workload:") || strings.HasPrefix(key, hostPrefix+"listener:") {
-				signals = append(signals, signalFromEvent(event))
+			if strings.HasPrefix(key, hostPrefix+"workload:") {
+				carry(event)
+				seenWorkload[key] = struct{}{}
 			}
 		}
 	} else {
+		for key, event := range activeByKey {
+			if strings.HasPrefix(key, hostPrefix+"workload:") && workloadCategoryMissing(current, event.DedupeKey, hostPrefix) {
+				carry(event)
+				seenWorkload[key] = struct{}{}
+			}
+		}
 		for _, workload := range current.Workloads {
 			if !workloadFailed(workload) {
 				continue
 			}
-			signals = append(signals, domain.EventSignal{
+			key := hostPrefix + "workload:" + workload.Key + ":failed"
+			if _, exists := seenWorkload[key]; exists {
+				continue
+			}
+			emit(domain.EventSignal{
 				HostID: current.HostID, Kind: "workload.failed", Severity: domain.SeverityCritical,
-				DedupeKey: hostPrefix + "workload:" + workload.Key + ":failed",
-				Title:     "服务失败：" + workload.Name,
-				Detail:    boundedEventDetail(workload.State, "工作负载处于失败状态"),
+				DedupeKey: key, Title: "服务失败：" + workload.Name,
+				Detail: boundedEventDetail(workload.State, "工作负载处于失败状态"),
 			})
+			seenWorkload[key] = struct{}{}
 		}
+	}
 
+	if listenerTelemetryMissing(current) {
+		for key, event := range activeByKey {
+			if strings.HasPrefix(key, hostPrefix+"listener:") {
+				carry(event)
+			}
+		}
+	} else {
 		currentWildcard := make(map[string]domain.Endpoint)
 		for _, endpoint := range current.Endpoints {
 			if endpoint.Binding == domain.BindingWildcard {
@@ -170,7 +215,7 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 			if !alreadyActive && (previous == nil || !previous.Online || existed) {
 				continue
 			}
-			signals = append(signals, domain.EventSignal{
+			emit(domain.EventSignal{
 				HostID: current.HostID, Kind: "listener.added", Severity: domain.SeverityWarning,
 				DedupeKey: key, Title: fmt.Sprintf("新增公网绑定：%d/%s", endpoint.Port, endpoint.Protocol),
 				Detail: fmt.Sprintf("%s · %s", endpoint.WorkloadKey, endpoint.Bind),
@@ -178,6 +223,65 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 		}
 	}
 	return sortedEventSignals(signals)
+}
+
+func memoryTelemetryMissing(observation domain.Observation) bool {
+	if observation.Resources == nil {
+		return true
+	}
+	return observation.Resources.Memory.TotalBytes <= 0 || observationHasWarning(observation, "meminfo")
+}
+
+func diskTelemetryMissing(observation domain.Observation) bool {
+	if observation.Resources == nil || observationHasWarning(observation, "采集磁盘失败") {
+		return true
+	}
+	for _, disk := range observation.Resources.Disks {
+		if disk.Mount == "/" {
+			return false
+		}
+	}
+	return true
+}
+
+func loadTelemetryMissing(observation domain.Observation) bool {
+	if observation.Resources == nil {
+		return true
+	}
+	return observation.Resources.CPUs <= 0 || observationHasWarning(observation, "loadavg")
+}
+
+func workloadCategoryMissing(observation domain.Observation, dedupeKey, hostPrefix string) bool {
+	if observation.Workloads == nil || observationHasWarning(observation, warningServiceDiscoveryFailed) {
+		return true
+	}
+	identity := strings.TrimSuffix(strings.TrimPrefix(dedupeKey, hostPrefix+"workload:"), ":failed")
+	switch {
+	case strings.HasPrefix(identity, "docker:"):
+		return observationHasWarning(observation, "docker ps 失败")
+	case strings.HasPrefix(identity, "systemd:"):
+		return observationHasWarning(observation, "systemd unit 采集失败")
+	default:
+		return observationHasWarning(observation, "进程来源采集失败")
+	}
+}
+
+func listenerTelemetryMissing(observation domain.Observation) bool {
+	if observation.Workloads == nil {
+		return true
+	}
+	return observationHasWarning(observation, warningServiceDiscoveryFailed, "docker ps 失败", "ss 采集失败")
+}
+
+func observationHasWarning(observation domain.Observation, needles ...string) bool {
+	for _, warning := range observation.Warnings {
+		for _, needle := range needles {
+			if strings.Contains(warning, needle) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func sshFailureDetail(summary *domain.SSHAuthObservation) string {

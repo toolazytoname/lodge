@@ -24,7 +24,7 @@ type Store interface {
 	Annotations(agentID string) map[string]Annotation
 	SetAnnotation(context.Context, string, string, Annotation) error
 	ObservationSummaryHistory(context.Context, domain.HostID, int) ([]domain.ObservationSummary, error)
-	Events(context.Context, domain.HostID, int) ([]domain.Event, error)
+	Events(context.Context, EventQuery) ([]domain.Event, EventCounts, error)
 	AcknowledgeEvent(context.Context, string, time.Time) (domain.Event, bool, error)
 	WebLinkChecks(context.Context) ([]domain.WebLinkCheck, error)
 	ReplaceWebLinkChecks(context.Context, []domain.WebLinkCheck) error
@@ -36,6 +36,19 @@ type Store interface {
 
 var ErrEventResolved = errors.New("event already resolved")
 var ErrOperationState = errors.New("operation state transition is invalid")
+
+type EventQuery struct {
+	HostID domain.HostID
+	State  string
+	Limit  int
+}
+
+type EventCounts struct {
+	Ongoing  int
+	Active   int
+	Critical int
+	Resolved int
+}
 
 // MemStore is the non-durable runtime projection used by tests and wrapped by
 // SQLiteStore in production. It deliberately has no file path or Save method,
@@ -200,14 +213,17 @@ func (s *MemStore) ObservationSummaryHistory(ctx context.Context, hostID domain.
 	return append([]domain.ObservationSummary(nil), available[:limit]...), nil
 }
 
-func (s *MemStore) Events(ctx context.Context, _ domain.HostID, limit int) ([]domain.Event, error) {
+func (s *MemStore) Events(ctx context.Context, query EventQuery) ([]domain.Event, EventCounts, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, EventCounts{}, err
 	}
-	if limit < 1 || limit > 500 {
-		return nil, errors.New("event limit must be between 1 and 500")
+	if query.Limit < 1 || query.Limit > 500 {
+		return nil, EventCounts{}, errors.New("event limit must be between 1 and 500")
 	}
-	return []domain.Event{}, nil
+	if !validEventListState(query.State) {
+		return nil, EventCounts{}, errors.New("event state filter is invalid")
+	}
+	return []domain.Event{}, EventCounts{}, nil
 }
 
 func (s *MemStore) AcknowledgeEvent(ctx context.Context, _ string, _ time.Time) (domain.Event, bool, error) {

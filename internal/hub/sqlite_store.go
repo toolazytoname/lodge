@@ -161,8 +161,16 @@ func (s *SQLiteStore) ObservationSummaryHistory(ctx context.Context, hostID doma
 	return s.database.ObservationSummaryHistory(ctx, hostID, limit)
 }
 
-func (s *SQLiteStore) Events(ctx context.Context, hostID domain.HostID, limit int) ([]domain.Event, error) {
-	return s.database.Events(ctx, hostID, limit)
+func (s *SQLiteStore) Events(ctx context.Context, query EventQuery) ([]domain.Event, EventCounts, error) {
+	events, err := s.database.ListEvents(ctx, storage.EventFilter{HostID: query.HostID, State: query.State, Limit: query.Limit})
+	if err != nil {
+		return nil, EventCounts{}, err
+	}
+	counts, err := s.database.EventCounts(ctx, query.HostID)
+	if err != nil {
+		return nil, EventCounts{}, err
+	}
+	return events, EventCounts{Ongoing: counts.Ongoing, Active: counts.Active, Critical: counts.Critical, Resolved: counts.Resolved}, nil
 }
 
 func (s *SQLiteStore) AcknowledgeEvent(ctx context.Context, id string, acknowledgedAt time.Time) (domain.Event, bool, error) {

@@ -98,8 +98,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
+	if !queryKeysAllowed(r, "agent", "state", "limit") {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid_query"})
+		return
+	}
 	agentID := r.URL.Query().Get("agent")
-	if len(agentID) > maxAgentIDBytes {
+	if len(r.URL.Query()["agent"]) > 1 || len(r.URL.Query()["state"]) > 1 || len(r.URL.Query()["limit"]) > 1 || len(agentID) > maxAgentIDBytes {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid agent"})
 		return
 	}
@@ -107,21 +111,38 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		writeJSONHub(w, http.StatusNotFound, map[string]string{"error": "unknown agent"})
 		return
 	}
+	state := r.URL.Query().Get("state")
+	if !validEventListState(state) {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid event state"})
+		return
+	}
 	limit, ok := boundedQueryLimit(w, r, eventsDefaultLimit, eventsMaximumLimit, "event")
 	if !ok {
 		return
 	}
-	events, err := s.store.Events(r.Context(), domain.HostID(agentID), limit)
+	events, counts, err := s.store.Events(r.Context(), EventQuery{HostID: domain.HostID(agentID), State: state, Limit: limit})
 	if err != nil {
 		log.Printf("lodge hub read events: %v", err)
 		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "event persistence failed"})
 		return
 	}
-	response := EventsResponse{AgentID: agentID, Events: make([]EventView, 0, len(events))}
+	response := EventsResponse{
+		AgentID: agentID, State: state, Events: make([]EventView, 0, len(events)),
+		OngoingCount: counts.Ongoing, ActiveCount: counts.Active, CriticalCount: counts.Critical, ResolvedCount: counts.Resolved,
+	}
 	for _, event := range events {
 		response.Events = append(response.Events, eventView(event))
 	}
 	writeJSONHub(w, http.StatusOK, response)
+}
+
+func validEventListState(state string) bool {
+	switch state {
+	case "", "all", "ongoing", "active", "acknowledged", "resolved":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) acknowledgeEvent(w http.ResponseWriter, r *http.Request) {

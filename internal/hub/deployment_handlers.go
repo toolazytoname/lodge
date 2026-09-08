@@ -128,7 +128,7 @@ func (s *Server) executeDeployment(w http.ResponseWriter, r *http.Request) {
 	operation := domain.Operation{
 		ID: operationID, HostID: domain.HostID(agent.ID), WorkloadKey: definition.StackKey,
 		Kind: deploymentOperationKind(definition.Kind), State: domain.OperationRequested,
-		RequestedBy: s.operationRequester(r), RequestedAt: requestedAt,
+		RequestedBy: s.operationRequester(r), RequestedAt: requestedAt, TargetImage: definition.Image,
 	}
 	auditContext, cancelAudit := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancelAudit()

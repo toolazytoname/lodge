@@ -268,7 +268,7 @@ func operationView(operation domain.Operation) OperationView {
 		ID: operation.ID, AgentID: string(operation.HostID), TargetKey: operation.WorkloadKey,
 		Kind: operation.Kind, State: operation.State, RequestedBy: operation.RequestedBy,
 		RequestedAt:   operation.RequestedAt.UTC().Format(time.RFC3339Nano),
-		ResultSummary: operation.ResultSummary, ErrorKind: operation.Error,
+		ResultSummary: operation.ResultSummary, ErrorKind: operation.Error, TargetImage: operation.TargetImage,
 	}
 	if operation.StartedAt != nil {
 		view.StartedAt = operation.StartedAt.UTC().Format(time.RFC3339Nano)

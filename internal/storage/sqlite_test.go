@@ -174,6 +174,17 @@ func TestSQLiteOperationAuditLifecycleAndRecovery(t *testing.T) {
 	if all, err := store.Operations(ctx, "", 20); err != nil || len(all) != 3 {
 		t.Fatalf("fleet operation timeline mismatch: %+v err=%v", all, err)
 	}
+	deploy := requested
+	deploy.ID, deploy.Kind, deploy.WorkloadKey = "op_deploy_digest", domain.OperationDeploy, "gateway"
+	deploy.TargetImage = "registry.example.test/lodge/gateway@sha256:" + strings.Repeat("a", 64)
+	deploy.RequestedAt = requestedAt.Add(7 * time.Second)
+	if err := store.CreateOperation(ctx, deploy); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.Operations(ctx, "host-a", 20)
+	if err != nil || len(loaded) != 4 || loaded[0].TargetImage != deploy.TargetImage {
+		t.Fatalf("deployment target image was not stored: %+v err=%v", loaded, err)
+	}
 	if missing, found, err := store.StartOperation(ctx, "op_missing", time.Now()); err != nil || found || missing.ID != "" {
 		t.Fatalf("missing operation start mismatch: found=%v operation=%+v err=%v", found, missing, err)
 	}
@@ -300,6 +311,14 @@ func TestSQLiteEventLifecycleDedupeAndAtomicity(t *testing.T) {
 	if len(timeline) != 2 || timeline[0].State != domain.EventActive || timeline[1].State != domain.EventResolved {
 		t.Fatalf("event timeline is incomplete or misordered: %+v", timeline)
 	}
+	resolved, err := store.ListEvents(ctx, EventFilter{HostID: "host-a", State: "resolved", Limit: 20})
+	if err != nil || len(resolved) != 1 || resolved[0].State != domain.EventResolved {
+		t.Fatalf("resolved event filter mismatch: %+v err=%v", resolved, err)
+	}
+	counts, err := store.EventCounts(ctx, "host-a")
+	if err != nil || counts.Ongoing != 1 || counts.Active != 1 || counts.Resolved != 1 {
+		t.Fatalf("event counts mismatch: %+v err=%v", counts, err)
+	}
 
 	var observationsBefore int
 	if err := store.db.QueryRowContext(ctx, "SELECT count(*) FROM observations").Scan(&observationsBefore); err != nil {
@@ -329,6 +348,9 @@ func TestSQLiteEventQueriesAreBounded(t *testing.T) {
 	}
 	if _, err := store.Events(context.Background(), "", 501); err == nil {
 		t.Fatal("oversized event limit was accepted")
+	}
+	if _, err := store.ListEvents(context.Background(), EventFilter{State: "open", Limit: 10}); err == nil {
+		t.Fatal("invalid event state filter was accepted")
 	}
 	if _, found, err := store.AcknowledgeEvent(context.Background(), "missing", time.Now().UTC()); err != nil || found {
 		t.Fatalf("missing event acknowledgement mismatch: found=%v err=%v", found, err)
@@ -752,6 +774,65 @@ func TestSQLiteUpgradesVersionSevenAndClassifiesExistingProxyRoutes(t *testing.T
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing migrated routes: %v", want)
+	}
+}
+
+func TestSQLiteUpgradesVersionEightAndAddsOperationTargetImage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lodge.db")
+	createVersionOneDatabase(t, path)
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrations[1:8] {
+		if _, err := db.Exec(migration.sql); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(
+			"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
+			migration.version, migration.name, migration.checksum(), formatTime(time.Now()),
+		); err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec("PRAGMA user_version = 8"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+INSERT INTO operations(id, host_id, workload_key, kind, state, requested_by, requested_at)
+VALUES ('op_legacy', 'host-a', 'gateway', 'deploy', 'requested', 'tailnet-operator', ?)`, formatTime(time.Now())); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var version, columnCount int
+	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow("SELECT count(*) FROM pragma_table_info('operations') WHERE name = 'target_image'").Scan(&columnCount); err != nil {
+		t.Fatal(err)
+	}
+	if version != currentSchemaVersion || columnCount != 1 {
+		t.Fatalf("v8 migration result: version=%d columnCount=%d", version, columnCount)
+	}
+	operations, err := store.Operations(context.Background(), "host-a", 10)
+	if err != nil || len(operations) != 1 || operations[0].ID != "op_legacy" || operations[0].TargetImage != "" {
+		t.Fatalf("legacy operation was not preserved: %+v err=%v", operations, err)
 	}
 }
 

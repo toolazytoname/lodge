@@ -223,6 +223,7 @@ function seededOperations() {
       finishedAt: "2026-08-07T23:55:18Z",
       resultSummary: "Version 2 未通过健康验证，已自动恢复 Version 1",
       errorKind: "health_verification_failed",
+      targetImage: "registry.example.test/lodge/gateway@sha256:" + "2".repeat(64),
     },
     {
       id: "op_fixture_west_restart",
@@ -389,7 +390,7 @@ async function readJSONBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function buildEvents(mode, agentID = "") {
+function buildEvents(mode, agentID = "", state = "ongoing") {
   if (mode === "empty") return { events: [] };
   const events = [
     {
@@ -478,7 +479,22 @@ function buildEvents(mode, agentID = "") {
   const projected = events.map((event) => acknowledgedFixtureEvents.has(event.id) && event.state === "active"
     ? { ...event, state: "acknowledged", acknowledgedAt: "2026-08-08T00:00:01Z" }
     : event);
-  return { events: agentID ? projected.filter((event) => event.agentId === agentID) : projected };
+  const scoped = agentID ? projected.filter((event) => event.agentId === agentID) : projected;
+  const ongoing = scoped.filter((event) => event.state !== "resolved");
+  const filtered = scoped.filter((event) => {
+    if (!state || state === "all") return true;
+    if (state === "ongoing") return event.state !== "resolved";
+    return event.state === state;
+  });
+  return {
+    agentId: agentID || undefined,
+    state,
+    events: filtered,
+    ongoingCount: ongoing.length,
+    activeCount: scoped.filter((event) => event.state === "active").length,
+    criticalCount: ongoing.filter((event) => event.severity === "critical").length,
+    resolvedCount: scoped.filter((event) => event.state === "resolved").length,
+  };
 }
 
 function fixtureMode(requestURL, cookieHeader = "") {
@@ -579,7 +595,7 @@ const server = createServer(async (request, response) => {
       } else if (mode === "error" || mode === "events-error") {
         sendJSON(response, 503, { error: "fixture events unavailable" });
       } else {
-        sendJSON(response, 200, buildEvents(mode, requestURL.searchParams.get("agent") || ""));
+        sendJSON(response, 200, buildEvents(mode, requestURL.searchParams.get("agent") || "", requestURL.searchParams.get("state") || "ongoing"));
       }
       return;
     }
@@ -593,14 +609,14 @@ const server = createServer(async (request, response) => {
         return;
       }
       const id = requestURL.searchParams.get("id") || "";
-      const event = buildEvents(mode).events.find((candidate) => candidate.id === id);
+      const event = buildEvents(mode, "", "all").events.find((candidate) => candidate.id === id);
       if (!event) {
         sendJSON(response, 404, { error: "fixture unknown event" });
       } else if (event.state === "resolved") {
         sendJSON(response, 409, { error: "fixture event resolved" });
       } else {
         acknowledgedFixtureEvents.add(id);
-        const updated = buildEvents(mode).events.find((candidate) => candidate.id === id);
+        const updated = buildEvents(mode, "", "all").events.find((candidate) => candidate.id === id);
         sendJSON(response, 200, updated);
       }
       return;
@@ -706,6 +722,7 @@ const server = createServer(async (request, response) => {
         requestedBy: "session:fixture123456789",
         requestedAt: "2026-08-08T00:00:00Z",
         startedAt: "2026-08-08T00:00:01Z",
+        targetImage: deployment.image,
       };
       fixtureOperations.unshift(operation);
       fixtureDeploymentPending.set(operation.id, 0);

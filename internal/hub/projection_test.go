@@ -114,3 +114,21 @@ func TestProjectionAcceptsPrivacyMinimizedSSHAuthSummary(t *testing.T) {
 		t.Fatalf("invalid SSH summary did not fail closed as partial telemetry: %+v", invalid)
 	}
 }
+
+func TestProjectObservationKeepsServiceWarningsWithoutInventingResources(t *testing.T) {
+	observation, err := projectObservation(
+		AgentConfig{ID: "host-a"}, true, "", shared.Ping{Hostname: "host-a"},
+		&shared.Status{Warnings: []string{warningServiceDiscoveryFailed, "docker ps 失败: permission denied"}},
+		[]shared.Service{{Key: "systemd:caddy.service", Kind: shared.KindSystemd, Name: "caddy", Status: "running"}},
+		time.Now().UTC(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observation.Resources != nil {
+		t.Fatalf("warning-only status invented resource telemetry: %+v", observation.Resources)
+	}
+	if len(observation.Warnings) != 2 || observation.Workloads[0].Key != "systemd:caddy.service" {
+		t.Fatalf("service warnings were not preserved: %+v", observation)
+	}
+}

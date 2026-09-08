@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	currentSchemaVersion = 8
+	currentSchemaVersion = 9
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
@@ -643,15 +643,93 @@ ORDER BY dedupe_key`, string(hostID))
 
 // Events returns a bounded operator timeline. Empty hostID means every host.
 func (s *SQLite) Events(ctx context.Context, hostID domain.HostID, limit int) ([]domain.Event, error) {
-	if limit < 1 || limit > 500 {
+	return s.ListEvents(ctx, EventFilter{HostID: hostID, Limit: limit})
+}
+
+// EventFilter is the operator timeline query. Empty HostID means every host;
+// empty State means every lifecycle.
+type EventFilter struct {
+	HostID domain.HostID
+	State  string
+	Limit  int
+}
+
+type EventCounts struct {
+	Ongoing  int
+	Active   int
+	Critical int
+	Resolved int
+}
+
+func eventStatePredicate(state string) (string, error) {
+	switch state {
+	case "", "all":
+		return "", nil
+	case "ongoing":
+		return "state IN ('active', 'acknowledged')", nil
+	case "active", "acknowledged", "resolved":
+		return "state = '" + state + "'", nil
+	default:
+		return "", errors.New("event state filter is invalid")
+	}
+}
+
+func eventWhere(hostID domain.HostID, state string) (string, []any, error) {
+	predicate, err := eventStatePredicate(state)
+	if err != nil {
+		return "", nil, err
+	}
+	clauses := make([]string, 0, 2)
+	args := make([]any, 0, 2)
+	if hostID != "" {
+		clauses = append(clauses, "host_id = ?")
+		args = append(args, string(hostID))
+	}
+	if predicate != "" {
+		clauses = append(clauses, predicate)
+	}
+	if len(clauses) == 0 {
+		return "", args, nil
+	}
+	return "WHERE " + strings.Join(clauses, " AND "), args, nil
+}
+
+func (s *SQLite) ListEvents(ctx context.Context, filter EventFilter) ([]domain.Event, error) {
+	if filter.Limit < 1 || filter.Limit > 500 {
 		return nil, errors.New("event limit must be between 1 and 500")
+	}
+	where, args, err := eventWhere(filter.HostID, filter.State)
+	if err != nil {
+		return nil, err
 	}
 	order := `ORDER BY CASE state WHEN 'active' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
 last_observed_at DESC, id DESC LIMIT ?`
-	if hostID == "" {
-		return loadEvents(ctx, s.db, order, limit)
+	suffix := order
+	if where != "" {
+		suffix = where + "\n" + order
 	}
-	return loadEvents(ctx, s.db, "WHERE host_id = ?\n"+order, string(hostID), limit)
+	return loadEvents(ctx, s.db, suffix, append(args, filter.Limit)...)
+}
+
+func (s *SQLite) EventCounts(ctx context.Context, hostID domain.HostID) (EventCounts, error) {
+	where, args, err := eventWhere(hostID, "")
+	if err != nil {
+		return EventCounts{}, err
+	}
+	query := `SELECT
+    COALESCE(SUM(CASE WHEN state IN ('active', 'acknowledged') THEN 1 ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN state = 'active' THEN 1 ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN state != 'resolved' AND severity = 'critical' THEN 1 ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN state = 'resolved' THEN 1 ELSE 0 END), 0)
+FROM events`
+	if where != "" {
+		query += "\n" + where
+	}
+	var counts EventCounts
+	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&counts.Ongoing, &counts.Active, &counts.Critical, &counts.Resolved); err != nil {
+		return EventCounts{}, err
+	}
+	return counts, nil
 }
 
 var ErrEventResolved = errors.New("event already resolved")
@@ -794,9 +872,9 @@ func (s *SQLite) CreateOperation(ctx context.Context, operation domain.Operation
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO operations(id, host_id, workload_key, kind, state, requested_by, requested_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)`, operation.ID, operation.HostID, operation.WorkloadKey,
-		operation.Kind, operation.State, operation.RequestedBy, formatTime(operation.RequestedAt))
+INSERT INTO operations(id, host_id, workload_key, kind, state, requested_by, requested_at, target_image)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, operation.ID, operation.HostID, operation.WorkloadKey,
+		operation.Kind, operation.State, operation.RequestedBy, formatTime(operation.RequestedAt), operation.TargetImage)
 	if err != nil {
 		return fmt.Errorf("create operation %s: %w", operation.ID, err)
 	}
@@ -930,7 +1008,7 @@ func (s *SQLite) Operations(ctx context.Context, hostID domain.HostID, limit int
 }
 
 const operationColumns = `id, host_id, workload_key, kind, state, requested_by,
-requested_at, started_at, finished_at, result_summary, error`
+requested_at, started_at, finished_at, result_summary, error, target_image`
 
 func loadOperation(ctx context.Context, queryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
@@ -949,7 +1027,7 @@ func scanOperation(scanner rowScanner) (domain.Operation, error) {
 	var startedAt, finishedAt sql.NullString
 	if err := scanner.Scan(&operation.ID, &operation.HostID, &operation.WorkloadKey, &operation.Kind,
 		&operation.State, &operation.RequestedBy, &requestedAt, &startedAt, &finishedAt,
-		&operation.ResultSummary, &operation.Error); err != nil {
+		&operation.ResultSummary, &operation.Error, &operation.TargetImage); err != nil {
 		return domain.Operation{}, err
 	}
 	var err error

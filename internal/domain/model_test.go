@@ -40,9 +40,20 @@ func TestOperationLifecycleValidation(t *testing.T) {
 
 	rolledBack := operation
 	rolledBack.Kind, rolledBack.WorkloadKey = OperationDeploy, "gateway"
+	rolledBack.TargetImage = "registry.example.test/lodge/gateway@sha256:" + strings.Repeat("2", 64)
 	rolledBack.State, rolledBack.ResultSummary, rolledBack.Error = OperationRolledBack, "已自动恢复到操作前版本", "health_verification_failed"
 	if err := rolledBack.Validate(); err != nil {
 		t.Fatalf("valid rolled-back deployment rejected: %v", err)
+	}
+	rolledBack.TargetImage = "nginx:latest"
+	if err := rolledBack.Validate(); err == nil {
+		t.Fatal("mutable deployment tag was accepted as audit evidence")
+	}
+	rolledBack.TargetImage = "registry.example.test/lodge/gateway@sha256:" + strings.Repeat("2", 64)
+	action := operation
+	action.TargetImage = rolledBack.TargetImage
+	if err := action.Validate(); err == nil {
+		t.Fatal("non-deployment operation accepted a target image")
 	}
 	rolledBack.Error = ""
 	if err := rolledBack.Validate(); err == nil {

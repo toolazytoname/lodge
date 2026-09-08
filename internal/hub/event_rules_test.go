@@ -108,6 +108,65 @@ func TestEventRulesUseHysteresisAndFailedWorkloads(t *testing.T) {
 	}
 }
 
+func TestEventRulesDoNotRecoverFromZeroedOrWarnedResourceCollection(t *testing.T) {
+	now := time.Now().UTC()
+	healthy := eventRuleObservation(now)
+	active := []domain.Event{
+		{ID: "evt_memory", HostID: "host-a", Kind: "resource.memory", Severity: domain.SeverityWarning, State: domain.EventActive, DedupeKey: "host-a:resource:memory", Title: "memory", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
+		{ID: "evt_disk", HostID: "host-a", Kind: "resource.disk", Severity: domain.SeverityWarning, State: domain.EventActive, DedupeKey: "host-a:resource:disk:/", Title: "disk", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
+		{ID: "evt_load", HostID: "host-a", Kind: "resource.load", Severity: domain.SeverityWarning, State: domain.EventActive, DedupeKey: "host-a:resource:load", Title: "load", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
+	}
+
+	zeroed := eventRuleObservation(now)
+	zeroed.Resources.Memory = domain.MemoryResources{}
+	zeroed.Resources.Disks = nil
+	zeroed.Resources.Load1 = 0
+	zeroed.Warnings = []string{"读取 /proc/loadavg 失败: permission denied"}
+	signals := evaluateEventSignals(&healthy, zeroed, active)
+	if len(signals) != 3 {
+		t.Fatalf("zeroed resource collection recovered alerts: %+v", signals)
+	}
+
+	warned := eventRuleObservation(now)
+	warned.Resources.Memory.UsedBytes = 10
+	warned.Resources.Disks[0].UsedBytes = 10
+	warned.Resources.Load1 = 0.1
+	warned.Warnings = []string{"读取 /proc/meminfo 失败: io error", "采集磁盘失败: statfs failed", "读取 /proc/loadavg 失败: io error"}
+	signals = evaluateEventSignals(&healthy, warned, active)
+	if len(signals) != 3 {
+		t.Fatalf("warned resource collection recovered alerts: %+v", signals)
+	}
+}
+
+func TestEventRulesDoNotRecoverFromPartialServiceDiscovery(t *testing.T) {
+	now := time.Now().UTC()
+	previous := eventRuleObservation(now)
+	previous.Workloads = append(previous.Workloads, domain.Workload{
+		HostID: "host-a", Key: "systemd:caddy.service", Kind: domain.WorkloadSystemd,
+		Name: "caddy", State: "failed",
+	})
+	active := []domain.Event{
+		{ID: "evt_docker", HostID: "host-a", Kind: "workload.failed", Severity: domain.SeverityCritical, State: domain.EventActive, DedupeKey: "host-a:workload:docker:web:failed", Title: "web", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
+		{ID: "evt_unit", HostID: "host-a", Kind: "workload.failed", Severity: domain.SeverityCritical, State: domain.EventActive, DedupeKey: "host-a:workload:systemd:caddy.service:failed", Title: "caddy", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
+		{ID: "evt_listener", HostID: "host-a", Kind: "listener.added", Severity: domain.SeverityWarning, State: domain.EventActive, DedupeKey: "host-a:listener:tcp://0.0.0.0:443", Title: "listener", FirstObservedAt: now.Add(-time.Minute), LastObservedAt: now.Add(-time.Minute)},
+	}
+
+	partial := eventRuleObservation(now.Add(time.Minute))
+	partial.Workloads = []domain.Workload{{
+		HostID: "host-a", Key: "systemd:caddy.service", Kind: domain.WorkloadSystemd,
+		Name: "caddy", State: "running",
+	}}
+	partial.Endpoints = nil
+	partial.Warnings = []string{"docker ps 失败: permission denied", "ss 采集失败（端口维度将缺失）: sudoers"}
+	signals := evaluateEventSignals(&previous, partial, active)
+	if len(signals) != 2 {
+		t.Fatalf("partial discovery should keep docker and listener risk: %+v", signals)
+	}
+	if signals[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:443" || signals[1].DedupeKey != "host-a:workload:docker:web:failed" {
+		t.Fatalf("partial discovery carried the wrong risks: %+v", signals)
+	}
+}
+
 func TestEventRulesDoNotInferRecoveryFromMissingTelemetry(t *testing.T) {
 	now := time.Now().UTC()
 	current := eventRuleObservation(now)

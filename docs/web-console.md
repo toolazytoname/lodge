@@ -58,16 +58,22 @@ it changes operator annotations and is not a route mutation control.
 
 ## Event API boundary
 
-`GET /api/events` returns at most 500 event views, globally or scoped by the
-validated `agent` query. Views include incident type, severity, lifecycle state,
-operator-facing detail, and audit timestamps; the internal deduplication key is
-not exposed. `POST /api/events/ack?id=...` requires an authenticated session and
-CSRF token. It is idempotent for an acknowledged event, returns not found for an
-unknown ID, and refuses to rewrite a resolved incident.
+`GET /api/events` returns at most 500 event views. The validated `agent` query
+scopes the list and summary counts to one host; `state` applies
+`ongoing|active|acknowledged|resolved|all` before the limit so filters are not
+restricted to the newest 100 mixed rows. The response also includes host-scoped
+ongoing, active, critical, and resolved counts. Views include incident type,
+severity, lifecycle state, operator-facing detail, and audit timestamps; the
+internal deduplication key is not exposed. `POST /api/events/ack?id=...`
+requires an authenticated session and CSRF token. It is idempotent for an
+acknowledged event, returns not found for an unknown ID, and refuses to rewrite
+a resolved incident.
 
 The Security event center defaults to ongoing incidents and keeps acknowledged
-risk visible until recovery. It shows host, kind, severity, duration, last
-observation, and lifecycle state; resolved history remains available by filter.
+risk visible until recovery. Changing host or lifecycle filters re-queries the
+API. It shows host, kind, severity, duration, last observation, and lifecycle
+state; resolved history remains available by filter. An expired session closes
+any open operation or annotation dialog before showing the login screen.
 Event API failure is isolated from current surface and history data. Webhook
 delivery is configured server-side and has no browser secret surface. This does
 not claim that a source IP identifies a person or organization; Lodge does

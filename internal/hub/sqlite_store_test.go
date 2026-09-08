@@ -212,6 +212,41 @@ func TestSQLiteStoreEvaluatesAndPersistsEventLifecycle(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreDoesNotRecoverAlertsFromPartialCollectors(t *testing.T) {
+	store, _ := openTestSQLiteStore(t, []AgentConfig{{ID: "host-a", Name: "Host A"}})
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	status := &shared.Status{
+		Load:   shared.Load{CPUs: 2, One: 4},
+		Memory: shared.Memory{TotalBytes: 100, UsedBytes: 92, AvailableBytes: 8},
+		Disks:  []shared.Disk{{Mount: "/", TotalBytes: 100, UsedBytes: 91, FreeBytes: 9}},
+	}
+	services := []shared.Service{{
+		Key: "docker:web", Kind: shared.KindDocker, Name: "web", Status: "failed",
+		Ports: []shared.Port{{Proto: "tcp", Bind: "0.0.0.0", Port: 443, Exposure: shared.ExposurePublic}},
+	}}
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, services, now); err != nil {
+		t.Fatal(err)
+	}
+
+	status.Warnings = []string{"读取 /proc/meminfo 失败: io error", "采集磁盘失败: statfs failed", "读取 /proc/loadavg 失败: io error", "docker ps 失败: permission denied"}
+	status.Memory = shared.Memory{}
+	status.Disks = nil
+	status.Load.One = 0
+	if err := store.Update(ctx, "host-a", true, "", shared.Ping{}, status, []shared.Service{{
+		Key: "systemd:caddy.service", Kind: shared.KindSystemd, Name: "caddy", Status: "running",
+	}}, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.database.ActiveEvents(ctx, "host-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 4 {
+		t.Fatalf("partial collectors recovered alerts: %+v", active)
+	}
+}
+
 func TestSQLiteStoreQueuesRuleTransitionsForConfiguredNotifications(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lodge.db")
 	store, err := OpenSQLiteStore(context.Background(), path,
@@ -258,7 +293,7 @@ func TestSQLiteStorePersistsAndQueuesSSHAttackSourceEvent(t *testing.T) {
 	if err != nil || !found || observation.SSH == nil || observation.SSH.FailedTotal != 61 {
 		t.Fatalf("SSH observation was not durable: found=%v observation=%+v err=%v", found, observation.SSH, err)
 	}
-	events, err := store.Events(context.Background(), "host-a", 10)
+	events, _, err := store.Events(context.Background(), EventQuery{HostID: "host-a", Limit: 10})
 	if err != nil || len(events) != 1 || events[0].Kind != "ssh.bruteforce" || events[0].Severity != domain.SeverityCritical || !strings.Contains(events[0].Detail, "203.0.113.44 × 51") {
 		t.Fatalf("SSH source event mismatch: events=%+v err=%v", events, err)
 	}

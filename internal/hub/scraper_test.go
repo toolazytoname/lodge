@@ -85,6 +85,44 @@ func TestScraperDoesNotRetryAuthenticationFailure(t *testing.T) {
 	}
 }
 
+type pathAgentTransport struct {
+	bodies map[string]string
+}
+
+func (transport *pathAgentTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	body, ok := transport.bodies[request.URL.Path]
+	if !ok {
+		return agentResponse(http.StatusNotFound, "missing "+request.URL.Path), nil
+	}
+	response := agentResponse(http.StatusOK, body)
+	response.Request = request
+	return response, nil
+}
+
+func TestScraperPersistsServiceDiscoveryWarnings(t *testing.T) {
+	transport := &pathAgentTransport{bodies: map[string]string{
+		"/v1/ping":     `{"ok":true,"hostname":"host-a","agentVersion":"0.2.0","apiVersion":"v1"}`,
+		"/v1/status":   `{"hostname":"host-a","load":{"cpus":2,"one":0.2},"memory":{"totalBytes":100,"usedBytes":40,"availableBytes":60},"disks":[{"mount":"/","totalBytes":100,"usedBytes":20,"freeBytes":80}]}`,
+		"/v1/services": `{"hostname":"host-a","collectedAt":"2026-08-08T00:00:00Z","services":[{"key":"systemd:caddy.service","kind":"systemd","name":"caddy","status":"running","maxExposure":"local"}],"warnings":["docker ps 失败: permission denied"]}`,
+	}}
+	store := NewMemStore()
+	if err := store.SetAgents(context.Background(), []AgentConfig{{ID: "host-a", Name: "Host A", URL: "http://agent", Token: "secret"}}); err != nil {
+		t.Fatal(err)
+	}
+	scraper := NewScraper(store, 0)
+	scraper.client = &http.Client{Transport: transport}
+	if err := scraper.scrapeOne(context.Background(), store.Agents()[0]); err != nil {
+		t.Fatalf("partial discovery scrape failed: %v", err)
+	}
+	snapshot := store.Snapshot()
+	if len(snapshot) != 1 || snapshot[0].Status == nil || len(snapshot[0].Services) != 1 {
+		t.Fatalf("runtime snapshot mismatch: %+v", snapshot)
+	}
+	if len(snapshot[0].Status.Warnings) != 1 || snapshot[0].Status.Warnings[0] != "docker ps 失败: permission denied" {
+		t.Fatalf("service discovery warning was discarded: %+v", snapshot[0].Status.Warnings)
+	}
+}
+
 func TestScraperBoundsRepeatedNotFoundRetry(t *testing.T) {
 	transport := &scriptedAgentTransport{responses: []*http.Response{
 		agentResponse(http.StatusNotFound, "old route"),

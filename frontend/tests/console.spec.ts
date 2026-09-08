@@ -20,7 +20,8 @@ test.describe("Lodge Web console", () => {
     const errors: string[] = [];
     browserErrors.set(page, errors);
     page.on("console", (message) => {
-      const expectedHTTPFailure = message.text().includes("status of 503 (Service Unavailable)");
+      const expectedHTTPFailure = message.text().includes("status of 503 (Service Unavailable)")
+        || message.text().includes("status of 401 (Unauthorized)");
       if (message.type() === "error" && !expectedHTTPFailure) errors.push(message.text());
     });
     page.on("pageerror", (error) => errors.push(error.message));
@@ -129,9 +130,16 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#eventSummary")).toContainText("2 待确认");
     await expect(page.locator("#eventList .event-row.acknowledged")).toHaveCount(2);
 
+    const eventRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/events") eventRequests.push(`${url.pathname}${url.search}`);
+    });
     await page.locator("#eventStateFilter").selectOption("resolved");
+    await expect.poll(() => eventRequests.some((path) => path.includes("state=resolved"))).toBeTruthy();
     await expect(page.locator("#eventList .event-row")).toHaveCount(2);
     await expect(page.locator("#eventList")).toContainText("新增公网绑定：8443/tcp");
+    await expect(page.locator("#eventSummary")).toContainText("4 进行中");
     await page.locator("#eventStateFilter").selectOption("ongoing");
 
     await page.locator("#historyAgent").selectOption("east");
@@ -209,6 +217,7 @@ test.describe("Lodge Web console", () => {
     await expect(deploymentDialog.locator("#actionResultSummary")).toContainText("发布成功");
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("部署");
     await expect(page.locator("#operationAudit .operation-row").first()).toContainText("成功");
+    await expect(page.locator("#operationAudit .operation-row").first()).toContainText("sha256:222222222222…");
     await expect(page.locator("#notice")).toContainText("健康验证已通过");
     await expect(page.locator("#operationAudit .operation-row")).toHaveCount(3);
     await deploymentDialog.locator("#cancelActionBtn").click();
@@ -279,5 +288,20 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#deploymentList")).toContainText("发布策略暂时不可用");
     await expect(page.locator("#operationAudit .operation-row")).toHaveCount(1);
     expect(failedAPIs.sort()).toEqual(["/api/agents", "/api/deployments", "/api/events", "/api/events", "/api/history", "/api/link-checks", "/api/operations", "/api/services", "/api/services"]);
+  });
+
+  test("expired session closes an open operation dialog before showing login", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/?fixture=normal#operations");
+    await page.getByRole("button", { name: "读取日志 Gateway", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "读取日志 Gateway" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("确认短语").fill("确认读取日志 Gateway");
+    await page.route("**/api/actions/execute", async (route) => {
+      await route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "unauthorized" }) });
+    });
+    await dialog.getByRole("button", { name: "确认执行", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "欢迎回来" })).toBeVisible();
+    await expect(dialog).not.toBeVisible();
   });
 });

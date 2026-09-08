@@ -94,8 +94,13 @@ type EventView struct {
 }
 
 type EventsResponse struct {
-	AgentID string      `json:"agentId,omitempty"`
-	Events  []EventView `json:"events"`
+	AgentID       string      `json:"agentId,omitempty"`
+	State         string      `json:"state,omitempty"`
+	Events        []EventView `json:"events"`
+	OngoingCount  int         `json:"ongoingCount"`
+	ActiveCount   int         `json:"activeCount"`
+	CriticalCount int         `json:"criticalCount"`
+	ResolvedCount int         `json:"resolvedCount"`
 }
 
 // WebLinkCheckView is bounded probe evidence from the Hub's network view.
@@ -150,6 +155,7 @@ type OperationView struct {
 	FinishedAt    string                `json:"finishedAt,omitempty"`
 	ResultSummary string                `json:"resultSummary,omitempty"`
 	ErrorKind     string                `json:"errorKind,omitempty"`
+	TargetImage   string                `json:"targetImage,omitempty"`
 }
 
 type OperationsResponse struct {

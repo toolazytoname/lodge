@@ -331,6 +331,7 @@ type Operation struct {
 	FinishedAt    *time.Time     `json:"finishedAt,omitempty"`
 	ResultSummary string         `json:"resultSummary,omitempty"`
 	Error         string         `json:"error,omitempty"`
+	TargetImage   string         `json:"targetImage,omitempty"`
 }
 
 // Validate keeps the durable audit row monotonic and secret-free. Error is a
@@ -347,11 +348,17 @@ func (operation Operation) Validate() error {
 		if err := validateIdentifier("operation workload key", operation.WorkloadKey, 512); err != nil {
 			return err
 		}
+		if operation.TargetImage != "" {
+			return errors.New("non-deployment operation must not record a target image")
+		}
 	case OperationDeploy, OperationRollback:
 		if operation.WorkloadKey != "" {
 			if err := validateIdentifier("operation workload key", operation.WorkloadKey, 512); err != nil {
 				return err
 			}
+		}
+		if operation.TargetImage != "" && !validImmutableImageReference(operation.TargetImage) {
+			return errors.New("operation target image is invalid")
 		}
 	default:
 		return fmt.Errorf("invalid operation kind %q", operation.Kind)
@@ -401,6 +408,24 @@ func (operation Operation) Validate() error {
 		return fmt.Errorf("invalid operation state %q", operation.State)
 	}
 	return nil
+}
+
+func validImmutableImageReference(image string) bool {
+	if len(image) == 0 || len(image) > 512 || containsControl(image) || strings.ContainsAny(image, " \t") {
+		return false
+	}
+	repository, digest, found := strings.Cut(image, "@sha256:")
+	if !found || repository == "" || len(digest) != 64 {
+		return false
+	}
+	for _, character := range digest {
+		digit := character >= '0' && character <= '9'
+		hex := character >= 'a' && character <= 'f'
+		if !digit && !hex {
+			return false
+		}
+	}
+	return true
 }
 
 func validOperationErrorCategory(value string) bool {

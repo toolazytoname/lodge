@@ -127,7 +127,7 @@ interface PendingDeployment {
 const state: FleetState = {
   agents: [],
   groups: [],
-  events: { events: [] },
+  events: { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0 },
   linkChecks: {
     checks: [],
     summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 },
@@ -218,11 +218,24 @@ function setRefreshing(value: boolean): void {
 }
 
 function showLogin(): void {
+  dismissTransientOverlays();
   byID("login").classList.remove("hidden");
   byID("app").classList.add("hidden");
   setNotice(null);
   if (refreshTimer !== null) window.clearInterval(refreshTimer);
   refreshTimer = null;
+}
+
+function dismissTransientOverlays(): void {
+  actionExecuting = false;
+  pendingAction = null;
+  pendingDeployment = null;
+  activeDeploymentOperationID = null;
+  editingService = null;
+  const actionDialog = byID<HTMLDialogElement>("actionDialog");
+  if (actionDialog.open) actionDialog.close();
+  const annotationDialog = byID<HTMLDialogElement>("annotationDialog");
+  if (annotationDialog.open) annotationDialog.close();
 }
 
 function showDashboard(): void {
@@ -303,7 +316,7 @@ async function refresh(): Promise<void> {
     api<AgentSummary[]>("/api/agents"),
     api<AgentServices[]>("/api/services"),
     api<WebLinkChecksResponse>("/api/link-checks"),
-    api<EventsResponse>("/api/events?limit=100"),
+    api<EventsResponse>(eventsRequestPath()),
     api<OperationsResponse>("/api/operations?limit=100"),
   ]);
   if (!authed) {
@@ -1173,15 +1186,33 @@ function eventDuration(event: EventView): string {
   return `持续 ${Math.round(hours / 2.4) / 10} 天`;
 }
 
-function filteredEvents(): EventView[] {
+function eventsRequestPath(): string {
+  const params = new URLSearchParams();
   const agent = byID<HTMLSelectElement>("eventAgentFilter").value || "all";
   const lifecycle = byID<HTMLSelectElement>("eventStateFilter").value || "ongoing";
-  return state.events.events.filter((event) => {
-    if (agent !== "all" && event.agentId !== agent) return false;
-    if (lifecycle === "ongoing") return event.state !== "resolved";
-    if (lifecycle !== "all") return event.state === lifecycle;
-    return true;
-  });
+  if (agent !== "all") params.set("agent", agent);
+  if (lifecycle) params.set("state", lifecycle);
+  params.set("limit", "100");
+  return `/api/events?${params}`;
+}
+
+async function loadEvents(): Promise<void> {
+  if (!authed) return;
+  try {
+    const events = await api<EventsResponse>(eventsRequestPath());
+    if (!authed) return;
+    state.events = events;
+    state.eventsLoaded = true;
+    state.eventsError = "";
+  } catch (loadError) {
+    if (!authed) return;
+    state.eventsError = errorMessage(loadError);
+  }
+  renderSecurity();
+}
+
+function filteredEvents(): EventView[] {
+  return state.events.events;
 }
 
 function eventRow(event: EventView): HTMLElement {
@@ -1224,15 +1255,15 @@ function renderEvents(): void {
     replaceChildren(list, []);
     return;
   }
-  const ongoing = state.events.events.filter((event) => event.state !== "resolved");
-  const unacknowledged = ongoing.filter((event) => event.state === "active");
-  const critical = ongoing.filter((event) => event.severity === "critical");
-  const resolved = state.events.events.filter((event) => event.state === "resolved");
+  const ongoing = state.events.ongoingCount;
+  const unacknowledged = state.events.activeCount;
+  const critical = state.events.criticalCount;
+  const resolved = state.events.resolvedCount;
   const stats: Node[] = [
-    element("span", ongoing.length ? "event-stat warning" : "event-stat calm", `${ongoing.length} 进行中`),
-    element("span", unacknowledged.length ? "event-stat critical" : "event-stat calm", `${unacknowledged.length} 待确认`),
-    element("span", critical.length ? "event-stat critical" : "event-stat calm", `${critical.length} 严重`),
-    element("span", "event-stat calm", `${resolved.length} 已恢复`),
+    element("span", ongoing ? "event-stat warning" : "event-stat calm", `${ongoing} 进行中`),
+    element("span", unacknowledged ? "event-stat critical" : "event-stat calm", `${unacknowledged} 待确认`),
+    element("span", critical ? "event-stat critical" : "event-stat calm", `${critical} 严重`),
+    element("span", "event-stat calm", `${resolved} 已恢复`),
   ];
   if (state.eventsError) stats.push(element("span", "event-summary-error", `最近更新失败：${state.eventsError}`));
   replaceChildren(summary, stats);
@@ -1255,10 +1286,9 @@ async function acknowledgeEvent(id: string, button: HTMLButtonElement): Promise<
   button.textContent = "确认中";
   try {
     const updated = await api<EventView>(`/api/events/ack?id=${encodeURIComponent(id)}`, { method: "POST" });
-    state.events.events = state.events.events.map((event) => event.id === updated.id ? updated : event);
     state.eventsError = "";
-    renderSecurity();
     setNotice(`已确认事件“${updated.title}”。风险会保持进行中，直到新观测证明恢复。`);
+    await loadEvents();
   } catch (acknowledgementError) {
     button.disabled = false;
     button.textContent = "重试确认";
@@ -1270,8 +1300,8 @@ function renderSecurity(): void {
   const entries = allServiceEntries();
   const publicEntries = entries.filter((entry) => serviceExposure(entry.service) === "public");
   const unknown = entries.filter((entry) => entry.service.unidentified).length;
-  const activeEvents = state.events.events.filter((event) => event.state === "active");
-  const criticalEvents = state.events.events.filter((event) => event.state !== "resolved" && event.severity === "critical");
+  const activeEvents = state.events.activeCount;
+  const criticalEvents = state.events.criticalCount;
   replaceChildren(byID("securityMetrics"), [
     state.servicesLoaded
       ? metricCard("公网服务", publicEntries.length, "监听暴露范围为公网", publicEntries.length ? "warning" : "good")
@@ -1280,10 +1310,10 @@ function renderSecurity(): void {
       ? metricCard("待归因", unknown, "来源尚未确认", unknown ? "warning" : "good")
       : metricCard("待归因", "N/A", "服务数据暂不可用", "critical"),
     state.eventsLoaded
-      ? metricCard("待确认事件", activeEvents.length, "需要操作者确认", activeEvents.length ? "warning" : "good")
+      ? metricCard("待确认事件", activeEvents, "需要操作者确认", activeEvents ? "warning" : "good")
       : metricCard("待确认事件", "N/A", "事件数据暂不可用", "critical"),
     state.eventsLoaded
-      ? metricCard("严重进行中", criticalEvents.length, "包含已确认事件", criticalEvents.length ? "critical" : "good")
+      ? metricCard("严重进行中", criticalEvents, "包含已确认事件", criticalEvents ? "critical" : "good")
       : metricCard("严重进行中", "N/A", "事件数据暂不可用", "critical"),
   ]);
 
@@ -1537,6 +1567,9 @@ function renderOperationAudit(): void {
       element("span", "", operationDuration(operation) || "未完成"),
       element("span", "operation-requester", operation.requestedBy.startsWith("session:") ? `会话 ${operation.requestedBy.slice(8)}` : operation.requestedBy),
     );
+    if (operation.targetImage) {
+      metadata.append(element("code", "deployment-digest", shortImageDigest(operation.targetImage)));
+    }
     copy.append(metadata);
     row.append(stateCell, copy);
     return row;
@@ -1959,6 +1992,7 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
       void trackDeploymentOperation(response.operation.id, deployment.agentID, deployment.agentName, deployment.definition.stackLabel);
     }
   } catch (actionError) {
+    if (!authed) return;
     const audited = action ? executionResponseFromError(actionError) : null;
     if (audited) {
       showActionExecutionResult(audited);
@@ -1968,6 +2002,7 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
       error.classList.remove("hidden");
     }
   } finally {
+    if (!authed) return;
     actionExecuting = false;
     close.disabled = false;
     if (!byID("actionConfirmationFields").classList.contains("hidden")) {
@@ -2079,8 +2114,8 @@ byID<HTMLSelectElement>("historyAgent").addEventListener("change", (event) => {
   renderHistory();
   void loadSelectedHistory(false);
 });
-byID<HTMLSelectElement>("eventAgentFilter").addEventListener("change", renderEvents);
-byID<HTMLSelectElement>("eventStateFilter").addEventListener("change", renderEvents);
+byID<HTMLSelectElement>("eventAgentFilter").addEventListener("change", () => void loadEvents());
+byID<HTMLSelectElement>("eventStateFilter").addEventListener("change", () => void loadEvents());
 byID<HTMLSelectElement>("actionAgent").addEventListener("change", (event) => {
   selectedActionAgent = (event.currentTarget as HTMLSelectElement).value;
   renderOperations();

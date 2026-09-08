@@ -127,7 +127,12 @@ export interface EventView {
 
 export interface EventsResponse {
   agentId?: string;
+  state?: string;
   events: Array<EventView>;
+  ongoingCount: number;
+  activeCount: number;
+  criticalCount: number;
+  resolvedCount: number;
 }
 
 export type Exposure = "local" | "tailnet" | "public" | "other";
@@ -170,6 +175,7 @@ export interface OperationView {
   finishedAt?: string;
   resultSummary?: string;
   errorKind?: string;
+  targetImage?: string;
 }
 
 export interface OperationsResponse {

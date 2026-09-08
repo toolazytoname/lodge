@@ -101,9 +101,22 @@ func (s *Scraper) scrapeOne(ctx context.Context, a AgentConfig) error {
 		persistErr := s.store.Update(ctx, a.ID, false, collectionErr.Error(), ping, nil, nil, observedAt)
 		return errors.Join(collectionErr, persistErr)
 	}
+	var extraWarnings []string
+	if se1 != nil {
+		extraWarnings = append(extraWarnings, warningStatusCollectionFailed)
+	}
+	if se2 != nil {
+		extraWarnings = append(extraWarnings, warningServiceDiscoveryFailed)
+	} else {
+		extraWarnings = append(extraWarnings, sv.Warnings...)
+	}
 	var stPtr *shared.Status
 	if se1 == nil {
-		stPtr = &st
+		copied := st
+		copied.Warnings = append(append([]string{}, copied.Warnings...), extraWarnings...)
+		stPtr = &copied
+	} else if len(extraWarnings) > 0 {
+		stPtr = &shared.Status{Warnings: append([]string{}, extraWarnings...)}
 	}
 	services := sv.Services
 	if se2 != nil {

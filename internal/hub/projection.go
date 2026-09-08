@@ -171,6 +171,9 @@ func projectBinding(exposure shared.Exposure) domain.BindingScope {
 }
 
 func projectResources(status *shared.Status) *domain.Resources {
+	if !statusHasResourceTelemetry(status) {
+		return nil
+	}
 	resources := &domain.Resources{
 		CPUs:   status.Load.CPUs,
 		Load1:  status.Load.One,
@@ -199,4 +202,8 @@ func projectResources(status *shared.Status) *domain.Resources {
 		}
 	}
 	return resources
+}
+
+func statusHasResourceTelemetry(status *shared.Status) bool {
+	return status.Load.CPUs > 0 || status.Memory.TotalBytes > 0 || len(status.Disks) > 0 || status.Docker != nil
 }

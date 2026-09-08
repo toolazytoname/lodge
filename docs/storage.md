@@ -50,6 +50,10 @@ policy target key, typed action, pseudonymous requester, monotonic lifecycle
 timestamps, bounded summary, and sanitized error category. Transient log lines,
 Agent URL/token, commands, argv, helper stderr, and raw transport errors are not
 stored.
+Schema v9 adds `target_image` to operations. New deploy and rollback rows store
+the immutable repository digest selected from live root policy. Historical
+rows keep an empty string. Mutable tags, credentials, and Compose content are
+rejected.
 
 ## Database invariants
 
