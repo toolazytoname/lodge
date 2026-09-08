@@ -62,6 +62,11 @@ Schema v11 adds the accepted deployment identity (`deployment_id`,
 `target_release_id`, `before_release_id`) and the Agent-confirmed
 `after_release_id`. Empty release IDs mean unknown; the target image is never
 treated as the actually running image.
+Schema v12 records whether a host's listener baseline has been established.
+An established host with zero wildcard keys is distinct from a host that has
+never had a complete collection. Upgrade backfill copies the last complete
+historical observation when one exists; otherwise the Hub waits for a complete
+collection before treating ports as new.
 
 ## Database invariants
 

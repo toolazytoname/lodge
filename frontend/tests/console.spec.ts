@@ -352,6 +352,111 @@ test.describe("Lodge Web console", () => {
     await expect(page.locator("#notice")).toContainText("风险会保持进行中");
   });
 
+  test("switching event filters does not append the previous page", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/?fixture=many-events#security");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(50);
+    const requests: string[] = [];
+    let releaseFilter: () => void = () => {};
+    let markFilter: () => void = () => {};
+    const held = new Promise<void>((resolve) => { releaseFilter = resolve; });
+    const seen = new Promise<void>((resolve) => { markFilter = resolve; });
+    await page.route("**/api/events?**", async (route) => {
+      const url = new URL(route.request().url());
+      requests.push(url.search);
+      const response = await route.fetch();
+      if (url.searchParams.get("agent") === "east" && !url.searchParams.get("after") && !url.searchParams.get("snapshot")) {
+        markFilter();
+        await held;
+      }
+      await route.fulfill({ response });
+    });
+    await page.locator("#eventAgentFilter").selectOption("east");
+    await seen;
+    await expect(page.getByRole("button", { name: "加载更多", exact: true })).toHaveCount(0);
+    expect(requests.filter((search) => search.includes("agent=east") && (search.includes("after=") || search.includes("offset=")))).toEqual([]);
+    releaseFilter();
+    await expect(page.locator("#eventSummary")).toContainText("已加载 0 / 0");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(0);
+    await expect(page.locator("#eventAgentFilter")).toHaveValue("east");
+  });
+
+  test("refreshing more than five hundred events uses legal page sizes", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const requestedLimits: number[] = [];
+    const catalog = Array.from({ length: 550 }, (_, index) => ({
+      id: `bulk_${index}`,
+      agentId: "harbor",
+      kind: "workload.failed",
+      severity: "critical",
+      state: "active",
+      title: `Bulk ${index}`,
+      detail: "bulk incident",
+      firstObservedAt: "2026-08-07T23:00:00Z",
+      lastObservedAt: "2026-08-08T00:00:00Z",
+    }));
+    const snapshots = new Map<string, string[]>();
+    let snapshotSeq = 0;
+    await page.route("**/api/events?**", async (route) => {
+      const url = new URL(route.request().url());
+      const limit = Number(url.searchParams.get("limit") || 50);
+      requestedLimits.push(limit);
+      if (limit > 500) {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "event limit must be between 1 and 500" }),
+        });
+        return;
+      }
+      let snapshot = url.searchParams.get("snapshot") || "";
+      const after = url.searchParams.get("after") || "";
+      let ids = snapshot ? snapshots.get(snapshot) : undefined;
+      if (!ids) {
+        snapshotSeq += 1;
+        snapshot = `snap_${snapshotSeq.toString(16).padStart(32, "0")}`;
+        ids = catalog.map((event) => event.id);
+        snapshots.set(snapshot, ids);
+      }
+      const byID = new Map(catalog.map((event) => [event.id, event]));
+      let start = 0;
+      if (after) {
+        const index = ids.indexOf(after);
+        start = index >= 0 ? index + 1 : ids.length;
+      }
+      const pageIDs = ids.slice(start, start + limit);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          events: pageIDs.map((id) => byID.get(id)),
+          ongoingCount: 550,
+          activeCount: 550,
+          criticalCount: 550,
+          resolvedCount: 0,
+          matchedCount: ids.length,
+          snapshot,
+          hasMore: start + pageIDs.length < ids.length,
+          offset: start,
+          limit,
+        }),
+      });
+    });
+    await page.goto("/?fixture=normal#security");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(50);
+    for (let count = 100; count <= 550; count += 50) {
+      await page.getByRole("button", { name: "加载更多", exact: true }).click();
+      await expect(page.locator("#eventList .event-row")).toHaveCount(count);
+    }
+    await expect(page.locator("#eventSummary")).toContainText("已加载 550 / 550");
+    await page.locator("#refreshBtn").click();
+    await expect(page.locator("#eventSummary")).toContainText("已加载 550 / 550");
+    await expect(page.locator("#eventSummary")).not.toContainText("最近更新失败");
+    await expect(page.locator("#eventList .event-row")).toHaveCount(550);
+    expect(requestedLimits.length).toBeGreaterThan(0);
+    expect(requestedLimits.every((limit) => limit >= 1 && limit <= 500)).toBeTruthy();
+  });
+
   test("late action results cannot restore logs after logout or relogin", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/?fixture=normal#operations");
@@ -387,5 +492,63 @@ test.describe("Lodge Web console", () => {
     await page.waitForTimeout(200);
     await expect(page.locator("#actionResultLogs")).toHaveText("");
     await expect(page.getByRole("dialog", { name: "读取日志 Gateway" })).not.toBeVisible();
+  });
+
+  test("stale action responses cannot unlock a newer execution", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/?fixture=normal#operations");
+    let releaseFirst: () => void = () => {};
+    let releaseSecond: () => void = () => {};
+    let markFirst: () => void = () => {};
+    let markSecond: () => void = () => {};
+    const firstSeen = new Promise<void>((resolve) => { markFirst = resolve; });
+    const secondSeen = new Promise<void>((resolve) => { markSecond = resolve; });
+    const firstHeld = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const secondHeld = new Promise<void>((resolve) => { releaseSecond = resolve; });
+    let calls = 0;
+    await page.route("**/api/actions/execute", async (route) => {
+      const index = calls;
+      calls += 1;
+      const response = await route.fetch();
+      if (index === 0) {
+        markFirst();
+        await firstHeld;
+      } else if (index === 1) {
+        markSecond();
+        await secondHeld;
+      }
+      await route.fulfill({ response });
+    });
+    async function submit(): Promise<void> {
+      await page.getByRole("button", { name: "读取日志 Gateway", exact: true }).click();
+      await page.locator("#actionConfirmation").fill("确认读取日志 Gateway");
+      await page.locator("#executeActionBtn").click();
+    }
+    await submit();
+    await firstSeen;
+    await page.route("**/api/events?**", (route) => route.fulfill({
+      status: 401, contentType: "application/json", body: JSON.stringify({ error: "unauthorized" }),
+    }));
+    await page.evaluate(() => (document.querySelector("#refreshBtn") as HTMLButtonElement).click());
+    await expect(page.locator("#login")).not.toHaveClass(/hidden/);
+    await expect(page.locator("#refreshBtn")).not.toBeDisabled();
+    await page.unroute("**/api/events?**");
+    await page.getByLabel("访问密码").fill("fixture");
+    await page.getByRole("button", { name: "进入控制台" }).click();
+    await expect(page.locator("#login")).toHaveClass(/hidden/);
+    await expect(page.getByRole("heading", { name: "运维中心" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "读取日志 Gateway", exact: true })).toBeVisible();
+    await submit();
+    await secondSeen;
+    await expect(page.locator("#executeActionBtn")).toBeDisabled();
+    await expect(page.locator("#executeActionBtn")).toHaveText("执行中");
+    releaseFirst();
+    await page.waitForTimeout(200);
+    await expect(page.locator("#executeActionBtn")).toBeDisabled();
+    await expect(page.locator("#executeActionBtn")).toHaveText("执行中");
+    await expect(page.locator("#actionResult")).toHaveClass(/hidden/);
+    releaseSecond();
+    await expect(page.locator("#actionResult")).not.toHaveClass(/hidden/);
+    await expect(page.locator("#actionResultSummary")).toContainText("动作完成");
   });
 });

@@ -61,10 +61,15 @@ it changes operator annotations and is not a route mutation control.
 `GET /api/events` returns at most 500 event views. The validated `agent` query
 scopes the list and summary counts to one host; `state` applies
 `ongoing|active|acknowledged|resolved|all` before the limit so filters are not
-restricted to the newest mixed rows. `offset` pages through the same stable
-order. The response includes host-scoped ongoing, active, critical, and
-resolved counts plus the matched total for the current filter. The console
-loads pages with “加载更多” instead of truncating the list. Views include incident type,
+restricted to the newest mixed rows. The first page freezes matching event IDs
+into a `snapshot`; later pages pass that token plus `after` (the last event ID)
+instead of a live `OFFSET`. Membership and order stay fixed for that paging
+session, so acknowledgement, recovery, new incidents, or observation updates
+cannot skip or duplicate rows. The response includes host-scoped ongoing,
+active, critical, and resolved counts, the snapshot size as `matchedCount`,
+and `hasMore`. The console loads pages with “加载更多” instead of truncating
+the list, binds the visible rows to the current filter, and refreshes in legal
+page sizes without dropping already loaded later records. Views include incident type,
 severity, lifecycle state, operator-facing detail, and audit timestamps; the
 internal deduplication key is not exposed. `POST /api/events/ack?id=...`
 requires an authenticated session and CSRF token. It is idempotent for an
@@ -72,8 +77,8 @@ acknowledged event, returns not found for an unknown ID, and refuses to rewrite
 a resolved incident.
 
 The Security event center defaults to ongoing incidents and keeps acknowledged
-risk visible until recovery. Changing host or lifecycle filters re-queries the
-API. It shows host, kind, severity, duration, last observation, and lifecycle
+risk visible until recovery. Changing host or lifecycle filters resets paging
+and re-queries the first page of the new filter. It shows host, kind, severity, duration, last observation, and lifecycle
 state; resolved history remains available by filter. An expired session closes
 any open operation or annotation dialog before showing the login screen.
 Event API failure is isolated from current surface and history data. Webhook

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/toolazytoname/lodge/internal/domain"
@@ -22,15 +23,27 @@ import (
 )
 
 const (
-	currentSchemaVersion = 11
+	currentSchemaVersion = 12
 	// SQLite compares these TEXT timestamps lexically. A fixed-width fractional
 	// component keeps whole-second and sub-second values in chronological order.
 	databaseTimeLayout = "2006-01-02T15:04:05.000000000Z"
+	eventSnapshotTTL   = time.Hour
+	eventSnapshotLimit = 64
 )
 
 type SQLite struct {
-	db   *sql.DB
-	path string
+	db          *sql.DB
+	path        string
+	snapshotsMu sync.Mutex
+	snapshots   map[string]*eventListSnapshot
+}
+
+type eventListSnapshot struct {
+	id        string
+	hostID    domain.HostID
+	state     string
+	ids       []string
+	createdAt time.Time
 }
 
 func OpenSQLite(path string) (*SQLite, error) {
@@ -55,7 +68,7 @@ func OpenSQLite(path string) (*SQLite, error) {
 	// sufficient for a five-host control plane. WAL still permits backup reads.
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
-	store := &SQLite{db: db, path: path}
+	store := &SQLite{db: db, path: path, snapshots: make(map[string]*eventListSnapshot)}
 	if err := store.configure(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -657,12 +670,23 @@ func (s *SQLite) Events(ctx context.Context, hostID domain.HostID, limit int) ([
 }
 
 // EventFilter is the operator timeline query. Empty HostID means every host;
-// empty State means every lifecycle.
+// empty State means every lifecycle. Paging after the first page must reuse
+// Snapshot; AfterID is the last event ID from the previous page of that snapshot.
 type EventFilter struct {
-	HostID domain.HostID
-	State  string
-	Limit  int
-	Offset int
+	HostID   domain.HostID
+	State    string
+	Limit    int
+	Offset   int
+	AfterID  string
+	Snapshot string
+}
+
+// EventListPage is one consistent slice of a frozen event-id snapshot.
+type EventListPage struct {
+	Snapshot string
+	Matched  int
+	Offset   int
+	HasMore  bool
 }
 
 type EventCounts struct {
@@ -707,23 +731,190 @@ func eventWhere(hostID domain.HostID, state string) (string, []any, error) {
 }
 
 func (s *SQLite) ListEvents(ctx context.Context, filter EventFilter) ([]domain.Event, error) {
+	events, _, err := s.ListEventPage(ctx, filter)
+	return events, err
+}
+
+func (s *SQLite) ListEventPage(ctx context.Context, filter EventFilter) ([]domain.Event, EventListPage, error) {
 	if filter.Limit < 1 || filter.Limit > 500 {
-		return nil, errors.New("event limit must be between 1 and 500")
+		return nil, EventListPage{}, errors.New("event limit must be between 1 and 500")
 	}
 	if filter.Offset < 0 {
-		return nil, errors.New("event offset must not be negative")
+		return nil, EventListPage{}, errors.New("event offset must not be negative")
 	}
-	where, args, err := eventWhere(filter.HostID, filter.State)
+	if strings.TrimSpace(filter.AfterID) != filter.AfterID || len(filter.AfterID) > 128 {
+		return nil, EventListPage{}, ErrEventCursor
+	}
+	if filter.Snapshot != "" && !validEventSnapshotID(filter.Snapshot) {
+		return nil, EventListPage{}, ErrEventSnapshot
+	}
+	if filter.Snapshot == "" && (filter.Offset > 0 || filter.AfterID != "") {
+		return nil, EventListPage{}, errors.New("event snapshot is required to page")
+	}
+	var snapshot *eventListSnapshot
+	if filter.Snapshot == "" {
+		where, args, err := eventWhere(filter.HostID, filter.State)
+		if err != nil {
+			return nil, EventListPage{}, err
+		}
+		ids, err := s.listEventIDs(ctx, where, args)
+		if err != nil {
+			return nil, EventListPage{}, err
+		}
+		snapshot, err = s.putEventSnapshot(filter.HostID, filter.State, ids)
+		if err != nil {
+			return nil, EventListPage{}, err
+		}
+	} else {
+		loaded, err := s.getEventSnapshot(filter.Snapshot)
+		if err != nil {
+			return nil, EventListPage{}, err
+		}
+		if loaded.hostID != filter.HostID || loaded.state != filter.State {
+			return nil, EventListPage{}, ErrEventSnapshot
+		}
+		snapshot = loaded
+	}
+	start := filter.Offset
+	if filter.AfterID != "" {
+		index := -1
+		for i, id := range snapshot.ids {
+			if id == filter.AfterID {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			return nil, EventListPage{}, ErrEventCursor
+		}
+		start = index + 1
+	}
+	if start > len(snapshot.ids) {
+		start = len(snapshot.ids)
+	}
+	end := start + filter.Limit
+	if end > len(snapshot.ids) {
+		end = len(snapshot.ids)
+	}
+	events, err := s.loadEventsByIDs(ctx, snapshot.ids[start:end])
+	if err != nil {
+		return nil, EventListPage{}, err
+	}
+	return events, EventListPage{
+		Snapshot: snapshot.id,
+		Matched:  len(snapshot.ids),
+		Offset:   start,
+		HasMore:  end < len(snapshot.ids),
+	}, nil
+}
+
+const eventListOrder = `CASE state WHEN 'active' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END, last_observed_at DESC, id DESC`
+
+func (s *SQLite) listEventIDs(ctx context.Context, where string, args []any) ([]string, error) {
+	query := "SELECT id FROM events"
+	if where != "" {
+		query += "\n" + where
+	}
+	query += "\nORDER BY " + eventListOrder
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	order := `ORDER BY CASE state WHEN 'active' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
-last_observed_at DESC, id DESC LIMIT ? OFFSET ?`
-	suffix := order
-	if where != "" {
-		suffix = where + "\n" + order
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
 	}
-	return loadEvents(ctx, s.db, suffix, append(args, filter.Limit, filter.Offset)...)
+	return ids, rows.Err()
+}
+
+func (s *SQLite) loadEventsByIDs(ctx context.Context, ids []string) ([]domain.Event, error) {
+	if len(ids) == 0 {
+		return []domain.Event{}, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	events, err := loadEvents(ctx, s.db, "WHERE id IN ("+strings.Join(placeholders, ", ")+")", args...)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]domain.Event, len(events))
+	for _, event := range events {
+		byID[event.ID] = event
+	}
+	ordered := make([]domain.Event, 0, len(ids))
+	for _, id := range ids {
+		if event, ok := byID[id]; ok {
+			ordered = append(ordered, event)
+		}
+	}
+	return ordered, nil
+}
+
+func validEventSnapshotID(id string) bool {
+	if !strings.HasPrefix(id, "snap_") || len(id) != len("snap_")+32 {
+		return false
+	}
+	for _, char := range id[5:] {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SQLite) putEventSnapshot(hostID domain.HostID, state string, ids []string) (*eventListSnapshot, error) {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return nil, fmt.Errorf("generate event snapshot id: %w", err)
+	}
+	snapshot := &eventListSnapshot{
+		id:        "snap_" + hex.EncodeToString(random[:]),
+		hostID:    hostID,
+		state:     state,
+		ids:       append([]string(nil), ids...),
+		createdAt: time.Now().UTC(),
+	}
+	s.snapshotsMu.Lock()
+	defer s.snapshotsMu.Unlock()
+	now := snapshot.createdAt
+	for id, existing := range s.snapshots {
+		if now.Sub(existing.createdAt) > eventSnapshotTTL {
+			delete(s.snapshots, id)
+		}
+	}
+	for len(s.snapshots) >= eventSnapshotLimit {
+		var oldestID string
+		var oldest time.Time
+		for id, existing := range s.snapshots {
+			if oldestID == "" || existing.createdAt.Before(oldest) {
+				oldestID = id
+				oldest = existing.createdAt
+			}
+		}
+		delete(s.snapshots, oldestID)
+	}
+	s.snapshots[snapshot.id] = snapshot
+	return snapshot, nil
+}
+
+func (s *SQLite) getEventSnapshot(id string) (*eventListSnapshot, error) {
+	s.snapshotsMu.Lock()
+	defer s.snapshotsMu.Unlock()
+	snapshot, ok := s.snapshots[id]
+	if !ok || time.Since(snapshot.createdAt) > eventSnapshotTTL {
+		delete(s.snapshots, id)
+		return nil, ErrEventSnapshot
+	}
+	return snapshot, nil
 }
 
 func (s *SQLite) EventCounts(ctx context.Context, hostID domain.HostID) (EventCounts, error) {
@@ -762,10 +953,24 @@ FROM events`
 	return counts, nil
 }
 
-func (s *SQLite) ListenerBaseline(ctx context.Context, hostID domain.HostID) (map[string]struct{}, error) {
+func (s *SQLite) ListenerBaseline(ctx context.Context, hostID domain.HostID) (map[string]struct{}, bool, error) {
 	if strings.TrimSpace(string(hostID)) == "" {
-		return nil, errors.New("listener baseline host id must not be empty")
+		return nil, false, errors.New("listener baseline host id must not be empty")
 	}
+	var establishedAt string
+	err := s.db.QueryRowContext(ctx, `SELECT established_at FROM listener_baseline_hosts WHERE host_id = ?`, string(hostID)).Scan(&establishedAt)
+	established := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, err
+	}
+	keys, err := s.listenerBaselineKeys(ctx, hostID)
+	if err != nil {
+		return nil, false, err
+	}
+	return keys, established, nil
+}
+
+func (s *SQLite) listenerBaselineKeys(ctx context.Context, hostID domain.HostID) (map[string]struct{}, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT dedupe_key FROM listener_baselines WHERE host_id = ? ORDER BY dedupe_key`, string(hostID))
 	if err != nil {
 		return nil, err
@@ -782,6 +987,21 @@ func (s *SQLite) ListenerBaseline(ctx context.Context, hostID domain.HostID) (ma
 	return baseline, rows.Err()
 }
 
+func (s *SQLite) EstablishListenerBaseline(ctx context.Context, hostID domain.HostID, keys []string) error {
+	if strings.TrimSpace(string(hostID)) == "" {
+		return errors.New("listener baseline host id must not be empty")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := replaceListenerBaselineTx(ctx, tx, hostID, keys); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func replaceListenerBaselineTx(ctx context.Context, tx *sql.Tx, hostID domain.HostID, keys []string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM listener_baselines WHERE host_id = ?`, string(hostID)); err != nil {
 		return fmt.Errorf("replace listener baseline: %w", err)
@@ -794,10 +1014,20 @@ func replaceListenerBaselineTx(ctx context.Context, tx *sql.Tx, hostID domain.Ho
 			return fmt.Errorf("insert listener baseline %s: %w", key, err)
 		}
 	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO listener_baseline_hosts(host_id, established_at) VALUES (?, ?)
+ON CONFLICT(host_id) DO UPDATE SET established_at = excluded.established_at`,
+		string(hostID), formatTime(time.Now().UTC())); err != nil {
+		return fmt.Errorf("establish listener baseline host: %w", err)
+	}
 	return nil
 }
 
-var ErrEventResolved = errors.New("event already resolved")
+var (
+	ErrEventResolved = errors.New("event already resolved")
+	ErrEventSnapshot = errors.New("event snapshot is invalid or expired")
+	ErrEventCursor   = errors.New("event paging cursor is invalid")
+)
 
 // AcknowledgeEvent is idempotent. It records operator awareness while leaving
 // the event unresolved until a later observation proves recovery.

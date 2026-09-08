@@ -8,7 +8,8 @@ import (
 )
 
 type listenerEval struct {
-	complete map[string]struct{}
+	complete    map[string]struct{}
+	established bool
 }
 
 func newListenerEval() *listenerEval {
@@ -16,9 +17,10 @@ func newListenerEval() *listenerEval {
 }
 
 func (eval *listenerEval) eval(previous *domain.Observation, current domain.Observation, active []domain.Event) []domain.EventSignal {
-	signals := evaluateEventSignals(previous, current, active, eval.complete)
+	signals := evaluateEventSignals(previous, current, active, eval.complete, eval.established)
 	if current.Online && !listenerTelemetryMissing(current) {
 		eval.complete = listenerWildcardKeys(current)
+		eval.established = true
 	}
 	return signals
 }
@@ -137,6 +139,7 @@ func TestEventRulesDoNotRecoverFromZeroedOrWarnedResourceCollection(t *testing.T
 	}
 
 	eval.complete = listenerWildcardKeys(healthy)
+	eval.established = true
 
 	zeroed := eventRuleObservation(now)
 	zeroed.Resources.Memory = domain.MemoryResources{}
@@ -316,4 +319,32 @@ func TestEventRulesAlertNewDockerListenerDuringSSFailure(t *testing.T) {
 		}
 	}
 	t.Fatalf("new Docker listener never alerted, even after recovery: partial=%+v recovered=%+v", first, second)
+}
+
+func TestEventRulesFirstPartialCollectionIsNotProofOfNewListener(t *testing.T) {
+	current := eventRuleObservation(time.Now().UTC())
+	current.Warnings = []string{"ss 采集失败: denied"}
+	signals := evaluateEventSignals(nil, current, nil, map[string]struct{}{}, false)
+	if len(signals) != 0 {
+		t.Fatalf("first-ever partial collection invented listener novelty: %+v", signals)
+	}
+}
+
+func TestEventRulesEstablishedEmptyBaselineAlertsNewPort(t *testing.T) {
+	eval := newListenerEval()
+	now := time.Now().UTC()
+	empty := eventRuleObservation(now)
+	empty.Endpoints = nil
+	if signals := eval.eval(nil, empty, nil); len(signals) != 0 {
+		t.Fatalf("complete collection with no wildcards should establish an empty baseline: %+v", signals)
+	}
+	if !eval.established || len(eval.complete) != 0 {
+		t.Fatalf("empty baseline was not established: established=%v keys=%d", eval.established, len(eval.complete))
+	}
+
+	added := eventRuleObservation(now.Add(time.Minute))
+	signals := eval.eval(&empty, added, nil)
+	if len(signals) != 1 || signals[0].DedupeKey != "host-a:listener:tcp://0.0.0.0:443" {
+		t.Fatalf("port added after an established empty baseline was not alerted: %+v", signals)
+	}
 }

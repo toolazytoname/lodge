@@ -285,4 +285,14 @@ ALTER TABLE operations ADD COLUMN before_release_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE operations ADD COLUMN after_release_id TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		version: 12,
+		name:    "listener_baseline_established",
+		sql: `
+CREATE TABLE listener_baseline_hosts (
+    host_id TEXT PRIMARY KEY REFERENCES hosts(id) ON DELETE CASCADE,
+    established_at TEXT NOT NULL
+) STRICT;
+`,
+	},
 }

@@ -27,10 +27,13 @@ const (
 )
 
 // evaluateEventSignals turns the latest observation into current rule truth.
-// The first online observation is a listener baseline. Existing non-host
-// events are carried while a host is offline because missing telemetry is not
-// proof that a workload, listener, or resource condition recovered.
-func evaluateEventSignals(previous *domain.Observation, current domain.Observation, active []domain.Event, completeListeners map[string]struct{}) []domain.EventSignal {
+// Wildcard-listener novelty is compared against an independently stored
+// complete baseline. An unestablished baseline is distinct from an established
+// empty set: partial or first-seen ports are not novelty until a complete
+// collection establishes the host, after which a newly observed wildcard
+// still opens an event. Existing non-host events are carried while a host is
+// offline because missing telemetry is not proof of recovery.
+func evaluateEventSignals(previous *domain.Observation, current domain.Observation, active []domain.Event, completeListeners map[string]struct{}, baselineEstablished bool) []domain.EventSignal {
 	hostPrefix := string(current.HostID) + ":"
 	activeByKey := make(map[string]domain.Event, len(active))
 	for _, event := range active {
@@ -189,7 +192,8 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 	}
 
 	currentWildcard := listenerWildcardEndpoints(current)
-	establishingListeners := current.Online && !listenerTelemetryMissing(current) && (previous == nil || !previous.Online)
+	completeTelemetry := current.Online && !listenerTelemetryMissing(current)
+	establishingListeners := completeTelemetry && (!baselineEstablished || previous == nil || !previous.Online)
 	if listenerTelemetryMissing(current) {
 		emitted := make(map[string]struct{})
 		for key, event := range activeByKey {
@@ -198,14 +202,16 @@ func evaluateEventSignals(previous *domain.Observation, current domain.Observati
 				emitted[key] = struct{}{}
 			}
 		}
-		for key, endpoint := range currentWildcard {
-			if _, known := completeListeners[key]; known {
-				continue
+		if baselineEstablished {
+			for key, endpoint := range currentWildcard {
+				if _, known := completeListeners[key]; known {
+					continue
+				}
+				if _, exists := emitted[key]; exists {
+					continue
+				}
+				emit(listenerAddedSignal(current.HostID, key, endpoint))
 			}
-			if _, exists := emitted[key]; exists {
-				continue
-			}
-			emit(listenerAddedSignal(current.HostID, key, endpoint))
 		}
 	} else if establishingListeners {
 		for key, endpoint := range currentWildcard {

@@ -3,7 +3,7 @@ import { actionKindLabel, actionRiskLabel, deploymentKindLabel, exposureLabel, e
 const state = {
     agents: [],
     groups: [],
-    events: { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, offset: 0, limit: 50 },
+    events: { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, hasMore: false, offset: 0, limit: 50 },
     linkChecks: {
         checks: [],
         summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 },
@@ -21,7 +21,12 @@ let authed = false;
 let csrfToken = "";
 let sessionGeneration = 0;
 let eventsRequestSeq = 0;
+let actionSubmitSeq = 0;
 const eventsPageSize = 50;
+const eventsMaximumLimit = 500;
+let eventsDataFilter = { agent: "all", state: "ongoing" };
+let eventsLoadingFirstPage = false;
+let eventsLoadingMore = false;
 let activePage = "overview";
 let refreshTimer = null;
 let refreshing = false;
@@ -49,6 +54,9 @@ class StaleRequestError extends Error {
     constructor() {
         super("stale request");
     }
+}
+function emptyEventsResponse() {
+    return { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, hasMore: false, offset: 0, limit: eventsPageSize };
 }
 function errorMessage(error) {
     return error instanceof Error ? error.message : "unknown error";
@@ -116,13 +124,17 @@ function expireSession() {
     csrfToken = "";
     sessionGeneration += 1;
     eventsRequestSeq += 1;
+    actionSubmitSeq += 1;
     resetSessionCaches();
     showLogin();
 }
 function resetSessionCaches() {
     state.agents = [];
     state.groups = [];
-    state.events = { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, offset: 0, limit: eventsPageSize };
+    state.events = emptyEventsResponse();
+    eventsDataFilter = { agent: "all", state: "ongoing" };
+    eventsLoadingFirstPage = false;
+    eventsLoadingMore = false;
     state.linkChecks = { checks: [], summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 } };
     state.operations = { operations: [] };
     state.agentsLoaded = false;
@@ -217,6 +229,7 @@ async function login() {
             throw new Error("unauthorized");
         sessionGeneration += 1;
         eventsRequestSeq += 1;
+        actionSubmitSeq += 1;
         byID("pw").value = "";
         showDashboard();
         await refresh();
@@ -250,7 +263,9 @@ async function refresh() {
         api("/api/agents"),
         api("/api/services"),
         api("/api/link-checks"),
-        api(eventsRequestPath(eventFilter, 0, Math.max(eventsPageSize, state.events.events.length || eventsPageSize))),
+        fetchEventPages(eventFilter, eventFilterEquals(eventsDataFilter, eventFilter)
+            ? Math.max(eventsPageSize, state.events.events.length || eventsPageSize)
+            : eventsPageSize, generation, eventsSeq),
         api("/api/operations?limit=100"),
     ]);
     if (!authed || sessionGeneration !== generation) {
@@ -289,6 +304,8 @@ async function refresh() {
             state.events = eventsResult.value;
             state.eventsLoaded = true;
             state.eventsError = "";
+            eventsDataFilter = eventFilter;
+            eventsLoadingFirstPage = false;
         }
         else if (!(eventsResult.reason instanceof StaleRequestError)) {
             state.eventsError = errorMessage(eventsResult.reason);
@@ -1086,46 +1103,121 @@ function currentEventFilter() {
         state: byID("eventStateFilter").value || "ongoing",
     };
 }
-function eventFilterMatches(filter) {
-    const current = currentEventFilter();
-    return current.agent === filter.agent && current.state === filter.state;
+function eventFilterEquals(left, right) {
+    return left.agent === right.agent && left.state === right.state;
 }
-function eventsRequestPath(filter, offset, limit) {
+function eventFilterMatches(filter) {
+    return eventFilterEquals(currentEventFilter(), filter);
+}
+function eventsRequestPath(filter, options) {
     const params = new URLSearchParams();
     if (filter.agent !== "all")
         params.set("agent", filter.agent);
     if (filter.state)
         params.set("state", filter.state);
-    params.set("limit", String(limit));
-    if (offset > 0)
-        params.set("offset", String(offset));
+    params.set("limit", String(options.limit));
+    if (options.snapshot)
+        params.set("snapshot", options.snapshot);
+    if (options.after)
+        params.set("after", options.after);
     return `/api/events?${params}`;
+}
+async function fetchEventPages(filter, targetCount, generation, seq) {
+    const collected = [];
+    let snapshot = "";
+    let after = "";
+    let lastPage = null;
+    const target = Math.max(eventsPageSize, targetCount);
+    while (collected.length < target) {
+        const remaining = target - collected.length;
+        const limit = Math.min(eventsMaximumLimit, Math.max(eventsPageSize, remaining));
+        const page = await api(eventsRequestPath(filter, { limit, snapshot, after }));
+        if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq)
+            throw new StaleRequestError();
+        lastPage = page;
+        snapshot = page.snapshot ?? "";
+        const seen = new Set(collected.map((event) => event.id));
+        for (const event of page.events) {
+            if (!seen.has(event.id)) {
+                collected.push(event);
+                seen.add(event.id);
+            }
+        }
+        if (!page.hasMore || page.events.length === 0)
+            break;
+        after = page.events[page.events.length - 1]?.id ?? "";
+        if (!after || !snapshot)
+            break;
+    }
+    if (!lastPage)
+        return emptyEventsResponse();
+    return { ...lastPage, events: collected };
 }
 async function loadEvents(options = {}) {
     if (!authed)
         return;
     const filter = currentEventFilter();
     const append = options.append === true;
-    const offset = append ? state.events.events.length : 0;
     const generation = sessionGeneration;
-    const seq = eventsRequestSeq + 1;
-    eventsRequestSeq = seq;
-    try {
-        const events = await api(eventsRequestPath(filter, offset, eventsPageSize));
-        if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter))
+    if (append) {
+        if (eventsLoadingFirstPage || eventsLoadingMore)
             return;
-        if (append) {
+        if (!eventFilterEquals(eventsDataFilter, filter))
+            return;
+        const snapshot = state.events.snapshot ?? "";
+        const after = state.events.events[state.events.events.length - 1]?.id ?? "";
+        if (!snapshot || !after || !state.events.hasMore)
+            return;
+        const seq = eventsRequestSeq + 1;
+        eventsRequestSeq = seq;
+        eventsLoadingMore = true;
+        try {
+            const page = await api(eventsRequestPath(filter, { limit: eventsPageSize, snapshot, after }));
+            if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter))
+                return;
+            if ((page.snapshot ?? "") !== snapshot || !eventFilterEquals(eventsDataFilter, filter))
+                return;
             const seen = new Set(state.events.events.map((event) => event.id));
             state.events = {
-                ...events,
-                events: [...state.events.events, ...events.events.filter((event) => !seen.has(event.id))],
+                ...page,
+                events: [...state.events.events, ...page.events.filter((event) => !seen.has(event.id))],
             };
+            state.eventsLoaded = true;
+            state.eventsError = "";
         }
-        else {
-            state.events = events;
+        catch (loadError) {
+            if (loadError instanceof StaleRequestError)
+                return;
+            if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter))
+                return;
+            state.eventsError = errorMessage(loadError);
         }
+        finally {
+            if (sessionGeneration === generation && seq === eventsRequestSeq)
+                eventsLoadingMore = false;
+        }
+        renderSecurity();
+        return;
+    }
+    const keepLoaded = options.keepLoaded === true && eventFilterEquals(eventsDataFilter, filter);
+    const target = keepLoaded ? Math.max(eventsPageSize, state.events.events.length || eventsPageSize) : eventsPageSize;
+    eventsLoadingFirstPage = true;
+    if (!keepLoaded && !eventFilterEquals(eventsDataFilter, filter)) {
+        state.events = emptyEventsResponse();
+        state.eventsLoaded = false;
+        eventsDataFilter = filter;
+    }
+    const seq = eventsRequestSeq + 1;
+    eventsRequestSeq = seq;
+    renderSecurity();
+    try {
+        const events = await fetchEventPages(filter, target, generation, seq);
+        if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter))
+            return;
+        state.events = events;
         state.eventsLoaded = true;
         state.eventsError = "";
+        eventsDataFilter = filter;
     }
     catch (loadError) {
         if (loadError instanceof StaleRequestError)
@@ -1133,6 +1225,10 @@ async function loadEvents(options = {}) {
         if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter))
             return;
         state.eventsError = errorMessage(loadError);
+    }
+    finally {
+        if (sessionGeneration === generation && seq === eventsRequestSeq)
+            eventsLoadingFirstPage = false;
     }
     renderSecurity();
 }
@@ -1197,9 +1293,12 @@ function renderEvents() {
         return;
     }
     const rows = events.map(eventRow);
-    if (loaded < matched) {
+    if (state.events.hasMore
+        && !eventsLoadingFirstPage
+        && eventFilterEquals(eventsDataFilter, currentEventFilter())) {
         const more = element("button", "button button-secondary event-more", "加载更多");
         more.type = "button";
+        more.disabled = eventsLoadingMore;
         more.addEventListener("click", () => void loadEvents({ append: true }));
         rows.push(more);
     }
@@ -1214,7 +1313,7 @@ async function acknowledgeEvent(id, button) {
             return;
         state.eventsError = "";
         setNotice(`已确认事件“${updated.title}”。风险会保持进行中，直到新观测证明恢复。`);
-        await loadEvents();
+        await loadEvents({ keepLoaded: true });
     }
     catch (acknowledgementError) {
         if (acknowledgementError instanceof StaleRequestError)
@@ -1847,6 +1946,9 @@ async function refreshOperationAudit() {
     }
     renderOperations();
 }
+function ownsActionRequest(generation, submitSeq) {
+    return authed && sessionGeneration === generation && submitSeq === actionSubmitSeq;
+}
 async function executePendingAction(event) {
     event.preventDefault();
     const action = pendingAction;
@@ -1857,6 +1959,9 @@ async function executePendingAction(event) {
     const expectedConfirmation = action?.definition.confirmation ?? deployment?.definition.confirmation;
     if (confirmation !== expectedConfirmation)
         return;
+    const generation = sessionGeneration;
+    const submitSeq = actionSubmitSeq + 1;
+    actionSubmitSeq = submitSeq;
     actionExecuting = true;
     const execute = byID("executeActionBtn");
     const cancel = byID("cancelActionBtn");
@@ -1880,7 +1985,7 @@ async function executePendingAction(event) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(input),
             });
-            if (!authed)
+            if (!ownsActionRequest(generation, submitSeq))
                 return;
             showActionExecutionResult(response);
             setNotice(response.operation.state === "succeeded"
@@ -1898,7 +2003,7 @@ async function executePendingAction(event) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(input),
             });
-            if (!authed)
+            if (!ownsActionRequest(generation, submitSeq))
                 return;
             showDeploymentAccepted(response);
             setNotice(`${deployment.agentName} · ${deployment.definition.stackLabel}：发布已受理，正在后台执行。`);
@@ -1906,7 +2011,7 @@ async function executePendingAction(event) {
         }
     }
     catch (actionError) {
-        if (actionError instanceof StaleRequestError || !authed)
+        if (actionError instanceof StaleRequestError || !ownsActionRequest(generation, submitSeq))
             return;
         const audited = action ? executionResponseFromError(actionError) : null;
         if (audited) {
@@ -1919,7 +2024,7 @@ async function executePendingAction(event) {
         }
     }
     finally {
-        if (!authed)
+        if (!ownsActionRequest(generation, submitSeq))
             return;
         actionExecuting = false;
         close.disabled = false;

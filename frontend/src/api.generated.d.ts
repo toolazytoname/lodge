@@ -134,6 +134,8 @@ export interface EventsResponse {
   criticalCount: number;
   resolvedCount: number;
   matchedCount: number;
+  snapshot?: string;
+  hasMore: boolean;
   offset: number;
   limit: number;
 }

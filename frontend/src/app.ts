@@ -127,7 +127,7 @@ interface PendingDeployment {
 const state: FleetState = {
   agents: [],
   groups: [],
-  events: { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, offset: 0, limit: 50 },
+  events: { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, hasMore: false, offset: 0, limit: 50 },
   linkChecks: {
     checks: [],
     summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 },
@@ -146,7 +146,12 @@ let authed = false;
 let csrfToken = "";
 let sessionGeneration = 0;
 let eventsRequestSeq = 0;
+let actionSubmitSeq = 0;
 const eventsPageSize = 50;
+const eventsMaximumLimit = 500;
+let eventsDataFilter = { agent: "all", state: "ongoing" };
+let eventsLoadingFirstPage = false;
+let eventsLoadingMore = false;
 let activePage: PageID = "overview";
 let refreshTimer: number | null = null;
 let refreshing = false;
@@ -175,6 +180,10 @@ class StaleRequestError extends Error {
   constructor() {
     super("stale request");
   }
+}
+
+function emptyEventsResponse(): EventsResponse {
+  return { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, hasMore: false, offset: 0, limit: eventsPageSize };
 }
 
 function errorMessage(error: unknown): string {
@@ -243,6 +252,7 @@ function expireSession(): void {
   csrfToken = "";
   sessionGeneration += 1;
   eventsRequestSeq += 1;
+  actionSubmitSeq += 1;
   resetSessionCaches();
   showLogin();
 }
@@ -250,7 +260,10 @@ function expireSession(): void {
 function resetSessionCaches(): void {
   state.agents = [];
   state.groups = [];
-  state.events = { events: [], ongoingCount: 0, activeCount: 0, criticalCount: 0, resolvedCount: 0, matchedCount: 0, offset: 0, limit: eventsPageSize };
+  state.events = emptyEventsResponse();
+  eventsDataFilter = { agent: "all", state: "ongoing" };
+  eventsLoadingFirstPage = false;
+  eventsLoadingMore = false;
   state.linkChecks = { checks: [], summary: { total: 0, reachable: 0, degraded: 0, unreachable: 0 } };
   state.operations = { operations: [] };
   state.agentsLoaded = false;
@@ -345,6 +358,7 @@ async function login(): Promise<void> {
     if (!session.authed) throw new Error("unauthorized");
     sessionGeneration += 1;
     eventsRequestSeq += 1;
+    actionSubmitSeq += 1;
     byID<HTMLInputElement>("pw").value = "";
     showDashboard();
     await refresh();
@@ -376,7 +390,14 @@ async function refresh(): Promise<void> {
     api<AgentSummary[]>("/api/agents"),
     api<AgentServices[]>("/api/services"),
     api<WebLinkChecksResponse>("/api/link-checks"),
-    api<EventsResponse>(eventsRequestPath(eventFilter, 0, Math.max(eventsPageSize, state.events.events.length || eventsPageSize))),
+    fetchEventPages(
+      eventFilter,
+      eventFilterEquals(eventsDataFilter, eventFilter)
+        ? Math.max(eventsPageSize, state.events.events.length || eventsPageSize)
+        : eventsPageSize,
+      generation,
+      eventsSeq,
+    ),
     api<OperationsResponse>("/api/operations?limit=100"),
   ]);
   if (!authed || sessionGeneration !== generation) {
@@ -413,6 +434,8 @@ async function refresh(): Promise<void> {
       state.events = eventsResult.value;
       state.eventsLoaded = true;
       state.eventsError = "";
+      eventsDataFilter = eventFilter;
+      eventsLoadingFirstPage = false;
     } else if (!(eventsResult.reason instanceof StaleRequestError)) {
       state.eventsError = errorMessage(eventsResult.reason);
       failures.push(`事件：${state.eventsError}`);
@@ -1255,46 +1278,120 @@ function currentEventFilter(): { agent: string; state: string } {
   };
 }
 
-function eventFilterMatches(filter: { agent: string; state: string }): boolean {
-  const current = currentEventFilter();
-  return current.agent === filter.agent && current.state === filter.state;
+function eventFilterEquals(left: { agent: string; state: string }, right: { agent: string; state: string }): boolean {
+  return left.agent === right.agent && left.state === right.state;
 }
 
-function eventsRequestPath(filter: { agent: string; state: string }, offset: number, limit: number): string {
+function eventFilterMatches(filter: { agent: string; state: string }): boolean {
+  return eventFilterEquals(currentEventFilter(), filter);
+}
+
+function eventsRequestPath(
+  filter: { agent: string; state: string },
+  options: { limit: number; snapshot?: string; after?: string },
+): string {
   const params = new URLSearchParams();
   if (filter.agent !== "all") params.set("agent", filter.agent);
   if (filter.state) params.set("state", filter.state);
-  params.set("limit", String(limit));
-  if (offset > 0) params.set("offset", String(offset));
+  params.set("limit", String(options.limit));
+  if (options.snapshot) params.set("snapshot", options.snapshot);
+  if (options.after) params.set("after", options.after);
   return `/api/events?${params}`;
 }
 
-async function loadEvents(options: { append?: boolean } = {}): Promise<void> {
+async function fetchEventPages(
+  filter: { agent: string; state: string },
+  targetCount: number,
+  generation: number,
+  seq: number,
+): Promise<EventsResponse> {
+  const collected: EventView[] = [];
+  let snapshot = "";
+  let after = "";
+  let lastPage: EventsResponse | null = null;
+  const target = Math.max(eventsPageSize, targetCount);
+  while (collected.length < target) {
+    const remaining = target - collected.length;
+    const limit = Math.min(eventsMaximumLimit, Math.max(eventsPageSize, remaining));
+    const page = await api<EventsResponse>(eventsRequestPath(filter, { limit, snapshot, after }));
+    if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq) throw new StaleRequestError();
+    lastPage = page;
+    snapshot = page.snapshot ?? "";
+    const seen = new Set(collected.map((event) => event.id));
+    for (const event of page.events) {
+      if (!seen.has(event.id)) {
+        collected.push(event);
+        seen.add(event.id);
+      }
+    }
+    if (!page.hasMore || page.events.length === 0) break;
+    after = page.events[page.events.length - 1]?.id ?? "";
+    if (!after || !snapshot) break;
+  }
+  if (!lastPage) return emptyEventsResponse();
+  return { ...lastPage, events: collected };
+}
+
+async function loadEvents(options: { append?: boolean; keepLoaded?: boolean } = {}): Promise<void> {
   if (!authed) return;
   const filter = currentEventFilter();
   const append = options.append === true;
-  const offset = append ? state.events.events.length : 0;
   const generation = sessionGeneration;
-  const seq = eventsRequestSeq + 1;
-  eventsRequestSeq = seq;
-  try {
-    const events = await api<EventsResponse>(eventsRequestPath(filter, offset, eventsPageSize));
-    if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter)) return;
-    if (append) {
+  if (append) {
+    if (eventsLoadingFirstPage || eventsLoadingMore) return;
+    if (!eventFilterEquals(eventsDataFilter, filter)) return;
+    const snapshot = state.events.snapshot ?? "";
+    const after = state.events.events[state.events.events.length - 1]?.id ?? "";
+    if (!snapshot || !after || !state.events.hasMore) return;
+    const seq = eventsRequestSeq + 1;
+    eventsRequestSeq = seq;
+    eventsLoadingMore = true;
+    try {
+      const page = await api<EventsResponse>(eventsRequestPath(filter, { limit: eventsPageSize, snapshot, after }));
+      if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter)) return;
+      if ((page.snapshot ?? "") !== snapshot || !eventFilterEquals(eventsDataFilter, filter)) return;
       const seen = new Set(state.events.events.map((event) => event.id));
       state.events = {
-        ...events,
-        events: [...state.events.events, ...events.events.filter((event) => !seen.has(event.id))],
+        ...page,
+        events: [...state.events.events, ...page.events.filter((event) => !seen.has(event.id))],
       };
-    } else {
-      state.events = events;
+      state.eventsLoaded = true;
+      state.eventsError = "";
+    } catch (loadError) {
+      if (loadError instanceof StaleRequestError) return;
+      if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter)) return;
+      state.eventsError = errorMessage(loadError);
+    } finally {
+      if (sessionGeneration === generation && seq === eventsRequestSeq) eventsLoadingMore = false;
     }
+    renderSecurity();
+    return;
+  }
+
+  const keepLoaded = options.keepLoaded === true && eventFilterEquals(eventsDataFilter, filter);
+  const target = keepLoaded ? Math.max(eventsPageSize, state.events.events.length || eventsPageSize) : eventsPageSize;
+  eventsLoadingFirstPage = true;
+  if (!keepLoaded && !eventFilterEquals(eventsDataFilter, filter)) {
+    state.events = emptyEventsResponse();
+    state.eventsLoaded = false;
+    eventsDataFilter = filter;
+  }
+  const seq = eventsRequestSeq + 1;
+  eventsRequestSeq = seq;
+  renderSecurity();
+  try {
+    const events = await fetchEventPages(filter, target, generation, seq);
+    if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter)) return;
+    state.events = events;
     state.eventsLoaded = true;
     state.eventsError = "";
+    eventsDataFilter = filter;
   } catch (loadError) {
     if (loadError instanceof StaleRequestError) return;
     if (!authed || sessionGeneration !== generation || seq !== eventsRequestSeq || !eventFilterMatches(filter)) return;
     state.eventsError = errorMessage(loadError);
+  } finally {
+    if (sessionGeneration === generation && seq === eventsRequestSeq) eventsLoadingFirstPage = false;
   }
   renderSecurity();
 }
@@ -1368,9 +1465,14 @@ function renderEvents(): void {
     return;
   }
   const rows: Node[] = events.map(eventRow);
-  if (loaded < matched) {
+  if (
+    state.events.hasMore
+    && !eventsLoadingFirstPage
+    && eventFilterEquals(eventsDataFilter, currentEventFilter())
+  ) {
     const more = element("button", "button button-secondary event-more", "加载更多");
     more.type = "button";
+    more.disabled = eventsLoadingMore;
     more.addEventListener("click", () => void loadEvents({ append: true }));
     rows.push(more);
   }
@@ -1385,7 +1487,7 @@ async function acknowledgeEvent(id: string, button: HTMLButtonElement): Promise<
     if (!authed) return;
     state.eventsError = "";
     setNotice(`已确认事件“${updated.title}”。风险会保持进行中，直到新观测证明恢复。`);
-    await loadEvents();
+    await loadEvents({ keepLoaded: true });
   } catch (acknowledgementError) {
     if (acknowledgementError instanceof StaleRequestError) return;
     button.disabled = false;
@@ -2047,6 +2149,10 @@ async function refreshOperationAudit(): Promise<void> {
   renderOperations();
 }
 
+function ownsActionRequest(generation: number, submitSeq: number): boolean {
+  return authed && sessionGeneration === generation && submitSeq === actionSubmitSeq;
+}
+
 async function executePendingAction(event: SubmitEvent): Promise<void> {
   event.preventDefault();
   const action = pendingAction;
@@ -2055,6 +2161,9 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
   const confirmation = byID<HTMLInputElement>("actionConfirmation").value;
   const expectedConfirmation = action?.definition.confirmation ?? deployment?.definition.confirmation;
   if (confirmation !== expectedConfirmation) return;
+  const generation = sessionGeneration;
+  const submitSeq = actionSubmitSeq + 1;
+  actionSubmitSeq = submitSeq;
   actionExecuting = true;
   const execute = byID<HTMLButtonElement>("executeActionBtn");
   const cancel = byID<HTMLButtonElement>("cancelActionBtn");
@@ -2078,7 +2187,7 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (!authed) return;
+      if (!ownsActionRequest(generation, submitSeq)) return;
       showActionExecutionResult(response);
       setNotice(response.operation.state === "succeeded"
         ? `${action.agentName} · ${action.definition.targetLabel}：动作已完成并写入审计。`
@@ -2094,13 +2203,13 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (!authed) return;
+      if (!ownsActionRequest(generation, submitSeq)) return;
       showDeploymentAccepted(response);
       setNotice(`${deployment.agentName} · ${deployment.definition.stackLabel}：发布已受理，正在后台执行。`);
       void trackDeploymentOperation(response.operation.id, deployment.agentID, deployment.agentName, deployment.definition.stackLabel);
     }
   } catch (actionError) {
-    if (actionError instanceof StaleRequestError || !authed) return;
+    if (actionError instanceof StaleRequestError || !ownsActionRequest(generation, submitSeq)) return;
     const audited = action ? executionResponseFromError(actionError) : null;
     if (audited) {
       showActionExecutionResult(audited);
@@ -2110,7 +2219,7 @@ async function executePendingAction(event: SubmitEvent): Promise<void> {
       error.classList.remove("hidden");
     }
   } finally {
-    if (!authed) return;
+    if (!ownsActionRequest(generation, submitSeq)) return;
     actionExecuting = false;
     close.disabled = false;
     if (!byID("actionConfirmationFields").classList.contains("hidden")) {

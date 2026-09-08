@@ -357,6 +357,12 @@ func TestSQLiteEventQueriesAreBounded(t *testing.T) {
 	if _, err := store.ListEvents(context.Background(), EventFilter{Limit: 10, Offset: -1}); err == nil {
 		t.Fatal("negative event offset was accepted")
 	}
+	if _, err := store.ListEvents(context.Background(), EventFilter{Limit: 10, Offset: 10}); err == nil {
+		t.Fatal("offset without snapshot was accepted")
+	}
+	if _, err := store.ListEvents(context.Background(), EventFilter{Limit: 10, AfterID: "evt_missing"}); err == nil {
+		t.Fatal("cursor without snapshot was accepted")
+	}
 	if _, found, err := store.AcknowledgeEvent(context.Background(), "missing", time.Now().UTC()); err != nil || found {
 		t.Fatalf("missing event acknowledgement mismatch: found=%v err=%v", found, err)
 	}
@@ -381,17 +387,36 @@ func TestSQLiteEventPaginationIsStableAndComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 	seen := make(map[string]int, 125)
-	for offset := 0; offset < 125; offset += 50 {
-		page, err := store.ListEvents(ctx, EventFilter{HostID: "host-a", State: "ongoing", Limit: 50, Offset: offset})
+	filter := EventFilter{HostID: "host-a", State: "ongoing", Limit: 50}
+	var after string
+	var snapshot string
+	for pageIndex := 0; pageIndex < 3; pageIndex++ {
+		page, meta, err := store.ListEventPage(ctx, EventFilter{
+			HostID: filter.HostID, State: filter.State, Limit: 50,
+			Snapshot: snapshot, AfterID: after,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if offset+len(page) > 125 || (offset < 100 && len(page) != 50) || (offset == 100 && len(page) != 25) {
-			t.Fatalf("page at offset %d had %d rows", offset, len(page))
+		if meta.Matched != 125 || meta.Snapshot == "" {
+			t.Fatalf("page meta mismatch: %+v", meta)
+		}
+		if snapshot == "" {
+			snapshot = meta.Snapshot
+		} else if meta.Snapshot != snapshot {
+			t.Fatalf("snapshot changed across pages: %s vs %s", snapshot, meta.Snapshot)
+		}
+		wantLen, wantMore := 50, true
+		if pageIndex == 2 {
+			wantLen, wantMore = 25, false
+		}
+		if len(page) != wantLen || meta.HasMore != wantMore {
+			t.Fatalf("page %d had %d rows hasMore=%v", pageIndex, len(page), meta.HasMore)
 		}
 		for _, event := range page {
 			seen[event.ID]++
 		}
+		after = page[len(page)-1].ID
 	}
 	if len(seen) != 125 {
 		t.Fatalf("pagination unique events = %d, want 125", len(seen))
@@ -404,6 +429,125 @@ func TestSQLiteEventPaginationIsStableAndComplete(t *testing.T) {
 	counts, err := store.EventCountsFiltered(ctx, EventFilter{HostID: "host-a", State: "ongoing"})
 	if err != nil || counts.Matched != 125 || counts.Ongoing != 125 || counts.Active != 125 {
 		t.Fatalf("matched counts mismatch: %+v err=%v", counts, err)
+	}
+}
+
+func TestSQLiteEventPaginationSurvivesMutationsBetweenPages(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	signals := make([]domain.EventSignal, 125)
+	for index := 0; index < len(signals); index++ {
+		id := strconv.Itoa(index)
+		signals[index] = domain.EventSignal{
+			HostID: "host-a", Kind: "workload.failed", Severity: domain.SeverityCritical,
+			DedupeKey: "host-a:workload:docker:svc-" + id + ":failed", Title: "服务失败：svc-" + id,
+		}
+	}
+	if _, _, err := store.RecordObservationWithEvents(ctx, sampleObservation(now), signals); err != nil {
+		t.Fatal(err)
+	}
+	first, page, err := store.ListEventPage(ctx, EventFilter{HostID: "host-a", State: "ongoing", Limit: 50})
+	if err != nil || len(first) != 50 || !page.HasMore {
+		t.Fatalf("first page mismatch: n=%d page=%+v err=%v", len(first), page, err)
+	}
+	all, err := store.ListEvents(ctx, EventFilter{HostID: "host-a", State: "ongoing", Limit: 500})
+	if err != nil || len(all) != 125 {
+		t.Fatalf("full list mismatch: n=%d err=%v", len(all), err)
+	}
+	if _, _, err := store.AcknowledgeEvent(ctx, first[0].ID, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	unloaded := all[60].ID
+	kept := make([]domain.EventSignal, 0, 124)
+	for _, event := range all {
+		if event.ID == unloaded {
+			continue
+		}
+		kept = append(kept, domain.EventSignal{
+			HostID: event.HostID, Kind: event.Kind, Severity: event.Severity,
+			DedupeKey: event.DedupeKey, Title: event.Title, Detail: event.Detail,
+		})
+	}
+	kept = append(kept, domain.EventSignal{
+		HostID: "host-a", Kind: "workload.failed", Severity: domain.SeverityCritical,
+		DedupeKey: "host-a:workload:docker:new-during-page:failed", Title: "服务失败：new-during-page",
+	})
+	if _, _, err := store.RecordObservationWithEvents(ctx, sampleObservation(now.Add(2*time.Second)), kept); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for _, event := range first {
+		seen[event.ID]++
+	}
+	after := first[len(first)-1].ID
+	for pageIndex := 0; pageIndex < 3; pageIndex++ {
+		next, meta, err := store.ListEventPage(ctx, EventFilter{
+			HostID: "host-a", State: "ongoing", Limit: 50,
+			Snapshot: page.Snapshot, AfterID: after,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta.Matched != 125 || meta.Snapshot != page.Snapshot {
+			t.Fatalf("snapshot page meta mismatch: %+v", meta)
+		}
+		for _, event := range next {
+			seen[event.ID]++
+		}
+		if len(next) == 0 {
+			if meta.HasMore {
+				t.Fatal("empty page still reported more rows")
+			}
+			break
+		}
+		after = next[len(next)-1].ID
+		if !meta.HasMore {
+			break
+		}
+	}
+	if len(seen) != 125 {
+		t.Fatalf("only %d of 125 snapshot events reachable after ack/resolve/update/insert", len(seen))
+	}
+	if seen[unloaded] != 1 {
+		t.Fatalf("resolved unloaded event was skipped: %s", unloaded)
+	}
+	for id, count := range seen {
+		if count != 1 {
+			t.Fatalf("event %s appeared %d times", id, count)
+		}
+	}
+	live, err := store.ListEvents(ctx, EventFilter{HostID: "host-a", State: "ongoing", Limit: 500})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range live {
+		if event.DedupeKey == "host-a:workload:docker:new-during-page:failed" {
+			return
+		}
+	}
+	t.Fatal("new event during paging was not visible on a fresh snapshot")
+}
+
+func TestSQLiteListenerBaselineDistinguishesUninitializedFromEmpty(t *testing.T) {
+	store, _ := openTestSQLite(t)
+	ctx := context.Background()
+	if err := store.SyncHosts(ctx, []domain.Host{{ID: "host-a", Name: "Host A"}}); err != nil {
+		t.Fatal(err)
+	}
+	keys, established, err := store.ListenerBaseline(ctx, "host-a")
+	if err != nil || established || len(keys) != 0 {
+		t.Fatalf("new host should be uninitialized: keys=%d established=%v err=%v", len(keys), established, err)
+	}
+	if err := store.EstablishListenerBaseline(ctx, "host-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	keys, established, err = store.ListenerBaseline(ctx, "host-a")
+	if err != nil || !established || len(keys) != 0 {
+		t.Fatalf("empty established baseline mismatch: keys=%d established=%v err=%v", len(keys), established, err)
 	}
 }
 

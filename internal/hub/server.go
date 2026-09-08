@@ -98,12 +98,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	if !queryKeysAllowed(r, "agent", "state", "limit", "offset") {
+	if !queryKeysAllowed(r, "agent", "state", "limit", "offset", "snapshot", "after") {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid_query"})
 		return
 	}
 	agentID := r.URL.Query().Get("agent")
-	if len(r.URL.Query()["agent"]) > 1 || len(r.URL.Query()["state"]) > 1 || len(r.URL.Query()["limit"]) > 1 || len(r.URL.Query()["offset"]) > 1 || len(agentID) > maxAgentIDBytes {
+	if len(r.URL.Query()["agent"]) > 1 || len(r.URL.Query()["state"]) > 1 || len(r.URL.Query()["limit"]) > 1 || len(r.URL.Query()["offset"]) > 1 || len(r.URL.Query()["snapshot"]) > 1 || len(r.URL.Query()["after"]) > 1 || len(agentID) > maxAgentIDBytes {
 		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "invalid agent"})
 		return
 	}
@@ -124,8 +124,21 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	events, counts, err := s.store.Events(r.Context(), EventQuery{HostID: domain.HostID(agentID), State: state, Limit: limit, Offset: offset})
+	snapshot := r.URL.Query().Get("snapshot")
+	afterID := r.URL.Query().Get("after")
+	if (snapshot == "" && (offset > 0 || afterID != "")) || len(snapshot) > 128 || len(afterID) > 128 {
+		writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": "event snapshot is required to page"})
+		return
+	}
+	events, counts, err := s.store.Events(r.Context(), EventQuery{
+		HostID: domain.HostID(agentID), State: state, Limit: limit,
+		Offset: offset, AfterID: afterID, Snapshot: snapshot,
+	})
 	if err != nil {
+		if errors.Is(err, ErrEventSnapshot) || errors.Is(err, ErrEventCursor) {
+			writeJSONHub(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
 		log.Printf("lodge hub read events: %v", err)
 		writeJSONHub(w, http.StatusInternalServerError, map[string]string{"error": "event persistence failed"})
 		return
@@ -133,7 +146,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	response := EventsResponse{
 		AgentID: agentID, State: state, Events: make([]EventView, 0, len(events)),
 		OngoingCount: counts.Ongoing, ActiveCount: counts.Active, CriticalCount: counts.Critical, ResolvedCount: counts.Resolved,
-		MatchedCount: counts.Matched, Offset: offset, Limit: limit,
+		MatchedCount: counts.Matched, Snapshot: counts.Snapshot, HasMore: counts.HasMore, Offset: counts.Offset, Limit: limit,
 	}
 	for _, event := range events {
 		response.Events = append(response.Events, eventView(event))

@@ -395,9 +395,17 @@ async function readJSONBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function buildEvents(mode, agentID = "", state = "ongoing", limit = 50, offset = 0) {
+const eventSnapshots = new Map();
+let eventSnapshotSeq = 0;
+
+function newFixtureSnapshotID() {
+  eventSnapshotSeq += 1;
+  return `snap_${eventSnapshotSeq.toString(16).padStart(32, "0")}`;
+}
+
+function buildEvents(mode, agentID = "", state = "ongoing", limit = 50, snapshot = "", after = "") {
   if (mode === "empty") {
-    return emptyEvents(state, limit, offset);
+    return emptyEvents(state, limit, snapshot);
   }
   const events = [
     {
@@ -507,22 +515,41 @@ function buildEvents(mode, agentID = "", state = "ongoing", limit = 50, offset =
     return event.state === state;
   });
   const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 50;
-  const safeOffset = Number.isFinite(offset) && offset > 0 ? offset : 0;
+  const key = `${mode}|${agentID}|${state}`;
+  let snap = snapshot ? eventSnapshots.get(snapshot) : null;
+  if (snap && (snap.key !== key)) snap = null;
+  if (!snap) {
+    snap = {
+      id: newFixtureSnapshotID(),
+      key,
+      ids: filtered.map((event) => event.id),
+    };
+    eventSnapshots.set(snap.id, snap);
+  }
+  const byID = new Map(filtered.map((event) => [event.id, event]));
+  let start = 0;
+  if (after) {
+    const index = snap.ids.indexOf(after);
+    start = index >= 0 ? index + 1 : snap.ids.length;
+  }
+  const pageIDs = snap.ids.slice(start, start + safeLimit);
   return {
     agentId: agentID || undefined,
     state,
-    events: filtered.slice(safeOffset, safeOffset + safeLimit),
+    events: pageIDs.map((id) => byID.get(id)).filter(Boolean),
     ongoingCount: ongoing.length,
     activeCount: scoped.filter((event) => event.state === "active").length,
     criticalCount: ongoing.filter((event) => event.severity === "critical").length,
     resolvedCount: scoped.filter((event) => event.state === "resolved").length,
-    matchedCount: filtered.length,
-    offset: safeOffset,
+    matchedCount: snap.ids.length,
+    snapshot: snap.id,
+    hasMore: start + pageIDs.length < snap.ids.length,
+    offset: start,
     limit: safeLimit,
   };
 }
 
-function emptyEvents(state, limit, offset) {
+function emptyEvents(state, limit, snapshot = "") {
   return {
     state,
     events: [],
@@ -531,7 +558,9 @@ function emptyEvents(state, limit, offset) {
     criticalCount: 0,
     resolvedCount: 0,
     matchedCount: 0,
-    offset,
+    snapshot: snapshot || undefined,
+    hasMore: false,
+    offset: 0,
     limit,
   };
 }
@@ -598,6 +627,8 @@ const server = createServer(async (request, response) => {
         sendJSON(response, 405, { error: "fixture method not allowed" });
       } else {
         acknowledgedFixtureEvents.clear();
+        eventSnapshots.clear();
+        eventSnapshotSeq = 0;
         fixtureOperations = seededOperations();
         fixtureDeploymentPending = new Map();
         sendJSON(response, 200, { ok: true });
@@ -642,12 +673,25 @@ const server = createServer(async (request, response) => {
       } else if (mode === "error" || mode === "events-error") {
         sendJSON(response, 503, { error: "fixture events unavailable" });
       } else {
+        const limit = Number(requestURL.searchParams.get("limit") || 50);
+        if (!Number.isFinite(limit) || limit < 1 || limit > 500) {
+          sendJSON(response, 400, { error: "event limit must be between 1 and 500" });
+          return;
+        }
+        const snapshot = requestURL.searchParams.get("snapshot") || "";
+        const after = requestURL.searchParams.get("after") || "";
+        const offset = Number(requestURL.searchParams.get("offset") || 0);
+        if ((!snapshot && (offset > 0 || after)) || offset < 0) {
+          sendJSON(response, 400, { error: "event snapshot is required to page" });
+          return;
+        }
         sendJSON(response, 200, buildEvents(
           mode,
           requestURL.searchParams.get("agent") || "",
           requestURL.searchParams.get("state") || "ongoing",
-          Number(requestURL.searchParams.get("limit") || 50),
-          Number(requestURL.searchParams.get("offset") || 0),
+          limit,
+          snapshot,
+          after,
         ));
       }
       return;
@@ -662,14 +706,14 @@ const server = createServer(async (request, response) => {
         return;
       }
       const id = requestURL.searchParams.get("id") || "";
-      const event = buildEvents(mode, "", "all").events.find((candidate) => candidate.id === id);
+      const event = buildEvents(mode, "", "all", 500).events.find((candidate) => candidate.id === id);
       if (!event) {
         sendJSON(response, 404, { error: "fixture unknown event" });
       } else if (event.state === "resolved") {
         sendJSON(response, 409, { error: "fixture event resolved" });
       } else {
         acknowledgedFixtureEvents.add(id);
-        const updated = buildEvents(mode, "", "all").events.find((candidate) => candidate.id === id);
+        const updated = buildEvents(mode, "", "all", 500).events.find((candidate) => candidate.id === id);
         sendJSON(response, 200, updated);
       }
       return;

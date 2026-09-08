@@ -57,6 +57,10 @@ func OpenSQLiteStore(ctx context.Context, path string, agents []AgentConfig, not
 		_ = database.Close()
 		return nil, err
 	}
+	if err := store.backfillListenerBaselines(ctx); err != nil {
+		_ = database.Close()
+		return nil, err
+	}
 	return store, nil
 }
 
@@ -109,12 +113,12 @@ func (s *SQLiteStore) Update(ctx context.Context, id string, online bool, lastEr
 		s.eventMu.Unlock()
 		return fmt.Errorf("load agent %s active events: %w", id, err)
 	}
-	completeListeners, err := s.database.ListenerBaseline(ctx, observation.HostID)
+	completeListeners, established, err := s.database.ListenerBaseline(ctx, observation.HostID)
 	if err != nil {
 		s.eventMu.Unlock()
 		return fmt.Errorf("load agent %s listener baseline: %w", id, err)
 	}
-	signals := evaluateEventSignals(previous, observation, active, completeListeners)
+	signals := evaluateEventSignals(previous, observation, active, completeListeners, established)
 	if observation.Online && !listenerTelemetryMissing(observation) {
 		keys := make([]string, 0, len(observation.Endpoints))
 		for key := range listenerWildcardKeys(observation) {
@@ -177,16 +181,71 @@ func (s *SQLiteStore) ObservationSummaryHistory(ctx context.Context, hostID doma
 }
 
 func (s *SQLiteStore) Events(ctx context.Context, query EventQuery) ([]domain.Event, EventCounts, error) {
-	filter := storage.EventFilter{HostID: query.HostID, State: query.State, Limit: query.Limit, Offset: query.Offset}
-	events, err := s.database.ListEvents(ctx, filter)
+	filter := storage.EventFilter{
+		HostID: query.HostID, State: query.State, Limit: query.Limit,
+		Offset: query.Offset, AfterID: query.AfterID, Snapshot: query.Snapshot,
+	}
+	events, page, err := s.database.ListEventPage(ctx, filter)
 	if err != nil {
+		if errors.Is(err, storage.ErrEventSnapshot) {
+			return nil, EventCounts{}, ErrEventSnapshot
+		}
+		if errors.Is(err, storage.ErrEventCursor) {
+			return nil, EventCounts{}, ErrEventCursor
+		}
 		return nil, EventCounts{}, err
 	}
 	counts, err := s.database.EventCountsFiltered(ctx, filter)
 	if err != nil {
 		return nil, EventCounts{}, err
 	}
-	return events, EventCounts{Ongoing: counts.Ongoing, Active: counts.Active, Critical: counts.Critical, Resolved: counts.Resolved, Matched: counts.Matched}, nil
+	return events, EventCounts{
+		Ongoing: counts.Ongoing, Active: counts.Active, Critical: counts.Critical,
+		Resolved: counts.Resolved, Matched: page.Matched, Snapshot: page.Snapshot,
+		Offset: page.Offset, HasMore: page.HasMore,
+	}, nil
+}
+
+func (s *SQLiteStore) backfillListenerBaselines(ctx context.Context) error {
+	for _, agent := range s.Agents() {
+		hostID := domain.HostID(agent.ID)
+		keys, established, err := s.database.ListenerBaseline(ctx, hostID)
+		if err != nil {
+			return fmt.Errorf("load listener baseline for %s: %w", hostID, err)
+		}
+		if established {
+			continue
+		}
+		if len(keys) > 0 {
+			if err := s.database.EstablishListenerBaseline(ctx, hostID, sortedListenerKeys(keys)); err != nil {
+				return fmt.Errorf("establish migrated listener baseline for %s: %w", hostID, err)
+			}
+			continue
+		}
+		history, err := s.database.ObservationHistory(ctx, hostID, 1000)
+		if err != nil {
+			return fmt.Errorf("load observation history for %s: %w", hostID, err)
+		}
+		for _, observation := range history {
+			if !observation.Online || listenerTelemetryMissing(observation) {
+				continue
+			}
+			if err := s.database.EstablishListenerBaseline(ctx, hostID, sortedListenerKeys(listenerWildcardKeys(observation))); err != nil {
+				return fmt.Errorf("backfill listener baseline for %s: %w", hostID, err)
+			}
+			break
+		}
+	}
+	return nil
+}
+
+func sortedListenerKeys(keys map[string]struct{}) []string {
+	out := make([]string, 0, len(keys))
+	for key := range keys {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *SQLiteStore) AcknowledgeEvent(ctx context.Context, id string, acknowledgedAt time.Time) (domain.Event, bool, error) {

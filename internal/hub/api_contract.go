@@ -102,6 +102,8 @@ type EventsResponse struct {
 	CriticalCount int         `json:"criticalCount"`
 	ResolvedCount int         `json:"resolvedCount"`
 	MatchedCount  int         `json:"matchedCount"`
+	Snapshot      string      `json:"snapshot,omitempty"`
+	HasMore       bool        `json:"hasMore"`
 	Offset        int         `json:"offset"`
 	Limit         int         `json:"limit"`
 }

@@ -35,13 +35,17 @@ type Store interface {
 }
 
 var ErrEventResolved = errors.New("event already resolved")
+var ErrEventSnapshot = errors.New("event snapshot is invalid or expired")
+var ErrEventCursor = errors.New("event paging cursor is invalid")
 var ErrOperationState = errors.New("operation state transition is invalid")
 
 type EventQuery struct {
-	HostID domain.HostID
-	State  string
-	Limit  int
-	Offset int
+	HostID   domain.HostID
+	State    string
+	Limit    int
+	Offset   int
+	AfterID  string
+	Snapshot string
 }
 
 type EventCounts struct {
@@ -50,6 +54,9 @@ type EventCounts struct {
 	Critical int
 	Resolved int
 	Matched  int
+	Snapshot string
+	Offset   int
+	HasMore  bool
 }
 
 // MemStore is the non-durable runtime projection used by tests and wrapped by
@@ -224,6 +231,9 @@ func (s *MemStore) Events(ctx context.Context, query EventQuery) ([]domain.Event
 	}
 	if query.Offset < 0 {
 		return nil, EventCounts{}, errors.New("event offset must not be negative")
+	}
+	if query.Snapshot == "" && (query.Offset > 0 || query.AfterID != "") {
+		return nil, EventCounts{}, errors.New("event snapshot is required to page")
 	}
 	if !validEventListState(query.State) {
 		return nil, EventCounts{}, errors.New("event state filter is invalid")
